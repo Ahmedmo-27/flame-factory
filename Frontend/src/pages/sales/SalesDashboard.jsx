@@ -52,11 +52,6 @@ export default function SalesDashboard() {
     [members, user?.id]
   )
 
-  const unassignedMembers = useMemo(
-    () => members.filter((m) => !m.salesRep),
-    [members]
-  )
-
   const pendingRequests = useMemo(
     () => requests.filter((r) => r.status === 'pending'),
     [requests]
@@ -193,37 +188,13 @@ export default function SalesDashboard() {
 
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Available to Claim</div>
-            <span className="text-muted text-sm">{unassignedMembers.length} unassigned</span>
+            <div className="card-title">Find a Member</div>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales/members')}>Search by ID</button>
           </div>
-          {unassignedMembers.length === 0 ? (
-            <div className="empty"><p>All members are assigned.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Type</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {unassignedMembers.slice(0, 5).map((m) => (
-                    <tr key={m._id}>
-                      <td>{m.name}</td>
-                      <td className="text-muted">{m.Type || '—'}</td>
-                      <td>
-                        <button className="btn btn-primary btn-sm" style={{ background: ACCENT }} onClick={() => navigate('/sales/members')}>
-                          Request
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="empty" style={{ padding: '24px 16px' }}>
+            <p>Look up any member using their ID on the Members page.</p>
+            <p className="text-sm text-muted">Phone numbers are only visible for members assigned to you.</p>
+          </div>
         </div>
       </div>
     </div>

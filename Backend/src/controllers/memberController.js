@@ -3,32 +3,51 @@ const User = require("../models/User");
 require("../models/Package");
 const { resolveAbilities } = require("../utils/userAbilities");
 
+function isAssignedToRep(memberObj, userId) {
+    return Boolean(
+        memberObj.salesRep &&
+        memberObj.salesRep._id.toString() === userId.toString()
+    );
+}
+
+function sanitizeMemberForSalesRep(memberObj, userId) {
+    const sanitized = { ...memberObj };
+    sanitized.isAssignedToMe = isAssignedToRep(sanitized, userId);
+    if (!sanitized.isAssignedToMe) {
+        sanitized.phones = null;
+    }
+    return sanitized;
+}
+
+const memberQuery = () =>
+    Member.find()
+        .populate("salesRep", "name email")
+        .populate("package", "name price");
+
 // Get all members
 const getMembers = async (req, res) => {
     try {
-        const members = await Member.find()
-            .populate("salesRep", "name email")
-            .populate("package", "name price");
-        
-        // Filter phones for sales role
         if (req.user.role === "Sales") {
-            const filteredMembers = members.map(member => {
+            const members = await Member.find({ salesRep: req.user.id })
+                .populate("salesRep", "name email")
+                .populate("package", "name price");
+
+            const result = members.map((member) => {
                 const memberObj = member.toObject();
-                if (!memberObj.salesRep || memberObj.salesRep._id.toString() !== req.user.id) {
-                    memberObj.phones = null;
-                }
+                memberObj.isAssignedToMe = true;
                 return memberObj;
             });
-            return res.json(filteredMembers);
+            return res.json(result);
         }
 
+        const members = await memberQuery();
         res.json(members);
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-// Get single member
+// Get single member (sales reps may look up any member by id)
 const getMemberById = async (req, res) => {
     try {
         const member = await Member.findById(req.params.id)
@@ -40,9 +59,7 @@ const getMemberById = async (req, res) => {
 
         const memberObj = member.toObject();
         if (req.user.role === "Sales") {
-            if (!memberObj.salesRep || memberObj.salesRep._id.toString() !== req.user.id) {
-                memberObj.phones = null;
-            }
+            return res.json(sanitizeMemberForSalesRep(memberObj, req.user.id));
         }
 
         res.json(memberObj);

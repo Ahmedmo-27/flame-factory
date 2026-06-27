@@ -37,7 +37,11 @@ export default function SalesManagerMembers() {
   useEffect(() => { load() }, [])
 
   const filtered = useMemo(() => members.filter((m) => {
-    const matchSearch = !search || m.name.toLowerCase().includes(search.toLowerCase()) || (m.phones && m.phones.includes(search))
+    const q = search.toLowerCase()
+    const matchSearch = !search ||
+      m.name.toLowerCase().includes(q) ||
+      (m.phones && m.phones.includes(search)) ||
+      m._id.toLowerCase().includes(q)
     const matchRep = !repFilter || (repFilter === 'unassigned' ? !m.salesRep : m.salesRep?._id === repFilter)
     return matchSearch && matchRep
   }), [members, search, repFilter])
@@ -87,7 +91,7 @@ export default function SalesManagerMembers() {
       <div className="filter-bar">
         <input
           className="search-input"
-          placeholder="Search by name or phone…"
+          placeholder="Search by name, phone, or member ID…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -114,6 +118,8 @@ export default function SalesManagerMembers() {
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ fontWeight: 700 }}>{member.name}</div>
                   <div className="text-sm text-muted" style={{ marginTop: 2 }}>
+                    <span title={member._id}>ID: {member._id.slice(-8)}</span>
+                    {' · '}
                     {member.phones ? `📞 ${member.phones}` : '—'}
                     {member.package?.name ? ` · ${member.package.name}` : ''}
                   </div>
@@ -128,10 +134,17 @@ export default function SalesManagerMembers() {
               {isOpen && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                   <div className="form-grid" style={{ marginBottom: 16 }}>
+                    <div><div className="text-sm text-muted">Member ID</div><div className="text-sm">{member._id}</div></div>
+                    <div><div className="text-sm text-muted">Phone</div><div>{member.phones || '—'}</div></div>
+                    <div><div className="text-sm text-muted">National ID</div><div>{member.nationalId || '—'}</div></div>
+                    <div><div className="text-sm text-muted">Gender</div><div>{member.gender || '—'}</div></div>
+                    <div><div className="text-sm text-muted">Birth Date</div><div>{member.bitthdate ? new Date(member.bitthdate).toLocaleDateString('en-GB') : '—'}</div></div>
                     <div><div className="text-sm text-muted">Source</div><div>{member.Type || '—'}</div></div>
+                    <div><div className="text-sm text-muted">Sales Rep</div><div>{member.salesRep?.name || 'Unassigned'}</div></div>
                     <div><div className="text-sm text-muted">Package</div><div>{member.package?.name || '—'}</div></div>
                     <div><div className="text-sm text-muted">Value</div><div>{member.package?.price ? `${member.package.price} EGP` : '—'}</div></div>
-                    <div><div className="text-sm text-muted">Gender</div><div>{member.gender || '—'}</div></div>
+                    <div><div className="text-sm text-muted">Status</div><div>{member.status || '—'}</div></div>
+                    <div><div className="text-sm text-muted">Joined</div><div>{member.createdAt ? new Date(member.createdAt).toLocaleDateString('en-GB') : '—'}</div></div>
                   </div>
 
                   <div className="flex gap-2" style={{ marginBottom: 16, flexWrap: 'wrap' }}>

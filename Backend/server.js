@@ -8,9 +8,32 @@ const salesRequestRoutes = require("./src/routes/salesRequestRoutes");
 
 dotenv.config();
 
+const allowedOrigins = [
+  "https://flame-factory.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+if (process.env.CORS_ORIGINS) {
+  allowedOrigins.push(
+    ...process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  );
+}
+
 const app = express();
 connectDB();
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.get("/", (req,res) =>{

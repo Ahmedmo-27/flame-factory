@@ -1,11 +1,16 @@
 /**
  * Base API service
- * Configure your backend base URL here.
- * All feature-specific services (authService, courseService, etc.)
- * should import and use this instance.
+ * Configure your backend base URL via VITE_API_URL (e.g. https://flame-factory.onrender.com)
+ * The /api prefix is added automatically if omitted.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+function getBaseUrl() {
+  const raw = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  const trimmed = raw.replace(/\/+$/, '')
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+
+const BASE_URL = getBaseUrl()
 
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`

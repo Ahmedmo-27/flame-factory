@@ -1,12 +1,17 @@
-const mongoose = require("mongoose");
-const connectDB = async ()=> {
-    try{
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log("MongoDB connected");
-    }catch(error){
-        console.error("MongoDB Connections Failed", error.message);
-        process.exit(1);
+const connectMongo = require("./connectMongo");
+
+const connectDB = async () => {
+  try {
+    await connectMongo();
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    if (error.message?.includes("whitelist") || error.message?.includes("timed out")) {
+      console.error(
+        "Tip: In MongoDB Atlas → Network Access, allow your current IP (or 0.0.0.0/0 for testing)."
+      );
     }
+    process.exit(1);
+  }
 };
 
 module.exports = connectDB;

@@ -14,6 +14,11 @@ const createRequest = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
+        // Prevent requesting members already assigned to the requester
+        if (member.salesRep && member.salesRep.toString() === req.user.id) {
+            return res.status(400).json({ message: "This member is already assigned to you" });
+        }
+
         // Check if there is already a pending request
         const existingRequest = await SalesRepRequest.findOne({ member: memberId, status: "pending" });
         if (existingRequest) {

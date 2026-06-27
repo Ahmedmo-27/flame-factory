@@ -16,7 +16,7 @@ export default function SalesMembers() {
   const [error, setError] = useState('')
   const [actionMsg, setActionMsg] = useState('')
   const [expandedId, setExpandedId] = useState(null)
-  const [noteText, setNoteText] = useState('')
+  const [noteTexts, setNoteTexts] = useState({})
 
   async function load() {
     setLoading(true)
@@ -46,6 +46,8 @@ export default function SalesMembers() {
     const matchSearch = !search || m.name.toLowerCase().includes(search.toLowerCase())
     const isMine = m.salesRep?._id === user?.id
     const isUnassigned = !m.salesRep
+    const isAssignedElsewhere = member.salesRep && !isMine
+    if (filter === 'others') return matchSearch && isAssignedElsewhere
     if (filter === 'mine') return matchSearch && isMine
     if (filter === 'unassigned') return matchSearch && isUnassigned
     return matchSearch
@@ -63,16 +65,36 @@ export default function SalesMembers() {
   }
 
   async function handleAddNote(memberId) {
-    if (!noteText.trim()) return
+    const text = (noteTexts[memberId] || '').trim()
+    if (!text) return
     setActionMsg('')
     try {
-      await memberApiService.addNote(memberId, noteText.trim())
-      setNoteText('')
+      await memberApiService.addNote(memberId, text)
+      setNoteTexts((prev) => ({ ...prev, [memberId]: '' }))
       setActionMsg('Note added.')
       await load()
     } catch (err) {
       setActionMsg(err.message)
     }
+  }
+
+  function renderRequestAction(member, isMine, status) {
+    if (isMine) {
+      return <span className="badge badge-active">Assigned to you</span>
+    }
+    if (status === 'pending') {
+      return <span className="badge badge-expiring">Pending approval</span>
+    }
+    return (
+      <button
+        className="btn btn-primary btn-sm"
+        style={{ background: ACCENT }}
+        disabled={pendingMemberIds.has(member._id)}
+        onClick={() => handleRequest(member._id)}
+      >
+        {member.salesRep ? 'Request Takeover' : 'Request Assignment'}
+      </button>
+    )
   }
 
   function requestStatus(memberId) {
@@ -106,6 +128,7 @@ export default function SalesMembers() {
         <select style={sel} value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">All Members</option>
           <option value="mine">My Assignments</option>
+          <option value="others">Assigned to Others</option>
           <option value="unassigned">Unassigned</option>
         </select>
       </div>
@@ -132,22 +155,10 @@ export default function SalesMembers() {
                   </div>
                 </div>
                 <span className={`badge badge-${member.status}`}>{member.status}</span>
-                {isMine ? (
-                  <span className="badge badge-active">Assigned to you</span>
-                ) : member.salesRep ? (
+                {member.salesRep && !isMine && (
                   <span className="badge">{member.salesRep.name}</span>
-                ) : status === 'pending' ? (
-                  <span className="badge badge-expiring">Pending approval</span>
-                ) : (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    style={{ background: ACCENT }}
-                    disabled={pendingMemberIds.has(member._id)}
-                    onClick={() => handleRequest(member._id)}
-                  >
-                    Request Assignment
-                  </button>
                 )}
+                {renderRequestAction(member, isMine, status)}
                 <button className="btn btn-ghost btn-sm" onClick={() => setExpandedId(isOpen ? null : member._id)}>
                   {isOpen ? 'Hide' : 'Details'}
                 </button>
@@ -177,8 +188,8 @@ export default function SalesMembers() {
                     <input
                       className="search-input"
                       placeholder="Add a note…"
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
+                      value={noteTexts[member._id] || ''}
+                      onChange={(e) => setNoteTexts((prev) => ({ ...prev, [member._id]: e.target.value }))}
                       style={{ flex: 1 }}
                     />
                     <button className="btn btn-primary btn-sm" style={{ background: ACCENT }} onClick={() => handleAddNote(member._id)}>

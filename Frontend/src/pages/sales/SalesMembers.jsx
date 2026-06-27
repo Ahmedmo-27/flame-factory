@@ -46,7 +46,7 @@ export default function SalesMembers() {
     const matchSearch = !search || m.name.toLowerCase().includes(search.toLowerCase())
     const isMine = m.salesRep?._id === user?.id
     const isUnassigned = !m.salesRep
-    const isAssignedElsewhere = member.salesRep && !isMine
+    const isAssignedElsewhere = m.salesRep && !isMine
     if (filter === 'others') return matchSearch && isAssignedElsewhere
     if (filter === 'mine') return matchSearch && isMine
     if (filter === 'unassigned') return matchSearch && isUnassigned

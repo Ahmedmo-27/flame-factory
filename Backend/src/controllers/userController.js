@@ -57,9 +57,39 @@ const loginUser =  async (req, res) =>{
     token,
     user
     });
-    
-
-
-
 };
-module.exports = {registerUser, loginUser};
+
+// Get sales target
+const getSalesTarget = async (req, res) => {
+    try {
+        if (req.user.role !== "Sales") {
+            return res.status(403).json({ message: "Only sales representatives can access this" });
+        }
+
+        const Member = require("../models/Member");
+        
+        // Find all members assigned to this sales rep
+        // We calculate revenue based on the package price of these members
+        const members = await Member.find({ salesRep: req.user.id }).populate("package");
+        
+        // Calculate achieved revenue
+        let achievedTarget = 0;
+        members.forEach(member => {
+            if (member.package && member.package.price) {
+                achievedTarget += member.package.price;
+            }
+        });
+
+        const user = await User.findById(req.user.id);
+
+        res.json({
+            monthlyTarget: user.monthlyTarget,
+            achievedTarget: achievedTarget,
+            currency: "EGP" // Or whatever the default currency is
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+module.exports = {registerUser, loginUser, getSalesTarget};

@@ -6,13 +6,13 @@ let token;
 // check  if token exists
 if(
     req.headers.authorization && 
-    req.headers.authorization.starstWith("Bearer")
+    req.headers.authorization.startsWith("Bearer")
 ){
     token = req.headers.authorization.split(" ")[1];
 }
 
 if(!token){
-    return res.status(401).json({message: "NOt authorized, no token"});
+    return res.status(401).json({message: "Not authorized, no token"});
 }
 
 try {
@@ -22,8 +22,17 @@ try {
 }catch (err){
     res.status(401).json({message:"Token failed"});
     }
-
-
-
 };
-module.exports = protect;
+
+const authorizeRoles = (...roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({
+                message: `User role ${req.user.role} is not authorized to access this route`
+            });
+        }
+        next();
+    };
+};
+
+module.exports = { protect, authorizeRoles };

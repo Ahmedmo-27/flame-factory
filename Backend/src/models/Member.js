@@ -110,6 +110,12 @@ const memberSchema = new mongoose.Schema({
         default: null
     },
 
+    salesRep: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
+    },
+
     package:{
         type: mongoose.Schema.Types.ObjectId,
         ref:"Package",

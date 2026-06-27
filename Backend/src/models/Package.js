@@ -43,12 +43,12 @@ const packageSchema = new mongoose.Schema({
     },
 
     createdBy:{
-        type: mongoose.Aggregate.Schema.Types.ObjectID,
+        type: mongoose.Schema.Types.ObjectId,
         ref:"User",
         required: true
     }
 
 },
-    {timestamp:true}
+    {timestamps:true}
 );
-module.exports = mongoose.model("package", packageSchema);
+module.exports = mongoose.model("Package", packageSchema);

@@ -206,8 +206,8 @@ const getUserById = async (req, res) => {
 
 const updateSalesRepAbilities = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
-            return res.status(403).json({ message: "Not authorized" });
+        if (req.user.role !== "Sales Manager") {
+            return res.status(403).json({ message: "Only sales managers can update representative permissions" });
         }
 
         const user = await User.findById(req.params.id);

@@ -22,7 +22,7 @@ router.get("/me", protect, getMyProfile);
 router.get("/sales-revenue", protect, getSalesRevenue);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/:id", protect, getUserById);
-router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager", "Owner"), updateSalesRepAbilities);
+router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);

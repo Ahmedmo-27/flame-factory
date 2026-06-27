@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import authService from '../../services/authService'
+import { useAuth } from '../../context/AuthContext'
+import { isSalesManagerRole } from '../../utils/roles'
 
 const ACCENT = '#0ea5e9'
 
@@ -73,6 +75,8 @@ function AbilityToggle({ id, label, description, enabled, onChange, disabled }) 
 }
 
 export default function SalesRepProfile({ repId, readOnly = false, onBack }) {
+  const { user } = useAuth()
+  const canEdit = !readOnly && isSalesManagerRole(user?.role)
   const [profile, setProfile] = useState(null)
   const [abilities, setAbilities] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -98,6 +102,7 @@ export default function SalesRepProfile({ repId, readOnly = false, onBack }) {
   }, [repId])
 
   async function handleSave() {
+    if (!canEdit) return
     setSaving(true)
     setMessage('')
     setError('')
@@ -199,12 +204,12 @@ export default function SalesRepProfile({ repId, readOnly = false, onBack }) {
             <div>
               <div className="card-title">Permissions</div>
               <div className="text-sm text-muted">
-                {readOnly
-                  ? 'Your current permissions as set by your sales manager'
-                  : 'Control what this representative can do in the sales portal'}
+                {canEdit
+                  ? 'Control what this representative can do in the sales portal'
+                  : 'Your current permissions as set by your sales manager'}
               </div>
             </div>
-            {!readOnly && (
+            {canEdit && (
               <button
                 className="btn btn-primary btn-sm"
                 style={{ background: ACCENT }}
@@ -223,7 +228,7 @@ export default function SalesRepProfile({ repId, readOnly = false, onBack }) {
               label={meta.label}
               description={meta.description}
               enabled={abilities?.[key] !== false}
-              disabled={readOnly || saving}
+              disabled={!canEdit || saving}
               onChange={(value) => handleToggle(key, value)}
             />
           ))}

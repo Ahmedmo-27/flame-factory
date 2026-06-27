@@ -95,7 +95,7 @@ const memberSchema = new mongoose.Schema({
     status: {
         type: String,
         enum:["active","frozen","expired"],
-        default: active
+        default: "active"
     },
 
     createdBy:{

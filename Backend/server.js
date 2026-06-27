@@ -20,15 +20,24 @@ if (process.env.CORS_ORIGINS) {
   );
 }
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow Vercel production and preview deployments
+  if (/^https:\/\/[\w.-]+\.vercel\.app$/.test(origin)) return true;
+  return false;
+}
+
 const app = express();
 connectDB();
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
+        // Never pass an Error here — that becomes a 500 in Express
+        callback(null, false);
       }
     },
     credentials: true,
@@ -44,6 +53,10 @@ app.use("/api/users", userRoutes);
 app.use("/api/members", memberRoutes);
 app.use("/api/sales-requests", salesRequestRoutes);
 
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ message: "Server error" });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT,()=>{

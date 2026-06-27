@@ -1,4 +1,5 @@
 const Member = require("../models/Member");
+require("../models/Package");
 
 // Get all members
 const getMembers = async (req, res) => {

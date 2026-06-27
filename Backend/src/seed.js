@@ -29,13 +29,20 @@ const USERS = [
     name: "Omar Sales",
     email: "sales3@test.com",
     role: "Sales",
+    abilities: {
+      canCommentOnMembers: true,
+      canRequestAssignment: false,
+      canRequestTakeover: false,
+    },
   },
 ];
 
-async function upsertUser({ name, email, role, passwordHash }) {
+async function upsertUser({ name, email, role, passwordHash, abilities }) {
+  const update = { name, email, role, password: passwordHash };
+  if (abilities) update.abilities = abilities;
   return User.findOneAndUpdate(
     { email },
-    { name, email, role, password: passwordHash },
+    update,
     { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
 }
@@ -169,7 +176,7 @@ async function seed() {
   console.log("Sales Manager : sales.manager@test.com");
   console.log("Sales Rep 1   : sales1@test.com  (Ahmed - has Karim assigned)");
   console.log("Sales Rep 2   : sales2@test.com  (Sara - has Mona & Nour assigned)");
-  console.log("Sales Rep 3   : sales3@test.com  (Omar - no assignments)");
+  console.log("Sales Rep 3   : sales3@test.com  (Omar - request abilities disabled)");
   console.log("\nSample data:");
   console.log("- Youssef Ibrahim is unassigned (request assignment as any sales rep)");
   console.log("- Nour Mahmoud has a pending takeover request from sales1");

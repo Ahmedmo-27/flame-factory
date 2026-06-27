@@ -19,6 +19,12 @@ const userSchema = new mongoose.Schema({
     monthlyTarget: {
         type: Number,
         default: 0
+    },
+
+    abilities: {
+        canCommentOnMembers: { type: Boolean, default: true },
+        canRequestAssignment: { type: Boolean, default: true },
+        canRequestTakeover: { type: Boolean, default: true },
     }
 
 }, { timestamps: true });

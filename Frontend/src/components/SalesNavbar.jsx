@@ -9,10 +9,13 @@ const SALES_NAV = [
   { path: '/sales/dashboard', label: 'Dashboard' },
   { path: '/sales/members', label: 'Members' },
   { path: '/sales/requests', label: 'My Requests' },
+  { path: '/sales/profile', label: 'My Profile' },
 ]
 
 const MANAGER_NAV = [
   { path: '/sales-manager/dashboard', label: 'Dashboard' },
+  { path: '/sales-manager/team', label: 'Team' },
+  { path: '/sales-manager/packages', label: 'Packages' },
   { path: '/sales-manager/requests', label: 'Requests' },
   { path: '/sales-manager/members', label: 'Members' },
 ]

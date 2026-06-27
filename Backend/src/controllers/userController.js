@@ -1,6 +1,7 @@
 const User = require("..//models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { formatUserResponse } = require("../utils/userAbilities");
 
 //Register
 const registerUser = async (req, res) => {
@@ -72,12 +73,7 @@ const loginUser = async (req, res) => {
         res.json({
             message: "login successful",
             token,
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-            }
+            user: formatUserResponse(user),
         });
     } catch (error) {
         console.error("loginUser error:", error);
@@ -164,11 +160,90 @@ const getSalesReps = async (req, res) => {
             return res.status(403).json({ message: "Not authorized" });
         }
 
-        const reps = await User.find({ role: "Sales" }).select("name email _id");
-        res.json(reps);
+        const reps = await User.find({ role: "Sales" }).select("name email _id abilities monthlyTarget createdAt");
+        res.json(reps.map(formatUserResponse));
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-module.exports = { registerUser, loginUser, getSalesRevenue, getSalesReps };
+const getMyProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json(formatUserResponse(user));
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const isSelf = req.user.id === user._id.toString();
+        const isManager = ["Sales Manager", "Owner"].includes(req.user.role);
+
+        if (!isSelf && !isManager) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        if (user.role !== "Sales" && !isSelf) {
+            return res.status(400).json({ message: "Profile is only available for sales representatives" });
+        }
+
+        res.json(formatUserResponse(user));
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const updateSalesRepAbilities = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.role !== "Sales") {
+            return res.status(400).json({ message: "Abilities can only be updated for sales representatives" });
+        }
+
+        const { abilities } = req.body;
+        if (!abilities || typeof abilities !== "object") {
+            return res.status(400).json({ message: "Abilities object is required" });
+        }
+
+        const allowedKeys = ["canCommentOnMembers", "canRequestAssignment", "canRequestTakeover"];
+        for (const key of allowedKeys) {
+            if (abilities[key] !== undefined) {
+                user.abilities[key] = Boolean(abilities[key]);
+            }
+        }
+
+        await user.save();
+        res.json({ message: "Abilities updated", user: formatUserResponse(user) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+module.exports = {
+    registerUser,
+    loginUser,
+    getSalesRevenue,
+    getSalesReps,
+    getMyProfile,
+    getUserById,
+    updateSalesRepAbilities,
+};

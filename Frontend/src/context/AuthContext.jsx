@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react'
 import authService from '../services/authService'
+import { resolveAbilities } from '../utils/roles'
 
 const AUTH_KEY = 'sales_auth_user'
 const TOKEN_KEY = 'token'
@@ -20,6 +21,7 @@ export function AuthProvider({ children }) {
       name: userData.name,
       email: userData.email,
       role: userData.role,
+      abilities: userData.role === 'Sales' ? resolveAbilities(userData) : undefined,
     }
     localStorage.setItem(AUTH_KEY, JSON.stringify(safeUser))
     setUser(safeUser)
@@ -36,6 +38,14 @@ export function AuthProvider({ children }) {
     return login({ email, password })
   }
 
+  function updateUser(partial) {
+    setUser((prev) => {
+      const next = { ...prev, ...partial }
+      localStorage.setItem(AUTH_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
   function logout() {
     localStorage.removeItem(AUTH_KEY)
     localStorage.removeItem(TOKEN_KEY)
@@ -43,7 +53,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

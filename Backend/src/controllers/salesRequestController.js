@@ -1,5 +1,7 @@
 const SalesRepRequest = require("../models/SalesRepRequest");
 const Member = require("../models/Member");
+const User = require("../models/User");
+const { resolveAbilities } = require("../utils/userAbilities");
 
 // Submit a request to assign a member to the logged-in sales rep
 const createRequest = async (req, res) => {
@@ -12,6 +14,18 @@ const createRequest = async (req, res) => {
         const member = await Member.findById(memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        const salesUser = await User.findById(req.user.id);
+        const abilities = resolveAbilities(salesUser);
+        const isTakeover = Boolean(member.salesRep);
+
+        if (isTakeover && !abilities.canRequestTakeover) {
+            return res.status(403).json({ message: "You are not allowed to request replacing another representative" });
+        }
+
+        if (!isTakeover && !abilities.canRequestAssignment) {
+            return res.status(403).json({ message: "You are not allowed to request acquiring new members" });
         }
 
         // Prevent requesting members already assigned to the requester

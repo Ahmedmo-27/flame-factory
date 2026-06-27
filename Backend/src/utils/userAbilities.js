@@ -1,0 +1,26 @@
+function resolveAbilities(user) {
+    return {
+        canCommentOnMembers: user.abilities?.canCommentOnMembers !== false,
+        canRequestAssignment: user.abilities?.canRequestAssignment !== false,
+        canRequestTakeover: user.abilities?.canRequestTakeover !== false,
+    };
+}
+
+function formatUserResponse(user) {
+    const base = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        monthlyTarget: user.monthlyTarget ?? 0,
+        createdAt: user.createdAt,
+    };
+
+    if (user.role === "Sales") {
+        base.abilities = resolveAbilities(user);
+    }
+
+    return base;
+}
+
+module.exports = { resolveAbilities, formatUserResponse };

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import memberApiService from '../../services/memberApiService'
 import salesRequestService from '../../services/salesRequestService'
 import { useAuth } from '../../context/AuthContext'
+import { hasAbility } from '../../utils/roles'
 
 const ACCENT = '#0ea5e9'
 const sel = { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '9px 12px', fontSize: 13 }
@@ -85,6 +86,16 @@ export default function SalesMembers() {
     if (status === 'pending') {
       return <span className="badge badge-expiring">Pending approval</span>
     }
+
+    const isTakeover = Boolean(member.salesRep)
+    const canRequest = isTakeover
+      ? hasAbility(user, 'canRequestTakeover')
+      : hasAbility(user, 'canRequestAssignment')
+
+    if (!canRequest) {
+      return <span className="badge text-muted">Request disabled</span>
+    }
+
     return (
       <button
         className="btn btn-primary btn-sm"
@@ -92,7 +103,7 @@ export default function SalesMembers() {
         disabled={pendingMemberIds.has(member._id)}
         onClick={() => handleRequest(member._id)}
       >
-        {member.salesRep ? 'Request Takeover' : 'Request Assignment'}
+        {isTakeover ? 'Request Takeover' : 'Request Assignment'}
       </button>
     )
   }
@@ -184,18 +195,22 @@ export default function SalesMembers() {
                     </div>
                   )}
 
-                  <div className="flex gap-2">
-                    <input
-                      className="search-input"
-                      placeholder="Add a note…"
-                      value={noteTexts[member._id] || ''}
-                      onChange={(e) => setNoteTexts((prev) => ({ ...prev, [member._id]: e.target.value }))}
-                      style={{ flex: 1 }}
-                    />
-                    <button className="btn btn-primary btn-sm" style={{ background: ACCENT }} onClick={() => handleAddNote(member._id)}>
-                      Add Note
-                    </button>
-                  </div>
+                  {hasAbility(user, 'canCommentOnMembers') ? (
+                    <div className="flex gap-2">
+                      <input
+                        className="search-input"
+                        placeholder="Add a note…"
+                        value={noteTexts[member._id] || ''}
+                        onChange={(e) => setNoteTexts((prev) => ({ ...prev, [member._id]: e.target.value }))}
+                        style={{ flex: 1 }}
+                      />
+                      <button className="btn btn-primary btn-sm" style={{ background: ACCENT }} onClick={() => handleAddNote(member._id)}>
+                        Add Note
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted">Commenting on members is disabled for your account.</div>
+                  )}
                 </div>
               )}
             </div>

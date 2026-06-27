@@ -146,6 +146,7 @@ export default function SalesManagerDashboard() {
         <div className="card">
           <div className="card-header">
             <div className="card-title">Team Revenue This Month</div>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales-manager/team')}>Manage team</button>
           </div>
           {repPerformance.length === 0 ? (
             <div className="empty"><p>No sales reps found.</p></div>
@@ -157,6 +158,7 @@ export default function SalesManagerDashboard() {
                     <th>Rep</th>
                     <th>Members</th>
                     <th>This Month</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -165,6 +167,14 @@ export default function SalesManagerDashboard() {
                       <td>{rep.name}</td>
                       <td>{rep.assignedCount}</td>
                       <td>{formatCurrency(rep.monthlyRevenue)}</td>
+                      <td>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => navigate(`/sales-manager/team/${rep._id}`)}
+                        >
+                          Profile
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

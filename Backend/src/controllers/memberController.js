@@ -1,5 +1,7 @@
 const Member = require("../models/Member");
+const User = require("../models/User");
 require("../models/Package");
+const { resolveAbilities } = require("../utils/userAbilities");
 
 // Get all members
 const getMembers = async (req, res) => {
@@ -55,6 +57,14 @@ const addNote = async (req, res) => {
         const { text } = req.body;
         if (!text) {
             return res.status(400).json({ message: "Note text is required" });
+        }
+
+        if (req.user.role === "Sales") {
+            const salesUser = await User.findById(req.user.id);
+            const abilities = resolveAbilities(salesUser);
+            if (!abilities.canCommentOnMembers) {
+                return res.status(403).json({ message: "You are not allowed to comment on members" });
+            }
         }
 
         const member = await Member.findById(req.params.id);

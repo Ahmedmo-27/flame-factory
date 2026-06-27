@@ -5,6 +5,7 @@ const connectDB = require("./src/config/db");
 const userRoutes = require("./src/routes/userRoutes");
 const memberRoutes = require("./src/routes/memberRoutes");
 const salesRequestRoutes = require("./src/routes/salesRequestRoutes");
+const packageRoutes = require("./src/routes/packageRoutes");
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ res.send("Gym System API is running");
 app.use("/api/users", userRoutes);
 app.use("/api/members", memberRoutes);
 app.use("/api/sales-requests", salesRequestRoutes);
+app.use("/api/packages", packageRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

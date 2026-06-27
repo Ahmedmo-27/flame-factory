@@ -21,3 +21,23 @@ export function getDefaultRoute(role) {
   if (isSalesManagerRole(role)) return '/sales-manager/dashboard'
   return '/'
 }
+
+export const DEFAULT_ABILITIES = {
+  canCommentOnMembers: true,
+  canRequestAssignment: true,
+  canRequestTakeover: true,
+}
+
+export function resolveAbilities(user) {
+  if (!user?.abilities) return { ...DEFAULT_ABILITIES }
+  return {
+    canCommentOnMembers: user.abilities.canCommentOnMembers !== false,
+    canRequestAssignment: user.abilities.canRequestAssignment !== false,
+    canRequestTakeover: user.abilities.canRequestTakeover !== false,
+  }
+}
+
+export function hasAbility(user, ability) {
+  if (!isSalesRole(user?.role)) return true
+  return resolveAbilities(user)[ability] !== false
+}

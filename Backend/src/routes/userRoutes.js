@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const {registerUser, loginUser, getSalesTarget} = require("../controllers/userController");
-const { protect } = require("../middleware/authMiddleware");
+const { registerUser, loginUser, getSalesRevenue, getSalesReps } = require("../controllers/userController");
+const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 
 router.get("/profile", protect, (req,res)=> {
 res.json({
@@ -10,7 +10,8 @@ user:req.user
 });
 });
 
-router.get("/sales-target", protect, getSalesTarget);
+router.get("/sales-revenue", protect, getSalesRevenue);
+router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);

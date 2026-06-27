@@ -24,7 +24,12 @@ const registerUser = async (req, res) => {
 
     res.status(201).json({
         message: "User created",
-        user
+        user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        }
     });
 };
 
@@ -53,43 +58,100 @@ const loginUser =  async (req, res) =>{
     );
     
     res.json({
-    message:"login successful",
-    token,
-    user
+        message: "login successful",
+        token,
+        user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+        }
     });
 };
 
-// Get sales target
-const getSalesTarget = async (req, res) => {
+// Get monthly sales revenue for the logged-in rep
+const getSalesRevenue = async (req, res) => {
     try {
         if (req.user.role !== "Sales") {
             return res.status(403).json({ message: "Only sales representatives can access this" });
         }
 
         const Member = require("../models/Member");
-        
-        // Find all members assigned to this sales rep
-        // We calculate revenue based on the package price of these members
         const members = await Member.find({ salesRep: req.user.id }).populate("package");
-        
-        // Calculate achieved revenue
-        let achievedTarget = 0;
-        members.forEach(member => {
-            if (member.package && member.package.price) {
-                achievedTarget += member.package.price;
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+        const lastMonthYear = lastMonthDate.getFullYear();
+        const lastMonth = lastMonthDate.getMonth();
+
+        const monthKey = (date) => {
+            const d = new Date(date);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        };
+
+        const isInMonth = (date, year, month) => {
+            const d = new Date(date);
+            return d.getFullYear() === year && d.getMonth() === month;
+        };
+
+        const monthlyMap = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(currentYear, currentMonth - i, 1);
+            const key = monthKey(d);
+            monthlyMap[key] = { month: key, revenue: 0, salesCount: 0 };
+        }
+
+        let currentMonthRevenue = 0;
+        let lastMonthRevenue = 0;
+        let totalRevenue = 0;
+
+        members.forEach((member) => {
+            const price = member.package?.price || 0;
+            if (!price) return;
+
+            totalRevenue += price;
+            const key = monthKey(member.createdAt);
+
+            if (monthlyMap[key]) {
+                monthlyMap[key].revenue += price;
+                monthlyMap[key].salesCount += 1;
+            }
+
+            if (isInMonth(member.createdAt, currentYear, currentMonth)) {
+                currentMonthRevenue += price;
+            }
+            if (isInMonth(member.createdAt, lastMonthYear, lastMonth)) {
+                lastMonthRevenue += price;
             }
         });
 
-        const user = await User.findById(req.user.id);
-
         res.json({
-            monthlyTarget: user.monthlyTarget,
-            achievedTarget: achievedTarget,
-            currency: "EGP" // Or whatever the default currency is
+            currency: "EGP",
+            currentMonth: monthKey(now),
+            currentMonthRevenue,
+            lastMonthRevenue,
+            totalRevenue,
+            monthlyBreakdown: Object.values(monthlyMap),
         });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-module.exports = {registerUser, loginUser, getSalesTarget};
+// List sales reps (for managers to assign members)
+const getSalesReps = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const reps = await User.find({ role: "Sales" }).select("name email _id");
+        res.json(reps);
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+module.exports = { registerUser, loginUser, getSalesRevenue, getSalesReps };

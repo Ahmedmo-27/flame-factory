@@ -3,7 +3,9 @@ const Member = require("../models/Member");
 // Get all members
 const getMembers = async (req, res) => {
     try {
-        const members = await Member.find().populate("salesRep", "name email");
+        const members = await Member.find()
+            .populate("salesRep", "name email")
+            .populate("package", "name price");
         
         // Filter phones for sales role
         if (req.user.role === "Sales") {
@@ -26,7 +28,9 @@ const getMembers = async (req, res) => {
 // Get single member
 const getMemberById = async (req, res) => {
     try {
-        const member = await Member.findById(req.params.id).populate("salesRep", "name email");
+        const member = await Member.findById(req.params.id)
+            .populate("salesRep", "name email")
+            .populate("package", "name price");
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
         }

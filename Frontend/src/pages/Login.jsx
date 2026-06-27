@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getDefaultRoute } from '../utils/roles'
 
 export default function Login() {
   const { login } = useAuth()
@@ -23,8 +24,8 @@ export default function Login() {
     }
     setLoading(true)
     try {
-      login(form)
-      navigate('/', { replace: true })
+      const loggedIn = await login(form)
+      navigate(getDefaultRoute(loggedIn.role), { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

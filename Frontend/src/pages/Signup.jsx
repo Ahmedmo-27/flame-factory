@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getDefaultRoute } from '../utils/roles'
 
 export default function Signup() {
   const { register } = useAuth()
@@ -30,8 +31,8 @@ export default function Signup() {
     if (err) { setError(err); return }
     setLoading(true)
     try {
-      register({ name: form.name, email: form.email, password: form.password })
-      navigate('/', { replace: true })
+      const loggedIn = await register({ name: form.name, email: form.email, password: form.password })
+      navigate(getDefaultRoute(loggedIn.role), { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

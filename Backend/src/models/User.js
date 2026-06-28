@@ -13,7 +13,8 @@ password: String,
 role:{
     type: String,
     enum: ["owner", "receptionist", "coach", "accountant", "sales","Sales Manager"],
-    default: "receptionist"
+    default: "receptionist",
+    required: true
 }
 
 },{timestamps:true});

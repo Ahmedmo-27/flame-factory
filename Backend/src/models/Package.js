@@ -1,54 +1,66 @@
 const mongoose = require("mongoose");
+
 const packageSchema = new mongoose.Schema({
 
-    name: { 
+    name: {
         type: String,
         required: true,
         trim: true
     },
 
-    type:{
+    activityType: {
         type: String,
-        required:true
+        enum: ["gym", "crossfit", "box", "mma", "kickboxing", "calisthenics"],
+        default: "gym"
     },
-    
-    price:{
-        type: Number,
-        required:true
+
+    duration: {
+        type: String,
+        enum: ["1 month", "3 months", "6 months", "1 year"],
+        required: true
     },
-    
-    durationMonths:{
+
+    price: {
         type: Number,
         required: true
     },
 
-    sessionsLimit:{
-        type:Number,
+    // Max days a member on this package is allowed to freeze per subscription
+    freezeLimitDays: {
+        type: Number,
+        default: 0
+    },
+
+    // How many invitation slots a member on this package gets
+    invitationLimit: {
+        type: Number,
+        default: 0
+    },
+
+    // Discount % auto-applied on renewal (e.g. 15 for 15%)
+    renewalDiscountPercent: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
+    },
+
+    description: {
+        type: String,
         default: null
     },
 
-    freezeLimitDays:{
-        type: Number,
-        default:0
-    },
-
-    hasCoach: {
-        type:Boolean,
-        default: false
-    },
-
-    isActive:{
-        type:Boolean,
+    isActive: {
+        type: Boolean,
         default: true
     },
 
-    createdBy:{
-        type: mongoose.Aggregate.Schema.Types.ObjectID,
-        ref:"User",
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
         required: true
     }
 
-},
-    {timestamp:true}
-);
-module.exports = mongoose.model("package", packageSchema);
+}, { timestamps: true });
+
+module.exports = mongoose.model("Package", packageSchema);

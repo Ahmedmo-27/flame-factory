@@ -4,6 +4,7 @@ const {
     registerUser,
     loginUser,
     getSalesRevenue,
+    getSalesManagerRevenue,
     getSalesReps,
     getMyProfile,
     getUserById,
@@ -20,6 +21,7 @@ router.get("/profile", protect, (req, res) => {
 
 router.get("/me", protect, getMyProfile);
 router.get("/sales-revenue", protect, getSalesRevenue);
+router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner"), getSalesManagerRevenue);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/:id", protect, getUserById);
 router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);

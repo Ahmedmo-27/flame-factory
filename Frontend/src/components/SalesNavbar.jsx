@@ -15,6 +15,7 @@ const SALES_NAV = [
 const MANAGER_NAV = [
   { path: '/sales-manager/dashboard', label: 'Dashboard' },
   { path: '/sales-manager/team', label: 'Team' },
+  { path: '/sales-manager/target', label: 'Target' },
   { path: '/sales-manager/packages', label: 'Packages' },
   { path: '/sales-manager/requests', label: 'Requests' },
   { path: '/sales-manager/members', label: 'Members' },

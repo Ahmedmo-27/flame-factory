@@ -6,8 +6,16 @@ import salesRequestService from '../../services/salesRequestService'
 
 const ACCENT = '#0ea5e9'
 
-function formatCurrency(amount) {
-  return `${Number(amount || 0).toLocaleString()} EGP`
+function formatCurrency(amount, currency = 'EGP') {
+  return `${Number(amount || 0).toLocaleString()} ${currency}`
+}
+
+function formatDayKey(dayKeyStr) {
+  if (!dayKeyStr) return 'Today'
+  const [year, month, day] = dayKeyStr.split('-')
+  return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('en-GB', {
+    weekday: 'long', day: '2-digit', month: 'short',
+  })
 }
 
 export default function SalesManagerDashboard() {
@@ -15,6 +23,7 @@ export default function SalesManagerDashboard() {
   const [members, setMembers] = useState([])
   const [requests, setRequests] = useState([])
   const [reps, setReps] = useState([])
+  const [revenue, setRevenue] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -23,14 +32,16 @@ export default function SalesManagerDashboard() {
       setLoading(true)
       setError('')
       try {
-        const [memberData, requestData, repData] = await Promise.all([
+        const [memberData, requestData, repData, revenueData] = await Promise.all([
           memberApiService.getAll(),
           salesRequestService.getAll(),
           authService.getSalesReps(),
+          authService.getSalesManagerRevenue(),
         ])
         setMembers(memberData)
         setRequests(requestData)
         setReps(repData)
+        setRevenue(revenueData)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -51,22 +62,17 @@ export default function SalesManagerDashboard() {
   )
 
   const repPerformance = useMemo(() => {
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth()
-
+    const byRep = new Map((revenue?.repBreakdown || []).map((entry) => [entry.rep._id, entry]))
     return reps.map((rep) => {
+      const stats = byRep.get(rep._id)
       const assigned = members.filter((m) => m.salesRep?._id === rep._id)
-      const monthlyRevenue = assigned.reduce((sum, m) => {
-        const d = new Date(m.createdAt)
-        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
-          return sum + (m.package?.price || 0)
-        }
-        return sum
-      }, 0)
-      return { ...rep, assignedCount: assigned.length, monthlyRevenue }
+      return {
+        ...rep,
+        assignedCount: assigned.length,
+        monthlyRevenue: stats?.revenue || 0,
+      }
     }).sort((a, b) => b.monthlyRevenue - a.monthlyRevenue)
-  }, [reps, members])
+  }, [reps, members, revenue])
 
   if (loading) {
     return <div className="page"><div className="empty"><p>Loading dashboard…</p></div></div>
@@ -87,6 +93,13 @@ export default function SalesManagerDashboard() {
       {error && <div className="auth-error" style={{ marginBottom: 20 }}><span>⚠</span> {error}</div>}
 
       <div className="stats-grid">
+        <div className="stat-card active">
+          <div className="label">Today's Revenue</div>
+          <div className="value" style={{ color: ACCENT }}>
+            {formatCurrency(revenue?.currentDayRevenue, revenue?.currency)}
+          </div>
+          <div className="sub">{formatDayKey(revenue?.currentDay)}</div>
+        </div>
         <div className="stat-card expiring">
           <div className="label">Pending Requests</div>
           <div className="value">{pendingRequests.length}</div>
@@ -102,7 +115,7 @@ export default function SalesManagerDashboard() {
           <div className="value">{unassignedCount}</div>
           <div className="sub">No sales rep yet</div>
         </div>
-        <div className="stat-card active">
+        <div className="stat-card">
           <div className="label">Sales Team</div>
           <div className="value">{reps.length}</div>
           <div className="sub">Active reps</div>
@@ -146,7 +159,7 @@ export default function SalesManagerDashboard() {
         <div className="card">
           <div className="card-header">
             <div className="card-title">Team Revenue This Month</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales-manager/team')}>Manage team</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales-manager/target')}>View targets</button>
           </div>
           {repPerformance.length === 0 ? (
             <div className="empty"><p>No sales reps found.</p></div>
@@ -166,7 +179,7 @@ export default function SalesManagerDashboard() {
                     <tr key={rep._id}>
                       <td>{rep.name}</td>
                       <td>{rep.assignedCount}</td>
-                      <td>{formatCurrency(rep.monthlyRevenue)}</td>
+                      <td>{formatCurrency(rep.monthlyRevenue, revenue?.currency)}</td>
                       <td>
                         <button
                           className="btn btn-ghost btn-sm"

@@ -2,6 +2,13 @@ const User = require("..//models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { formatUserResponse } = require("../utils/userAbilities");
+const {
+    monthKey,
+    dayKey,
+    isSameDay,
+    buildMonthlyMap,
+    memberPrice,
+} = require("../utils/revenueUtils");
 
 //Register
 const registerUser = async (req, res) => {
@@ -153,6 +160,98 @@ const getSalesRevenue = async (req, res) => {
     }
 };
 
+const getSalesManagerRevenue = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const Member = require("../models/Member");
+        require("../models/Package");
+
+        const now = new Date();
+        const selectedMonth = req.query.month || monthKey(now);
+
+        const [members, reps] = await Promise.all([
+            Member.find().populate("package", "name price").populate("salesRep", "name email"),
+            User.find({ role: "Sales" }).select("name email _id monthlyTarget"),
+        ]);
+
+        const monthlyMap = buildMonthlyMap(12, now);
+        let currentDayRevenue = 0;
+        let currentMonthRevenue = 0;
+        let selectedMonthRevenue = 0;
+
+        const repStats = {};
+        reps.forEach((rep) => {
+            repStats[rep._id.toString()] = {
+                rep: {
+                    _id: rep._id,
+                    name: rep.name,
+                    email: rep.email,
+                    monthlyTarget: rep.monthlyTarget ?? 0,
+                },
+                revenue: 0,
+                salesCount: 0,
+            };
+        });
+
+        members.forEach((member) => {
+            const price = memberPrice(member);
+            if (!price) return;
+
+            const createdAt = member.createdAt;
+            const key = monthKey(createdAt);
+
+            if (monthlyMap[key]) {
+                monthlyMap[key].revenue += price;
+                monthlyMap[key].salesCount += 1;
+            }
+
+            if (isSameDay(createdAt, now)) {
+                currentDayRevenue += price;
+            }
+
+            if (key === monthKey(now)) {
+                currentMonthRevenue += price;
+            }
+
+            if (key === selectedMonth) {
+                selectedMonthRevenue += price;
+            }
+
+            const repId = member.salesRep?._id?.toString() || member.salesRep?.toString();
+            if (repId && repStats[repId] && key === selectedMonth) {
+                repStats[repId].revenue += price;
+                repStats[repId].salesCount += 1;
+            }
+        });
+
+        const repBreakdown = Object.values(repStats)
+            .map((entry) => ({
+                ...entry,
+                targetProgress: entry.rep.monthlyTarget
+                    ? Math.round((entry.revenue / entry.rep.monthlyTarget) * 100)
+                    : null,
+            }))
+            .sort((a, b) => b.revenue - a.revenue);
+
+        res.json({
+            currency: "EGP",
+            currentDay: dayKey(now),
+            currentDayRevenue,
+            currentMonth: monthKey(now),
+            currentMonthRevenue,
+            selectedMonth,
+            selectedMonthRevenue,
+            monthlyBreakdown: Object.values(monthlyMap),
+            repBreakdown,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 // List sales reps (for managers to assign members)
 const getSalesReps = async (req, res) => {
     try {
@@ -242,6 +341,7 @@ module.exports = {
     registerUser,
     loginUser,
     getSalesRevenue,
+    getSalesManagerRevenue,
     getSalesReps,
     getMyProfile,
     getUserById,

@@ -15,6 +15,7 @@ import SalesManagerMembers from '../pages/sales-manager/SalesManagerMembers'
 import SalesManagerTeam from '../pages/sales-manager/SalesManagerTeam'
 import SalesManagerRepProfilePage from '../pages/sales-manager/SalesManagerRepProfilePage'
 import SalesManagerPackages from '../pages/sales-manager/SalesManagerPackages'
+import SalesManagerTarget from '../pages/sales-manager/SalesManagerTarget'
 
 const ACCENT = '#0ea5e9'
 
@@ -41,6 +42,7 @@ export default function SalesPortalRoutes() {
             <Route path="/sales-manager/team" element={<SalesManagerTeam />} />
             <Route path="/sales-manager/team/:id" element={<SalesManagerRepProfilePage />} />
             <Route path="/sales-manager/packages" element={<SalesManagerPackages />} />
+            <Route path="/sales-manager/target" element={<SalesManagerTarget />} />
             <Route path="*" element={<Navigate to="/sales-manager/dashboard" replace />} />
           </Routes>
         </div>

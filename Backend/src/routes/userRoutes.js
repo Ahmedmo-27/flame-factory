@@ -29,4 +29,7 @@ router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateS
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 
+// Returns all users with sales or Sales Manager role — used for dropdowns
+router.get("/sales", protect, getSalesUsers);
+
 module.exports = router;

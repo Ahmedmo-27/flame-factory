@@ -2,6 +2,9 @@ const Member = require("../models/Member");
 const Package = require("../models/Package");
 const User = require("../models/User");
 const ProfileView = require("../models/ProfileView");
+const { resolveAbilities } = require("../utils/userAbilities");
+const { attachCurrentPackage } = require("../utils/revenueUtils");
+const { findMemberByIdentifier, buildMemberFilter } = require("../utils/memberLookup");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -347,11 +350,139 @@ const freezeMember = async (req, res) => {
     }
 };
 
+function getSalesRepId(memberObj) {
+    const rep = memberObj.salesRep || memberObj.assignedSales;
+    if (!rep) return null;
+    return rep._id ? rep._id.toString() : rep.toString();
+}
+
+function isAssignedToRep(memberObj, userId) {
+    const repId = getSalesRepId(memberObj);
+    return Boolean(repId && repId === userId.toString());
+}
+
+function formatSalesMember(memberObj, userId) {
+    attachCurrentPackage(memberObj);
+    if (memberObj.assignedSales) {
+        memberObj.salesRep = memberObj.assignedSales;
+    }
+    memberObj.Type = memberObj.source;
+    memberObj.isAssignedToMe = isAssignedToRep(memberObj, userId);
+    if (!memberObj.isAssignedToMe) {
+        memberObj.phones = null;
+    }
+    return memberObj;
+}
+
+const salesMemberQuery = () =>
+    Member.find()
+        .populate("assignedSales", "name email")
+        .populate("subscriptions.package", "name price duration activityType");
+
+const getMembers = async (req, res) => {
+    try {
+        if (req.user.role === "Sales") {
+            const members = await Member.find({ assignedSales: req.user.id })
+                .populate("assignedSales", "name email")
+                .populate("subscriptions.package", "name price duration activityType");
+
+            return res.json(
+                members.map((member) => formatSalesMember(member.toObject(), req.user.id))
+            );
+        }
+
+        const members = await salesMemberQuery();
+        res.json(members.map((member) => formatSalesMember(member.toObject(), req.user.id)));
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const getMemberById = async (req, res) => {
+    try {
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            if (!buildMemberFilter(identifier)) {
+                return res.status(400).json({ message: "Invalid member ID" });
+            }
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        await member.populate("assignedSales", "name email");
+        await member.populate("subscriptions.package", "name price duration activityType");
+
+        const memberObj = member.toObject();
+        if (["Sales", "Sales Manager"].includes(req.user.role)) {
+            return res.json(formatSalesMember(memberObj, req.user.id));
+        }
+
+        res.json(memberObj);
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const addNote = async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({ message: "Note text is required" });
+        }
+
+        if (req.user.role === "Sales") {
+            const salesUser = await User.findById(req.user.id);
+            const abilities = resolveAbilities(salesUser);
+            if (!abilities.canCommentOnMembers) {
+                return res.status(403).json({ message: "You are not allowed to comment on members" });
+            }
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.notes.push({ text, createdBy: req.user.id });
+        await member.save();
+        res.status(201).json({ message: "Note added successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const switchSalesRep = async (req, res) => {
+    try {
+        const { newSalesRepId } = req.body;
+        if (!newSalesRepId) {
+            return res.status(400).json({ message: "New Sales Rep ID is required" });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.assignedSales = newSalesRepId;
+        await member.save();
+
+        res.json({ message: "Sales representative updated successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
     getMemberProfile,
     checkInMember,
     assignSalesman,
-    freezeMember
+    freezeMember,
+    getMembers,
+    getMemberById,
+    addNote,
+    switchSalesRep,
 };

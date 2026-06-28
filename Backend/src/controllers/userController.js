@@ -252,6 +252,19 @@ const getSalesManagerRevenue = async (req, res) => {
     }
 };
 
+// List sales and sales manager users (for dropdowns)
+const getSalesUsers = async (req, res) => {
+    try {
+        const salesUsers = await User.find({ role: { $in: ["Sales", "Sales Manager"] } })
+            .select("name email role _id")
+            .sort({ name: 1 });
+
+        res.json({ salesUsers });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 // List sales reps (for managers to assign members)
 const getSalesReps = async (req, res) => {
     try {
@@ -342,6 +355,7 @@ module.exports = {
     loginUser,
     getSalesRevenue,
     getSalesManagerRevenue,
+    getSalesUsers,
     getSalesReps,
     getMyProfile,
     getUserById,

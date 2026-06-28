@@ -5,6 +5,7 @@ const {
     loginUser,
     getSalesRevenue,
     getSalesManagerRevenue,
+    getSalesUsers,
     getSalesReps,
     getMyProfile,
     getUserById,
@@ -23,13 +24,11 @@ router.get("/me", protect, getMyProfile);
 router.get("/sales-revenue", protect, getSalesRevenue);
 router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner"), getSalesManagerRevenue);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
+router.get("/sales", protect, getSalesUsers);
 router.get("/:id", protect, getUserById);
 router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
-
-// Returns all users with sales or Sales Manager role — used for dropdowns
-router.get("/sales", protect, getSalesUsers);
 
 module.exports = router;

@@ -4,10 +4,16 @@ const Package = require("../models/Package");
 const ProfileView = require("../models/ProfileView");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
+const { attachCurrentPackage } = require("../utils/revenueUtils");
 
 const memberPopulate = [
     { path: "salesRep", select: "name email" },
-    { path: "package", select: "name price" },
+    { path: "subscriptions.package", select: "name price" },
+];
+
+const memberListPopulate = [
+    { path: "salesRep", select: "name email" },
+    { path: "subscriptions.package", select: "name price" },
 ];
 
 function isAssignedToRep(memberObj, userId) {
@@ -28,19 +34,17 @@ function sanitizeMemberForSalesRep(memberObj, userId) {
 
 const memberQuery = () =>
     Member.find()
-        .populate("salesRep", "name email")
-        .populate("package", "name price");
+        .populate(memberListPopulate);
 
 // Get all members
 const getMembers = async (req, res) => {
     try {
         if (req.user.role === "Sales") {
             const members = await Member.find({ salesRep: req.user.id })
-                .populate("salesRep", "name email")
-                .populate("package", "name price");
+                .populate(memberListPopulate);
 
             const result = members.map((member) => {
-                const memberObj = member.toObject();
+                const memberObj = attachCurrentPackage(member.toObject());
                 memberObj.isAssignedToMe = true;
                 return memberObj;
             });
@@ -48,7 +52,7 @@ const getMembers = async (req, res) => {
         }
 
         const members = await memberQuery();
-        res.json(members);
+        res.json(members.map((member) => attachCurrentPackage(member.toObject())));
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -67,7 +71,7 @@ const getMemberById = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        const memberObj = member.toObject();
+        const memberObj = attachCurrentPackage(member.toObject());
         if (req.user.role === "Sales") {
             return res.json(sanitizeMemberForSalesRep(memberObj, req.user.id));
         }

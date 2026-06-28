@@ -97,7 +97,8 @@ const getSalesRevenue = async (req, res) => {
 
         const Member = require("../models/Member");
         require("../models/Package");
-        const members = await Member.find({ salesRep: req.user.id }).populate("package");
+        const members = await Member.find({ salesRep: req.user.id })
+            .populate("subscriptions.package", "name price");
 
         const now = new Date();
         const currentYear = now.getFullYear();
@@ -106,29 +107,19 @@ const getSalesRevenue = async (req, res) => {
         const lastMonthYear = lastMonthDate.getFullYear();
         const lastMonth = lastMonthDate.getMonth();
 
-        const monthKey = (date) => {
-            const d = new Date(date);
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        };
-
         const isInMonth = (date, year, month) => {
             const d = new Date(date);
             return d.getFullYear() === year && d.getMonth() === month;
         };
 
-        const monthlyMap = {};
-        for (let i = 5; i >= 0; i--) {
-            const d = new Date(currentYear, currentMonth - i, 1);
-            const key = monthKey(d);
-            monthlyMap[key] = { month: key, revenue: 0, salesCount: 0 };
-        }
+        const monthlyMap = buildMonthlyMap(6, now);
 
         let currentMonthRevenue = 0;
         let lastMonthRevenue = 0;
         let totalRevenue = 0;
 
         members.forEach((member) => {
-            const price = member.package?.price || 0;
+            const price = memberPrice(member);
             if (!price) return;
 
             totalRevenue += price;
@@ -173,7 +164,9 @@ const getSalesManagerRevenue = async (req, res) => {
         const selectedMonth = req.query.month || monthKey(now);
 
         const [members, reps] = await Promise.all([
-            Member.find().populate("package", "name price").populate("salesRep", "name email"),
+            Member.find()
+                .populate("subscriptions.package", "name price")
+                .populate("salesRep", "name email"),
             User.find({ role: "Sales" }).select("name email _id monthlyTarget"),
         ]);
 

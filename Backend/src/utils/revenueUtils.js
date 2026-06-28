@@ -31,8 +31,31 @@ function buildMonthlyMap(monthsBack, now = new Date()) {
     return monthlyMap;
 }
 
+function getCurrentSubscription(member) {
+    const subs = member.subscriptions;
+    if (!subs?.length) return null;
+    return subs[subs.length - 1];
+}
+
+function getCurrentPackage(member) {
+    const sub = getCurrentSubscription(member);
+    if (!sub?.package) return null;
+    return typeof sub.package === "object" ? sub.package : null;
+}
+
 function memberPrice(member) {
-    return member.package?.price || 0;
+    const sub = getCurrentSubscription(member);
+    if (sub?.pricePaid) return sub.pricePaid;
+    const pkg = getCurrentPackage(member);
+    return pkg?.price || 0;
+}
+
+function attachCurrentPackage(memberObj) {
+    const pkg = getCurrentPackage(memberObj);
+    if (pkg) {
+        memberObj.package = pkg;
+    }
+    return memberObj;
 }
 
 module.exports = {
@@ -40,5 +63,8 @@ module.exports = {
     dayKey,
     isSameDay,
     buildMonthlyMap,
+    getCurrentSubscription,
+    getCurrentPackage,
     memberPrice,
+    attachCurrentPackage,
 };

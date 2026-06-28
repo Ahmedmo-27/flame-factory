@@ -1,174 +1,32 @@
 const Member = require("../models/Member");
-const User = require("../models/User");
 const Package = require("../models/Package");
+const User = require("../models/User");
 const ProfileView = require("../models/ProfileView");
-const { resolveAbilities } = require("../utils/userAbilities");
-const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
-const { attachCurrentPackage } = require("../utils/revenueUtils");
 
-const memberPopulate = [
-    { path: "salesRep", select: "name email" },
-    { path: "subscriptions.package", select: "name price" },
-];
-
-const memberListPopulate = [
-    { path: "salesRep", select: "name email" },
-    { path: "subscriptions.package", select: "name price" },
-];
-
-function isAssignedToRep(memberObj, userId) {
-    return Boolean(
-        memberObj.salesRep &&
-        memberObj.salesRep._id.toString() === userId.toString()
-    );
-}
-
-function sanitizeMemberForSalesRep(memberObj, userId) {
-    const sanitized = { ...memberObj };
-    sanitized.isAssignedToMe = isAssignedToRep(sanitized, userId);
-    if (!sanitized.isAssignedToMe) {
-        sanitized.phones = null;
-    }
-    return sanitized;
-}
-
-const memberQuery = () =>
-    Member.find()
-        .populate(memberListPopulate);
-
-// Get all members
-const getMembers = async (req, res) => {
-    try {
-        if (req.user.role === "Sales") {
-            const members = await Member.find({ salesRep: req.user.id })
-                .populate(memberListPopulate);
-
-            const result = members.map((member) => {
-                const memberObj = attachCurrentPackage(member.toObject());
-                memberObj.isAssignedToMe = true;
-                return memberObj;
-            });
-            return res.json(result);
-        }
-
-        const members = await memberQuery();
-        res.json(members.map((member) => attachCurrentPackage(member.toObject())));
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// Get single member (sales reps may look up any member by id or memberId)
-const getMemberById = async (req, res) => {
-    try {
-        const filter = buildMemberFilter(req.params.id);
-        if (!filter) {
-            return res.status(400).json({ message: "Invalid member ID" });
-        }
-
-        const member = await Member.findOne(filter).populate(memberPopulate);
-        if (!member) {
-            return res.status(404).json({ message: "Member not found" });
-        }
-
-        const memberObj = attachCurrentPackage(member.toObject());
-        if (req.user.role === "Sales") {
-            return res.json(sanitizeMemberForSalesRep(memberObj, req.user.id));
-        }
-
-        res.json(memberObj);
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// Add note to member
-const addNote = async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) {
-            return res.status(400).json({ message: "Note text is required" });
-        }
-
-        if (req.user.role === "Sales") {
-            const salesUser = await User.findById(req.user.id);
-            const abilities = resolveAbilities(salesUser);
-            if (!abilities.canCommentOnMembers) {
-                return res.status(403).json({ message: "You are not allowed to comment on members" });
-            }
-        }
-
-        const member = await findMemberByIdentifier(req.params.id);
-        if (!member) {
-            const filter = buildMemberFilter(req.params.id);
-            if (!filter) {
-                return res.status(400).json({ message: "Invalid member ID" });
-            }
-            return res.status(404).json({ message: "Member not found" });
-        }
-
-        member.notes.push({
-            text,
-            createdBy: req.user.id
-        });
-
-        await member.save();
-        res.status(201).json({ message: "Note added successfully", member });
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// Switch sales rep
-const switchSalesRep = async (req, res) => {
-    try {
-        const { newSalesRepId } = req.body;
-        if (!newSalesRepId) {
-            return res.status(400).json({ message: "New Sales Rep ID is required" });
-        }
-
-        const member = await findMemberByIdentifier(req.params.id);
-        if (!member) {
-            const filter = buildMemberFilter(req.params.id);
-            if (!filter) {
-                return res.status(400).json({ message: "Invalid member ID" });
-            }
-            return res.status(404).json({ message: "Member not found" });
-        }
-
-        member.salesRep = newSalesRepId;
-        await member.save();
-
-        res.json({ message: "Sales representative updated successfully", member });
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-// ─── Helper: get current active package from last subscription ────────────────
+// ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
     if (!member.subscriptions || !member.subscriptions.length) return null;
     return member.subscriptions[member.subscriptions.length - 1].package;
 };
 
-// ─── Helper: generate next system ID (everyone, starts at 100) ───────────────
+// ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
 const generateSystemId = async () => {
     const last = await Member.findOne({}, { systemId: 1 }).sort({ systemId: -1 });
     if (!last || !last.systemId) return 100;
     return last.systemId + 1;
 };
 
-// ─── Helper: generate next membership ID (members only, starts at 100) ───────
-const generateMembershipId = async () => {
+// ─── Helper: generate next memberId (subscribers only, starts at 100) ────────
+const generateMemberId = async () => {
     const last = await Member.findOne(
-        { membershipId: { $ne: null } },
-        { membershipId: 1 }
-    ).sort({ membershipId: -1 });
-    if (!last || !last.membershipId) return 100;
-    return last.membershipId + 1;
+        { memberId: { $ne: null } },
+        { memberId: 1 }
+    ).sort({ memberId: -1 });
+    if (!last || !last.memberId) return 100;
+    return last.memberId + 1;
 };
 
-// ─── Helper: generate next subscription ID (global counter, starts at 100) ───
+// ─── Helper: generate next subscriptionId (global counter, starts at 100) ────
 const generateSubscriptionId = async () => {
     const result = await Member.aggregate([
         { $unwind: "$subscriptions" },
@@ -178,7 +36,7 @@ const generateSubscriptionId = async () => {
     return result[0].maxId + 1;
 };
 
-// ─── Helper: calculate end date from package duration ────────────────────────
+// ─── Helper: calculate subscription end date ─────────────────────────────────
 const calcEndDate = (startDate, duration) => {
     const end = new Date(startDate);
     switch (duration) {
@@ -190,12 +48,12 @@ const calcEndDate = (startDate, duration) => {
     return end;
 };
 
-// ─── Helper: find by systemId, membershipId, or MongoDB _id ──────────────────
+// ─── Helper: find by systemId, memberId, or MongoDB _id ──────────────────────
 const findMember = async (id) => {
     const numId = Number(id);
     const isNumeric = !isNaN(numId) && numId >= 100;
     const query = isNumeric
-        ? { $or: [{ systemId: numId }, { membershipId: numId }] }
+        ? { $or: [{ systemId: numId }, { memberId: numId }] }
         : { _id: id };
     return Member.findOne(query).populate("subscriptions.package");
 };
@@ -210,15 +68,16 @@ const createMember = async (req, res) => {
         } = req.body;
 
         const systemId = await generateSystemId();
+
         const personData = {
             systemId,
             name,
             phones,
-            nationalId:    nationalId || null,
-            photo:         photo || null,
-            gender:        gender || null,
-            birthdate:     birthdate || null,
-            source:        source || null,
+            nationalId:    nationalId    || null,
+            photo:         photo         || null,
+            gender:        gender        || null,
+            birthdate:     birthdate     || null,
+            source:        source        || null,
             assignedSales: assignedSales || null,
             createdBy:     req.user.id
         };
@@ -231,11 +90,11 @@ const createMember = async (req, res) => {
 
             const startDate      = new Date();
             const endDate        = calcEndDate(startDate, pkg.duration);
-            const membershipId   = await generateMembershipId();
+            const memberId       = await generateMemberId();
             const subscriptionId = await generateSubscriptionId();
 
             Object.assign(personData, {
-                membershipId,
+                memberId,
                 isMember: true,
                 status:   "active",
                 subscriptions: [{
@@ -283,7 +142,7 @@ const getMemberProfile = async (req, res) => {
         const numId = Number(memberId);
         const isNumeric = !isNaN(numId) && numId >= 100;
         const query = isNumeric
-            ? { $or: [{ systemId: numId }, { membershipId: numId }] }
+            ? { $or: [{ systemId: numId }, { memberId: numId }] }
             : { _id: memberId };
 
         const member = await Member.findOne(query)
@@ -293,6 +152,7 @@ const getMemberProfile = async (req, res) => {
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
             .populate("freeze.createdBy", "name")
+            .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
             .populate("userlog.createdBy", "name");
 
@@ -300,7 +160,6 @@ const getMemberProfile = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        // Current package from last subscription
         const currentPkg = getCurrentPackage(member);
 
         const checkIns = member.userlog
@@ -350,32 +209,31 @@ const checkInMember = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        // If frozen — end the freeze early and extend subscription
         if (member.status === "frozen") {
             const activeFreeze = member.freeze
-                .slice()
-                .reverse()
+                .slice().reverse()
                 .find(f => new Date(f.endDate) > today);
 
             if (activeFreeze) {
-                const freezeStart  = new Date(activeFreeze.startDate);
+                const freezeStart      = new Date(activeFreeze.startDate);
                 freezeStart.setHours(0, 0, 0, 0);
-                const originalEnd  = new Date(activeFreeze.endDate);
+                const originalEnd      = new Date(activeFreeze.endDate);
+                const actualFrozenDays = Math.ceil((today - freezeStart) / 86400000);
+                const daysSaved        = Math.ceil((originalEnd - today) / 86400000);
 
-                const actualFrozenDays = Math.ceil((today - freezeStart) / (1000 * 60 * 60 * 24));
-                const daysSaved        = Math.ceil((originalEnd - today) / (1000 * 60 * 60 * 24));
+                activeFreeze.endDate  = today;
+                activeFreeze.endedBy  = req.user.id;
 
-                activeFreeze.endDate = today;
-
-                const previousFreezesDays = member.freeze
+                const previousDays = member.freeze
                     .filter(f => f !== activeFreeze)
                     .reduce((sum, f) => sum + Math.ceil(
-                        (new Date(f.endDate) - new Date(f.startDate)) / (1000 * 60 * 60 * 24)
+                        (new Date(f.endDate) - new Date(f.startDate)) / 86400000
                     ), 0);
-                member.freezeDaysUsed = previousFreezesDays + actualFrozenDays;
+                member.freezeDaysUsed = previousDays + actualFrozenDays;
 
-                // Extend last subscription end date
                 const currentSub = member.subscriptions[member.subscriptions.length - 1];
-                if (currentSub) {
+                if (currentSub && daysSaved > 0) {
                     const newEnd = new Date(currentSub.endDate);
                     newEnd.setDate(newEnd.getDate() + daysSaved);
                     currentSub.endDate = newEnd;
@@ -413,7 +271,7 @@ const assignSalesman = async (req, res) => {
         const { salesId } = req.body;
 
         const salesUser = await User.findById(salesId);
-        if (!salesUser || !["sales", "Sales Manager"].includes(salesUser.role)) {
+        if (!salesUser || !["Sales", "Sales Manager"].includes(salesUser.role)) {
             return res.status(400).json({
                 message: "Invalid salesman — user not found or not a sales role"
             });
@@ -462,10 +320,9 @@ const freezeMember = async (req, res) => {
             });
         }
 
-        // Get freeze limit from current package
         const currentPkg    = getCurrentPackage(member);
         const allowedDays   = currentPkg?.freezeLimitDays || 0;
-        const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        const requestedDays = Math.ceil((end - start) / 86400000);
         const remainingDays = allowedDays - member.freezeDaysUsed;
 
         if (requestedDays > remainingDays) {
@@ -491,14 +348,10 @@ const freezeMember = async (req, res) => {
 };
 
 module.exports = {
-    getMembers,
-    getMemberById,
-    addNote,
-    switchSalesRep,
     createMember,
     getAllMembers,
     getMemberProfile,
     checkInMember,
     assignSalesman,
-    freezeMember,
+    freezeMember
 };

@@ -38,42 +38,21 @@ const freezeSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    note: {
+        type: String,
+        default: null
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
-    }, 
-    note:{
-        type:String,
-        default:null
     },
-    endedby:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        // required: true
+    endedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
     }
-
 }, { timestamps: true });
-
-
-
-// const unfreezeSchema = new mongoose.Schema({
-    
-//     createdBy: {
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: "User",
-//         required: true
-//     }, 
-
-//     type:{
-//         required: true,
-//         enum:["checkin","automatic","manual"]
-
-//     }
-
-// }, { timestamps: true });
-
-
 
 const invitationSchema = new mongoose.Schema({
     invitedName: {
@@ -97,7 +76,7 @@ const invitationSchema = new mongoose.Schema({
 
 const subscriptionSchema = new mongoose.Schema({
     subscriptionId: {
-        type: Number,
+        type: Number
         // auto-generated starting from 100, increments globally
     },
     package: {
@@ -133,11 +112,6 @@ const subscriptionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const memberSchema = new mongoose.Schema({
-    memberId: {
-        type: Number,
-        unique: true,
-        sparse: true,
-    },
 
     name: {
         type: String,
@@ -153,14 +127,14 @@ const memberSchema = new mongoose.Schema({
     },
 
     // Given only when a person subscribes. Used for check-in and search.
-    membershipId: {
+    memberId: {
         type: Number,
         unique: true,
         sparse: true,
         default: null
     },
 
-    // true = has an active or past subscription, false = guest/inquiry only
+    // true = has an active or past subscription, false = guest only
     isMember: {
         type: Boolean,
         default: false
@@ -192,44 +166,16 @@ const memberSchema = new mongoose.Schema({
         default: null
     },
 
+    // guest = not subscribed yet, active/frozen/expired = member
     status: {
         type: String,
         enum: ["guest", "active", "frozen", "expired"],
-        default: "active"
-    },
-
-    createdBy:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        required:true
-    },
-
-    // Current active package is read from subscriptions[last].package — not stored separately
-
-    // Full subscription history (each renewal creates a new entry)
-    subscriptions: [subscriptionSchema],
-
-    // How many freeze days used in current subscription
-    freezeDaysUsed: {
-        type: Number,
-        default: 0
-    },
-
-    // How many invitations used in current subscription
-    invitationsUsed: {
-        type: Number,
-        default: 0
+        default: "guest"
     },
 
     source: {
         type: String,
         enum: ["Social media", "Walk in", "Word of mouth", "referral", "sales call", "data entry", "others"],
-        default: null
-    },
-
-    salesRep: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
         default: null
     },
 
@@ -239,14 +185,33 @@ const memberSchema = new mongoose.Schema({
         default: null
     },
 
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
 
+    // Current active package is read from subscriptions[last].package — not stored separately
 
+    // Full subscription history (each renewal creates a new entry)
+    subscriptions: [subscriptionSchema],
 
+    // Freeze days consumed in current subscription
+    freezeDaysUsed: {
+        type: Number,
+        default: 0
+    },
 
-    notes: [noteSchema],
-    freeze: [freezeSchema],
+    // Invitations consumed in current subscription
+    invitationsUsed: {
+        type: Number,
+        default: 0
+    },
+
+    notes:       [noteSchema],
+    freeze:      [freezeSchema],
     invitations: [invitationSchema],
-    userlog: [logSchema],
+    userlog:     [logSchema]
 
 }, { timestamps: true });
 

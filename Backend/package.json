@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "node --check server.js",
     "seed": "node src/seed.js"
   },
   "keywords": [],

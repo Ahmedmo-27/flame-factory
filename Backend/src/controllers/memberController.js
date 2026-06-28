@@ -1,6 +1,7 @@
 const Member = require("../models/Member");
 const User = require("../models/User");
-require("../models/Package");
+const Package = require("../models/Package");
+const ProfileView = require("../models/ProfileView");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
 
@@ -139,17 +140,6 @@ const switchSalesRep = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
-
-module.exports = {
-    getMembers,
-    getMemberById,
-    addNote,
-    switchSalesRep
-};
-const Member = require("../models/Member");
-const Package = require("../models/Package");
-const User = require("../models/User");
-const ProfileView = require("../models/ProfileView");
 
 // ─── Helper: get current active package from last subscription ────────────────
 const getCurrentPackage = (member) => {
@@ -497,10 +487,14 @@ const freezeMember = async (req, res) => {
 };
 
 module.exports = {
+    getMembers,
+    getMemberById,
+    addNote,
+    switchSalesRep,
     createMember,
     getAllMembers,
     getMemberProfile,
     checkInMember,
     assignSalesman,
-    freezeMember
+    freezeMember,
 };

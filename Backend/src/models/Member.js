@@ -194,7 +194,7 @@ const memberSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum:["active","frozen","expired"],
+        enum: ["guest", "active", "frozen", "expired"],
         default: "active"
     },
 
@@ -202,11 +202,6 @@ const memberSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref:"User",
         required:true
-    },
-
-    Type:{
-        enum: ["guest", "active", "frozen", "expired"],
-        default: "guest"
     },
 
     // Current active package is read from subscriptions[last].package — not stored separately
@@ -236,12 +231,6 @@ const memberSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         default: null
-    },
-
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
     },
 
     assignedSales: {

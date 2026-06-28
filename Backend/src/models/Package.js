@@ -55,12 +55,13 @@ const packageSchema = new mongoose.Schema({
         default: true
     },
 
-    createdBy: {
+    createdBy:{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        ref:"User",
         required: true
     }
 
-}, { timestamps: true });
-
+},
+    {timestamps:true}
+);
 module.exports = mongoose.model("Package", packageSchema);

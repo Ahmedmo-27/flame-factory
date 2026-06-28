@@ -12,7 +12,12 @@ app.get("/", (req, res) => {
     res.send("FlamFactory API is running");
 });
 
+const memberRoutes = require("./routes/memberRoutes");
+const salesRequestRoutes = require("./routes/salesRequestRoutes");
+
 app.use("/api/users", userRoutes);
+app.use("/api/members", memberRoutes);
+app.use("/api/sales-requests", salesRequestRoutes);
 app.use("/api/members", membersRoutes);
 app.use("/api/packages", packageRoutes);
 

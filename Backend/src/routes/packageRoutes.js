@@ -1,13 +1,20 @@
 const express = require("express");
 const router = express.Router();
-const protect = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
-const { createPackage, getAllPackages } = require("../controllers/packageController");
+const {
+    getPackages,
+    getPackageById,
+    createPackage,
+    updatePackage,
+    deletePackage,
+} = require("../controllers/packageController");
+const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 
-// Anyone logged in can view packages
-router.get("/", protect, getAllPackages);
+router.use(protect);
 
-// Only owner and Sales Manager can create packages
-router.post("/", protect, authorize("owner", "Sales Manager"), createPackage);
+router.get("/", authorizeRoles("Sales", "Sales Manager", "Owner"), getPackages);
+router.get("/:id", authorizeRoles("Sales", "Sales Manager", "Owner"), getPackageById);
+router.post("/", authorizeRoles("Sales Manager", "Owner"), createPackage);
+router.put("/:id", authorizeRoles("Sales Manager", "Owner"), updatePackage);
+router.delete("/:id", authorizeRoles("Sales Manager", "Owner"), deletePackage);
 
 module.exports = router;

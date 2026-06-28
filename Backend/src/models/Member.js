@@ -189,6 +189,17 @@ const memberSchema = new mongoose.Schema({
 
     status: {
         type: String,
+        enum:["active","frozen","expired"],
+        default: "active"
+    },
+
+    createdBy:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref:"User",
+        required:true
+    },
+
+    Type:{
         enum: ["guest", "active", "frozen", "expired"],
         default: "guest"
     },
@@ -213,6 +224,12 @@ const memberSchema = new mongoose.Schema({
     source: {
         type: String,
         enum: ["Social media", "Walk in", "Word of mouth", "referral", "sales call", "data entry", "others"],
+        default: null
+    },
+
+    salesRep: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
         default: null
     },
 

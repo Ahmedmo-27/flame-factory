@@ -1,22 +1,32 @@
 const mongoose = require("mongoose");
 const userSchema = new mongoose.Schema({
 
-name: String,
+    name: String,
 
-email:{
-    type: String,
-    unique: true
-},
+    email: {
+        type: String,
+        unique: true
+    },
 
-password: String,
+    password: String,
 
-role:{
-    type: String,
-    enum: ["owner", "receptionist", "coach", "accountant", "sales","Sales Manager"],
-    default: "receptionist",
-    required: true
-}
+    role: {
+        type: String,
+        enum: ["Owner", "Receptionist", "Coach", "Accountant", "Sales", "Sales Manager"],
+        default: "Receptionist"
+    },
 
-},{timestamps:true});
+    monthlyTarget: {
+        type: Number,
+        default: 0
+    },
+
+    abilities: {
+        canCommentOnMembers: { type: Boolean, default: true },
+        canRequestAssignment: { type: Boolean, default: true },
+        canRequestTakeover: { type: Boolean, default: true },
+    }
+
+}, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema)

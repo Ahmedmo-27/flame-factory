@@ -60,6 +60,12 @@ const freezeSchema = new mongoose.Schema({
 
 
 const memberSchema = new mongoose.Schema({
+    memberId: {
+        type: Number,
+        unique: true,
+        sparse: true,
+    },
+
     name: {
         type: String,
         required: true,

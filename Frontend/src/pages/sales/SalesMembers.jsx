@@ -17,7 +17,7 @@ function MemberDetails({ member, user, noteText, onNoteChange, onAddNote, onRequ
   return (
     <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
       <div className="form-grid" style={{ marginBottom: 16 }}>
-        <div><div className="text-sm text-muted">Member ID</div><div className="text-sm">{member._id}</div></div>
+        <div><div className="text-sm text-muted">Member ID</div><div className="text-sm">{member.memberId ?? member._id}</div></div>
         <div><div className="text-sm text-muted">Phone</div><div>{member.phones ? `📞 ${member.phones}` : '📞 Hidden'}</div></div>
         <div><div className="text-sm text-muted">Source</div><div>{member.Type || '—'}</div></div>
         <div><div className="text-sm text-muted">Sales Rep</div><div>{member.salesRep?.name || 'Unassigned'}</div></div>
@@ -212,7 +212,7 @@ export default function SalesMembers() {
         <form className="flex gap-2" style={{ flexWrap: 'wrap' }} onSubmit={handleIdSearch}>
           <input
             className="search-input"
-            placeholder="Paste member ID…"
+            placeholder="Enter member ID"
             value={idSearch}
             onChange={(e) => setIdSearch(e.target.value)}
             style={{ flex: 1, minWidth: 220 }}

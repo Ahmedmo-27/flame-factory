@@ -2,6 +2,12 @@ const Member = require("../models/Member");
 const User = require("../models/User");
 require("../models/Package");
 const { resolveAbilities } = require("../utils/userAbilities");
+const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
+
+const memberPopulate = [
+    { path: "salesRep", select: "name email" },
+    { path: "package", select: "name price" },
+];
 
 function isAssignedToRep(memberObj, userId) {
     return Boolean(
@@ -47,12 +53,15 @@ const getMembers = async (req, res) => {
     }
 };
 
-// Get single member (sales reps may look up any member by id)
+// Get single member (sales reps may look up any member by id or memberId)
 const getMemberById = async (req, res) => {
     try {
-        const member = await Member.findById(req.params.id)
-            .populate("salesRep", "name email")
-            .populate("package", "name price");
+        const filter = buildMemberFilter(req.params.id);
+        if (!filter) {
+            return res.status(400).json({ message: "Invalid member ID" });
+        }
+
+        const member = await Member.findOne(filter).populate(memberPopulate);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
         }
@@ -84,8 +93,12 @@ const addNote = async (req, res) => {
             }
         }
 
-        const member = await Member.findById(req.params.id);
+        const member = await findMemberByIdentifier(req.params.id);
         if (!member) {
+            const filter = buildMemberFilter(req.params.id);
+            if (!filter) {
+                return res.status(400).json({ message: "Invalid member ID" });
+            }
             return res.status(404).json({ message: "Member not found" });
         }
 
@@ -109,8 +122,12 @@ const switchSalesRep = async (req, res) => {
             return res.status(400).json({ message: "New Sales Rep ID is required" });
         }
 
-        const member = await Member.findById(req.params.id);
+        const member = await findMemberByIdentifier(req.params.id);
         if (!member) {
+            const filter = buildMemberFilter(req.params.id);
+            if (!filter) {
+                return res.status(400).json({ message: "Invalid member ID" });
+            }
             return res.status(404).json({ message: "Member not found" });
         }
 

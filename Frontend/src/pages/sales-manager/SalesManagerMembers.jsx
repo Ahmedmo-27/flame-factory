@@ -41,7 +41,8 @@ export default function SalesManagerMembers() {
     const matchSearch = !search ||
       m.name.toLowerCase().includes(q) ||
       (m.phones && m.phones.includes(search)) ||
-      m._id.toLowerCase().includes(q)
+      m._id.toLowerCase().includes(q) ||
+      (m.memberId != null && String(m.memberId).includes(search))
     const matchRep = !repFilter || (repFilter === 'unassigned' ? !m.salesRep : m.salesRep?._id === repFilter)
     return matchSearch && matchRep
   }), [members, search, repFilter])

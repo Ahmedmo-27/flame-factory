@@ -2,6 +2,7 @@ const SalesRepRequest = require("../models/SalesRepRequest");
 const Member = require("../models/Member");
 const User = require("../models/User");
 const { resolveAbilities } = require("../utils/userAbilities");
+const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
 
 // Submit a request to assign a member to the logged-in sales rep
 const createRequest = async (req, res) => {
@@ -11,10 +12,16 @@ const createRequest = async (req, res) => {
             return res.status(400).json({ message: "Member ID is required" });
         }
 
-        const member = await Member.findById(memberId);
+        const member = await findMemberByIdentifier(memberId);
         if (!member) {
+            const filter = buildMemberFilter(memberId);
+            if (!filter) {
+                return res.status(400).json({ message: "Invalid member ID" });
+            }
             return res.status(404).json({ message: "Member not found" });
         }
+
+        const resolvedMemberId = member._id;
 
         const salesUser = await User.findById(req.user.id);
         const abilities = resolveAbilities(salesUser);
@@ -34,13 +41,13 @@ const createRequest = async (req, res) => {
         }
 
         // Check if there is already a pending request
-        const existingRequest = await SalesRepRequest.findOne({ member: memberId, status: "pending" });
+        const existingRequest = await SalesRepRequest.findOne({ member: resolvedMemberId, status: "pending" });
         if (existingRequest) {
             return res.status(400).json({ message: "There is already a pending request for this member" });
         }
 
         const newRequest = await SalesRepRequest.create({
-            member: memberId,
+            member: resolvedMemberId,
             requestedBy: req.user.id,
             status: "pending"
         });

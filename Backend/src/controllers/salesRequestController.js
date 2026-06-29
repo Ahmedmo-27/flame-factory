@@ -25,7 +25,7 @@ const createRequest = async (req, res) => {
 
         const salesUser = await User.findById(req.user.id);
         const abilities = resolveAbilities(salesUser);
-        const isTakeover = Boolean(member.salesRep);
+        const isTakeover = Boolean(member.assignedSales);
 
         if (isTakeover && !abilities.canRequestTakeover) {
             return res.status(403).json({ message: "You are not allowed to request replacing another representative" });
@@ -36,7 +36,7 @@ const createRequest = async (req, res) => {
         }
 
         // Prevent requesting members already assigned to the requester
-        if (member.salesRep && member.salesRep.toString() === req.user.id) {
+        if (member.assignedSales && member.assignedSales.toString() === req.user.id) {
             return res.status(400).json({ message: "This member is already assigned to you" });
         }
 
@@ -82,7 +82,7 @@ const updateRequestStatus = async (req, res) => {
             // Update the member's salesRep to the requester
             const member = await Member.findById(request.member);
             if (member) {
-                member.salesRep = request.requestedBy;
+                member.assignedSales = request.requestedBy;
                 await member.save();
             }
         }

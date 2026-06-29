@@ -9,6 +9,8 @@ const {
     getSalesReps,
     getMyProfile,
     getUserById,
+    updateSalesRepTarget,
+    createStaffUser,
     updateSalesRepAbilities,
     getSalesTeam,
     getSalesProfile
@@ -29,7 +31,9 @@ router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), get
 router.get("/sales", protect, getSalesUsers);
 router.get("/team", protect, authorizeRoles("Sales Manager", "Owner"), getSalesTeam);
 router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner"), getSalesProfile);
-router.get("/:id", protect, getUserById);
+router.post("/staff", protect, authorizeRoles("Sales Manager", "Owner"), createStaffUser);
+router.patch("/:id/target", protect, authorizeRoles("Sales Manager"), updateSalesRepTarget);
 router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);
+router.get("/:id", protect, getUserById);
 
 module.exports = router;

@@ -14,6 +14,7 @@ const {
     getMemberById,
     addNote,
     switchSalesRep,
+    bulkTransferSalesReps,
     addInvitation,
     getAllNotes
 } = require("../controllers/memberController");
@@ -23,8 +24,8 @@ const {
 // Read members: all authenticated staff can view
 const readAccess  = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant")];
 
-// Write members: Receptionist + Owner create/modify
-const writeAccess = [protect, authorize("Receptionist", "Owner")];
+// Write members: Receptionist + Owner + Sales Manager create
+const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager")];
 
 // Notes: Receptionist, Owner, Sales, Sales Manager
 const notesAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
@@ -41,6 +42,7 @@ const salesAccess = [protect, authorizeRoles("Sales", "Sales Manager", "Owner")]
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 router.post("/", ...writeAccess, createMember);
+router.post("/bulk-transfer-sales", protect, authorizeRoles("Sales Manager", "Owner"), bulkTransferSalesReps);
 
 router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager"].includes(req.user.role)) {

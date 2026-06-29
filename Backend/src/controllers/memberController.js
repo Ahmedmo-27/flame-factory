@@ -5,11 +5,21 @@ const ProfileView = require("../models/ProfileView");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { attachCurrentPackage } = require("../utils/revenueUtils");
 const { findMemberByIdentifier, buildMemberFilter } = require("../utils/memberLookup");
+const { notifyMemberAssigned } = require("../utils/notificationService");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
     if (!member.subscriptions || !member.subscriptions.length) return null;
     return member.subscriptions[member.subscriptions.length - 1].package;
+};
+
+// ─── Helper: validate sales assignee ─────────────────────────────────────────
+const validateSalesAssignee = async (salesId) => {
+    const salesUser = await User.findById(salesId);
+    if (!salesUser || !["Sales", "Sales Manager"].includes(salesUser.role)) {
+        return null;
+    }
+    return salesUser;
 };
 
 // ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
@@ -117,6 +127,15 @@ const createMember = async (req, res) => {
         }
 
         const member = await Member.create(personData);
+
+        if (personData.assignedSales) {
+            await notifyMemberAssigned({
+                recipientId: personData.assignedSales,
+                member,
+                actorId: req.user.id,
+            });
+        }
+
         res.status(201).json({ message: packageId ? "Member created" : "Guest added", member });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -273,8 +292,8 @@ const assignSalesman = async (req, res) => {
         const { memberId } = req.params;
         const { salesId } = req.body;
 
-        const salesUser = await User.findById(salesId);
-        if (!salesUser || !["Sales", "Sales Manager"].includes(salesUser.role)) {
+        const salesUser = await validateSalesAssignee(salesId);
+        if (!salesUser) {
             return res.status(400).json({
                 message: "Invalid salesman — user not found or not a sales role"
             });
@@ -286,8 +305,19 @@ const assignSalesman = async (req, res) => {
         }
 
         member.assignedSales = salesId;
+        member.userlog.push({
+            type: "assign",
+            text: `Assigned to ${salesUser.name}`,
+            createdBy: req.user.id,
+        });
         await member.save();
         await member.populate("assignedSales", "name role");
+
+        await notifyMemberAssigned({
+            recipientId: salesId,
+            member,
+            actorId: req.user.id,
+        });
 
         res.status(200).json({ message: "Salesman assigned", member });
     } catch (error) {
@@ -459,6 +489,13 @@ const switchSalesRep = async (req, res) => {
             return res.status(400).json({ message: "New Sales Rep ID is required" });
         }
 
+        const salesUser = await validateSalesAssignee(newSalesRepId);
+        if (!salesUser) {
+            return res.status(400).json({
+                message: "Invalid salesman — user not found or not a sales role"
+            });
+        }
+
         const identifier = req.params.memberId || req.params.id;
         const member = await findMemberByIdentifier(identifier);
         if (!member) {
@@ -466,9 +503,89 @@ const switchSalesRep = async (req, res) => {
         }
 
         member.assignedSales = newSalesRepId;
+        member.userlog.push({
+            type: "assign",
+            text: `Transferred to ${salesUser.name}`,
+            createdBy: req.user.id,
+        });
         await member.save();
 
+        await notifyMemberAssigned({
+            recipientId: newSalesRepId,
+            member,
+            actorId: req.user.id,
+        });
+
         res.json({ message: "Sales representative updated successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const bulkTransferSalesReps = async (req, res) => {
+    try {
+        const { fromSalesRepId, toSalesRepId, memberIds } = req.body;
+
+        if (!fromSalesRepId || !toSalesRepId) {
+            return res.status(400).json({ message: "fromSalesRepId and toSalesRepId are required" });
+        }
+
+        if (fromSalesRepId === toSalesRepId) {
+            return res.status(400).json({ message: "Source and destination sales reps must differ" });
+        }
+
+        const fromUser = await User.findById(fromSalesRepId);
+        const toUser = await validateSalesAssignee(toSalesRepId);
+
+        if (!fromUser || !["Sales", "Sales Manager"].includes(fromUser.role)) {
+            return res.status(400).json({ message: "Invalid source sales rep" });
+        }
+        if (!toUser) {
+            return res.status(400).json({ message: "Invalid destination sales rep" });
+        }
+
+        let members = await Member.find({ assignedSales: fromSalesRepId });
+
+        if (memberIds && memberIds.length > 0) {
+            const idSet = new Set(memberIds.map(String));
+            const invalid = memberIds.filter((mid) => {
+                return !members.some((m) => m._id.toString() === String(mid));
+            });
+            if (invalid.length > 0) {
+                return res.status(400).json({
+                    message: "Some members are not assigned to the source sales rep",
+                    invalidMemberIds: invalid,
+                });
+            }
+            members = members.filter((m) => idSet.has(m._id.toString()));
+        }
+
+        if (!members.length) {
+            return res.status(400).json({ message: "No members to transfer" });
+        }
+
+        const transferredIds = [];
+        for (const member of members) {
+            member.assignedSales = toSalesRepId;
+            member.userlog.push({
+                type: "assign",
+                text: `Bulk transferred from ${fromUser.name} to ${toUser.name}`,
+                createdBy: req.user.id,
+            });
+            await member.save();
+            await notifyMemberAssigned({
+                recipientId: toSalesRepId,
+                member,
+                actorId: req.user.id,
+            });
+            transferredIds.push(member._id);
+        }
+
+        res.json({
+            message: "Members transferred successfully",
+            transferredCount: transferredIds.length,
+            memberIds: transferredIds,
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -574,6 +691,7 @@ module.exports = {
     getMemberById,
     addNote,
     switchSalesRep,
+    bulkTransferSalesReps,
     addInvitation,
     getAllNotes
 };

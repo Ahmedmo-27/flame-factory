@@ -3,6 +3,7 @@ const Member = require("../models/Member");
 const User = require("../models/User");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
+const { notifyMemberAssigned } = require("../utils/notificationService");
 
 // Submit a request to assign a member to the logged-in sales rep
 const createRequest = async (req, res) => {
@@ -79,11 +80,20 @@ const updateRequestStatus = async (req, res) => {
         await request.save();
 
         if (status === "accepted") {
-            // Update the member's salesRep to the requester
             const member = await Member.findById(request.member);
             if (member) {
                 member.assignedSales = request.requestedBy;
+                member.userlog.push({
+                    type: "assign",
+                    text: "Assigned via approved sales request",
+                    createdBy: req.user.id,
+                });
                 await member.save();
+                await notifyMemberAssigned({
+                    recipientId: request.requestedBy,
+                    member,
+                    actorId: req.user.id,
+                });
             }
         }
 

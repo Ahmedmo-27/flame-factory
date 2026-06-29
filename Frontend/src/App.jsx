@@ -1,43 +1,126 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import { SystemProvider } from './context/SystemContext'
-import { usesSalesPortal } from './utils/roles'
-import AppRoutes from './routes/AppRoutes'
-import SalesPortalRoutes from './routes/SalesPortalRoutes'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
-function Root() {
-  const { user } = useAuth()
+import Login          from './pages/Login';
+import Members        from './pages/Members';
+import MemberProfile  from './pages/member/MemberProfile';
+import SalesDashboard     from './pages/sales/SalesDashboard';
+import SalesMembers       from './pages/sales/SalesMembers';
+import SalesRequests      from './pages/sales/SalesRequests';
+import SalesTeam          from './pages/sales/SalesTeam';
+import SalesPersonProfile from './pages/sales/SalesPersonProfile';
+import CallCenter         from './pages/sales/CallCenter';
+import CheckIn        from './pages/CheckIn';
+import NotFound       from './pages/NotFound';
 
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    )
-  }
-
-  if (usesSalesPortal(user.role)) {
-    return <SalesPortalRoutes />
-  }
-
-  return (
-    <SystemProvider>
-      <AppRoutes />
-    </SystemProvider>
-  )
+// ── Protected route wrapper ───────────────────────────────────────────────────
+function PrivateRoute({ children, roles }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
+  return children;
 }
 
+// ── Root redirect based on role ───────────────────────────────────────────────
+function RootRedirect() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+  return <Navigate to="/members" replace />;
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/"      element={<RootRedirect />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* Receptionist / Owner */}
+      <Route path="/members" element={
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
+          <Members />
+        </PrivateRoute>
+      } />
+
+      {/* Everyone authenticated can view a member profile */}
+      <Route path="/members/:id" element={
+        <PrivateRoute>
+          <MemberProfile />
+        </PrivateRoute>
+      } />
+
+      {/* Everyone authenticated can check in */}
+      <Route path="/checkin" element={
+        <PrivateRoute>
+          <CheckIn />
+        </PrivateRoute>
+      } />
+
+      {/* Sales routes */}
+      <Route path="/sales/dashboard" element={
+        <PrivateRoute roles={['Sales', 'Sales Manager', 'Owner']}>
+          <SalesDashboard />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/members" element={
+        <PrivateRoute roles={['Sales', 'Sales Manager', 'Owner']}>
+          <SalesMembers />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/requests" element={
+        <PrivateRoute roles={['Sales', 'Sales Manager', 'Owner']}>
+          <SalesRequests />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/team" element={
+        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+          <SalesTeam />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/team/:id" element={
+        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+          <SalesPersonProfile />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/callcenter" element={
+        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+          <CallCenter />
+        </PrivateRoute>
+      } />
+
+      {/* 404 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+// ── App root ──────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <BrowserRouter>
+    <ErrorBoundary>
       <AuthProvider>
-        <Root />
+        <BrowserRouter>
+          <AppRoutes />
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              duration: 3500,
+              style: {
+                background: '#191919',
+                color:      '#f0f0f0',
+                border:     '1px solid #2a2a2a',
+                fontSize:   '13px',
+                borderRadius: '8px',
+              },
+              success: { iconTheme: { primary: '#22c55e', secondary: '#191919' } },
+              error:   { iconTheme: { primary: '#ef4444', secondary: '#191919' } },
+            }}
+          />
+        </BrowserRouter>
       </AuthProvider>
-    </BrowserRouter>
-  )
+    </ErrorBoundary>
+  );
 }

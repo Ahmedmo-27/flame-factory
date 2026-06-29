@@ -1,64 +1,49 @@
-import React, { createContext, useContext, useState } from 'react'
-import authService from '../services/authService'
-import { resolveAbilities } from '../utils/roles'
+import { createContext, useContext, useState, useCallback } from 'react';
+import { login as loginApi } from '../api/endpoints';
 
-const AUTH_KEY = 'sales_auth_user'
-const TOKEN_KEY = 'token'
+const AuthContext = createContext(null);
 
-function loadUser() {
-  try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null } catch { return null }
+function parseUser() {
+  try {
+    const raw = localStorage.getItem('ff_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
-
-const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => loadUser())
+  const [user, setUser] = useState(parseUser);
 
-  function persistSession(token, userData) {
-    localStorage.setItem(TOKEN_KEY, token)
-    const safeUser = {
-      id: userData._id || userData.id,
-      name: userData.name,
-      email: userData.email,
-      role: userData.role,
-      abilities: userData.role === 'Sales' ? resolveAbilities(userData) : undefined,
-    }
-    localStorage.setItem(AUTH_KEY, JSON.stringify(safeUser))
-    setUser(safeUser)
-  }
+  const signIn = useCallback(async (email, password) => {
+    const res = await loginApi(email, password);
+    const { token, user: u } = res.data;
+    localStorage.setItem('ff_token', token);
+    localStorage.setItem('ff_user', JSON.stringify(u));
+    setUser(u);
+    return u;
+  }, []);
 
-  async function login({ email, password }) {
-    const data = await authService.login({ email, password })
-    persistSession(data.token, data.user)
-    return data.user
-  }
+  const signOut = useCallback(() => {
+    localStorage.removeItem('ff_token');
+    localStorage.removeItem('ff_user');
+    setUser(null);
+  }, []);
 
-  async function register({ name, email, password, role = 'Receptionist' }) {
-    await authService.register({ name, email, password, role })
-    return login({ email, password })
-  }
-
-  function updateUser(partial) {
-    setUser((prev) => {
-      const next = { ...prev, ...partial }
-      localStorage.setItem(AUTH_KEY, JSON.stringify(next))
-      return next
-    })
-  }
-
-  function logout() {
-    localStorage.removeItem(AUTH_KEY)
-    localStorage.removeItem(TOKEN_KEY)
-    setUser(null)
-  }
+  // Refresh user from storage (e.g. after profile update)
+  const refreshUser = useCallback(() => {
+    setUser(parseUser());
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, signIn, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
+};

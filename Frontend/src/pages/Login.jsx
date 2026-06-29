@@ -1,96 +1,297 @@
-import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { getDefaultRoute } from '../utils/roles'
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
+import { Spinner } from '../components/ui';
 
 export default function Login() {
-  const { login } = useAuth()
-  const navigate  = useNavigate()
+  usePageTitle('Sign In');
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd]   = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [errors, setErrors]     = useState({});
 
-  const [form,    setForm]    = useState({ email: '', password: '' })
-  const [error,   setError]   = useState('')
-  const [loading, setLoading] = useState(false)
+  const validate = () => {
+    const e = {};
+    if (!email.trim())                     e.email    = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email))  e.email    = 'Enter a valid email address';
+    if (!password)                         e.password = 'Password is required';
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }))
-    setError('')
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.email || !form.password) {
-      setError('Please fill in all fields.')
-      return
-    }
-    setLoading(true)
+  const handleSubmit = async (ev) => {
+    ev.preventDefault();
+    if (!validate()) return;
+    setLoading(true);
     try {
-      const loggedIn = await login(form)
-      navigate(getDefaultRoute(loggedIn.role), { replace: true })
+      const user = await signIn(email.trim(), password);
+      toast.success(`Welcome back, ${user.name}!`);
+      if (['Sales', 'Sales Manager'].includes(user.role)) {
+        navigate('/sales/dashboard', { replace: true });
+      } else {
+        navigate('/members', { replace: true });
+      }
     } catch (err) {
-      setError(err.message)
+      const msg = err.response?.data?.message || 'Invalid email or password.';
+      toast.error(msg);
+      setErrors({ form: msg });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        {/* Header */}
-        <div className="auth-logo">
-          <div className="auth-logo-icon">🔥</div>
-          <div className="auth-logo-text">Flame Factory</div>
+    <div style={{ display: 'flex', minHeight: '100svh', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
+
+      {/* ── LEFT PANEL — branding ───────────────────────────────────── */}
+      <div className="login-left" style={{
+        flex: '1 1 50%',
+        background: 'linear-gradient(145deg, #0a1628 0%, #0d1f3c 40%, #102a52 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '60px 48px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+
+        {/* Decorative circles */}
+        <div style={{
+          position: 'absolute', width: 500, height: 500,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 70%)',
+          top: -120, right: -120, pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', width: 360, height: 360,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
+          bottom: -80, left: -80, pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Content */}
+        <div style={{ position: 'relative', textAlign: 'center', maxWidth: 380 }}>
+
+          {/* Logo mark */}
+          <div style={{
+            width: 80, height: 80, borderRadius: 20,
+            background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 28px',
+            boxShadow: '0 8px 32px rgba(37,99,235,0.4)',
+          }}>
+            <span style={{ fontSize: 38, lineHeight: 1 }}>🔥</span>
+          </div>
+
+          <h1 style={{
+            fontSize: 36, fontWeight: 800, color: '#ffffff',
+            letterSpacing: '-0.5px', marginBottom: 12,
+          }}>
+            FlamFactory
+          </h1>
+          <p style={{
+            fontSize: 15, color: 'rgba(255,255,255,0.55)',
+            lineHeight: 1.6, marginBottom: 40,
+          }}>
+            Complete gym & CrossFit management platform — members, packages, sales, and more.
+          </p>
+
+          {/* Feature pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+            {['Member Profiles', 'Sales Tracking', 'Freeze Management', 'Check-In System', 'Invitations'].map((f) => (
+              <span key={f} style={{
+                padding: '6px 14px', borderRadius: 20,
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 500,
+              }}>{f}</span>
+            ))}
+          </div>
         </div>
 
-        <h1 className="auth-title">Welcome back</h1>
-        <p className="auth-subtitle">Sign in to your account to continue</p>
-
-        {error && (
-          <div className="auth-error">
-            <span>⚠</span> {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="auth-form" noValidate>
-          <div className="auth-field">
-            <label htmlFor="email">Email address</label>
-            <input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => set('email', e.target.value)}
-              autoComplete="email"
-              autoFocus
-            />
-          </div>
-
-          <div className="auth-field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              value={form.password}
-              onChange={(e) => set('password', e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="auth-submit"
-            disabled={loading}
-          >
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-
-        <p className="auth-switch">
-          Don't have an account?{' '}
-          <Link to="/signup">Create one</Link>
+        {/* Bottom copyright */}
+        <p style={{
+          position: 'absolute', bottom: 24,
+          fontSize: 11, color: 'rgba(255,255,255,0.25)',
+        }}>
+          © {new Date().getFullYear()} FlamFactory. All rights reserved.
         </p>
       </div>
+
+      {/* ── RIGHT PANEL — form ──────────────────────────────────────── */}
+      <div className="login-right" style={{
+        flex: '1 1 50%',
+        background: '#ffffff',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '60px 48px',
+        minWidth: 0,
+      }}>
+        <div style={{ width: '100%', maxWidth: 420 }}>
+
+          {/* Header */}
+          <div style={{ marginBottom: 36 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8 }}>
+              Welcome back
+            </p>
+            <h2 style={{ fontSize: 30, fontWeight: 800, color: '#0a1628', letterSpacing: '-0.5px', marginBottom: 8 }}>
+              Sign in to your account
+            </h2>
+            <p style={{ fontSize: 14, color: '#64748b' }}>
+              Enter your credentials to access the dashboard.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} noValidate>
+
+            {/* Global error */}
+            {errors.form && (
+              <div style={{
+                padding: '12px 14px', borderRadius: 8, marginBottom: 20,
+                background: '#fef2f2', border: '1px solid #fecaca',
+                color: '#dc2626', fontSize: 13,
+              }}>
+                {errors.form}
+              </div>
+            )}
+
+            {/* Email */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#0a1628', marginBottom: 7 }}>
+                Email address
+              </label>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: '', form: '' })); }}
+                placeholder="you@example.com"
+                style={{
+                  width: '100%', padding: '13px 16px', fontSize: 14,
+                  border: `1.5px solid ${errors.email ? '#ef4444' : '#e2e8f0'}`,
+                  borderRadius: 10, outline: 'none', color: '#0a1628',
+                  background: errors.email ? '#fff8f8' : '#f8fafc',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.12)'; }}
+                onBlur={(e)  => { e.target.style.borderColor = errors.email ? '#ef4444' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
+              />
+              {errors.email && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#dc2626' }}>{errors.email}</p>}
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: 28 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#0a1628', marginBottom: 7 }}>
+                Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: '', form: '' })); }}
+                  placeholder="Enter your password"
+                  style={{
+                    width: '100%', padding: '13px 46px 13px 16px', fontSize: 14,
+                    border: `1.5px solid ${errors.password ? '#ef4444' : '#e2e8f0'}`,
+                    borderRadius: 10, outline: 'none', color: '#0a1628',
+                    background: errors.password ? '#fff8f8' : '#f8fafc',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.12)'; }}
+                  onBlur={(e)  => { e.target.style.borderColor = errors.password ? '#ef4444' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((s) => !s)}
+                  style={{
+                    position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#94a3b8', fontSize: 16, padding: 2,
+                  }}
+                  aria-label={showPwd ? 'Hide password' : 'Show password'}
+                >
+                  {showPwd ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {errors.password && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#dc2626' }}>{errors.password}</p>}
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: '100%', padding: '14px', fontSize: 15, fontWeight: 700,
+                background: loading
+                  ? '#93c5fd'
+                  : 'linear-gradient(135deg, #1e40af 0%, #2563eb 100%)',
+                color: '#ffffff', border: 'none', borderRadius: 10,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: loading ? 'none' : '0 4px 16px rgba(37,99,235,0.35)',
+                transition: 'opacity 0.15s, box-shadow 0.15s',
+                letterSpacing: '0.2px',
+              }}
+              onMouseEnter={(e) => { if (!loading) e.currentTarget.style.opacity = '0.92'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            >
+              {loading
+                ? <><Spinner size="sm" /> Signing in…</>
+                : 'Sign In →'
+              }
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12, margin: '28px 0',
+          }}>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+            <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>SECURE LOGIN</span>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+          </div>
+
+          {/* Trust badges */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 20 }}>
+            {[
+              { icon: '🔒', label: 'Encrypted' },
+              { icon: '🛡️', label: 'Protected' },
+              { icon: '⚡', label: 'Fast & Secure' },
+            ].map((b) => (
+              <div key={b.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 18 }}>{b.icon}</span>
+                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{b.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mobile: hide left panel below md ────────────────────────── */}
+      <style>{`
+        @media (max-width: 768px) {
+          .login-left { display: none !important; }
+          .login-right { flex: 1 1 100% !important; padding: 40px 24px !important; }
+        }
+      `}</style>
     </div>
-  )
+  );
 }

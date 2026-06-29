@@ -1,317 +1,180 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import memberApiService from '../../services/memberApiService'
-import salesRequestService from '../../services/salesRequestService'
-import { useAuth } from '../../context/AuthContext'
-import { hasAbility } from '../../utils/roles'
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import usePageTitle from '../../hooks/usePageTitle';
+import useDebounce from '../../hooks/useDebounce';
+import Layout from '../../components/Layout';
+import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate } from '../../components/ui';
+import { getAllMembers, createMember, getPackages, getSalesUsers } from '../../api/endpoints';
 
-const ACCENT = '#0ea5e9'
-
-function formatDate(value) {
-  if (!value) return '—'
-  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function MemberDetails({ member, user, noteText, onNoteChange, onAddNote, onRequest, requestStatus, pendingMemberIds }) {
-  const isMine = member.isAssignedToMe || member.salesRep?._id === user?.id
-
-  return (
-    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-      <div className="form-grid" style={{ marginBottom: 16 }}>
-        <div><div className="text-sm text-muted">Member ID</div><div className="text-sm">{member.memberId ?? member._id}</div></div>
-        <div><div className="text-sm text-muted">Phone</div><div>{member.phones ? `📞 ${member.phones}` : '📞 Hidden'}</div></div>
-        <div><div className="text-sm text-muted">Source</div><div>{member.Type || '—'}</div></div>
-        <div><div className="text-sm text-muted">Sales Rep</div><div>{member.salesRep?.name || 'Unassigned'}</div></div>
-        <div><div className="text-sm text-muted">Package</div><div>{member.package?.name || '—'}</div></div>
-        <div><div className="text-sm text-muted">Package Value</div><div>{member.package?.price ? `${member.package.price} EGP` : '—'}</div></div>
-        <div><div className="text-sm text-muted">Gender</div><div>{member.gender || '—'}</div></div>
-        <div><div className="text-sm text-muted">Status</div><div>{member.status || '—'}</div></div>
-        <div><div className="text-sm text-muted">Joined</div><div>{formatDate(member.createdAt)}</div></div>
-      </div>
-
-      {!isMine && onRequest && (
-        <div style={{ marginBottom: 16 }}>
-          {requestStatus === 'pending' ? (
-            <span className="badge badge-expiring">Pending approval</span>
-          ) : (() => {
-            const isTakeover = Boolean(member.salesRep)
-            const canRequest = isTakeover
-              ? hasAbility(user, 'canRequestTakeover')
-              : hasAbility(user, 'canRequestAssignment')
-            if (!canRequest) {
-              return <span className="badge text-muted">Request disabled</span>
-            }
-            return (
-              <button
-                className="btn btn-primary btn-sm"
-                style={{ background: ACCENT }}
-                disabled={pendingMemberIds?.has(member._id)}
-                onClick={() => onRequest(member._id)}
-              >
-                {isTakeover ? 'Request Takeover' : 'Request Assignment'}
-              </button>
-            )
-          })()}
-        </div>
-      )}
-
-      {member.notes?.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="text-sm font-semibold mb-2">Notes</div>
-          {member.notes.map((note, i) => (
-            <div key={i} className="text-sm" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              {note.text}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isMine && hasAbility(user, 'canCommentOnMembers') ? (
-        <div className="flex gap-2">
-          <input
-            className="search-input"
-            placeholder="Add a note…"
-            value={noteText || ''}
-            onChange={(e) => onNoteChange(e.target.value)}
-            style={{ flex: 1 }}
-          />
-          <button className="btn btn-primary btn-sm" style={{ background: ACCENT }} onClick={onAddNote}>
-            Add Note
-          </button>
-        </div>
-      ) : isMine ? (
-        <div className="text-sm text-muted">Commenting on members is disabled for your account.</div>
-      ) : null}
-    </div>
-  )
-}
+const PAGE_SIZE = 20;
 
 export default function SalesMembers() {
-  const { user } = useAuth()
-  const [members, setMembers] = useState([])
-  const [requests, setRequests] = useState([])
-  const [search, setSearch] = useState('')
-  const [idSearch, setIdSearch] = useState('')
-  const [lookedUpMember, setLookedUpMember] = useState(null)
-  const [idSearchError, setIdSearchError] = useState('')
-  const [idSearching, setIdSearching] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [actionMsg, setActionMsg] = useState('')
-  const [expandedId, setExpandedId] = useState(null)
-  const [noteTexts, setNoteTexts] = useState({})
-  const [lookupNoteText, setLookupNoteText] = useState('')
+  usePageTitle('Members');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [members,  setMembers]  = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [sales,    setSales]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [filter,   setFilter]   = useState('all');
+  const [search,   setSearch]   = useState('');
+  const [page,     setPage]     = useState(1);
+  const [showAdd,  setShowAdd]  = useState(false);
+  const debouncedSearch = useDebounce(search, 300);
 
-  async function load() {
-    setLoading(true)
-    setError('')
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
     try {
-      const [memberData, requestData] = await Promise.all([
-        memberApiService.getAll(),
-        salesRequestService.getAll(),
-      ])
-      setMembers(memberData)
-      setRequests(requestData)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+      const [mRes, pRes, sRes] = await Promise.all([getAllMembers(), getPackages(), getSalesUsers()]);
+      setMembers(mRes.data.members ?? []); setPackages(pRes.data.packages ?? []); setSales(sRes.data.salesUsers ?? []);
+    } catch { toast.error('Failed to load data.'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
+
+  const myMembers = useMemo(() =>
+    user?.role === 'Sales'
+      ? members.filter(m => { const sid = m.assignedSales?._id ?? m.assignedSales; return sid && String(sid) === String(user._id); })
+      : members,
+    [members, user]);
+
+  const stats = useMemo(() => ({
+    total:   myMembers.length,
+    active:  myMembers.filter(m => m.status === 'active').length,
+    frozen:  myMembers.filter(m => m.status === 'frozen').length,
+    expired: myMembers.filter(m => m.status === 'expired').length,
+    guest:   myMembers.filter(m => m.status === 'guest').length,
+  }), [myMembers]);
+
+  const filtered = useMemo(() => {
+    let list = filter === 'all' ? myMembers : myMembers.filter(m => m.status === filter);
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter(m => m.name?.toLowerCase().includes(q) || m.phones?.includes(q) || String(m.systemId).includes(q));
     }
-  }
+    return list;
+  }, [myMembers, filter, debouncedSearch]);
 
-  useEffect(() => { load() }, [])
-
-  const pendingMemberIds = useMemo(
-    () => new Set(requests.filter((r) => r.status === 'pending').map((r) => r.member?._id || r.member)),
-    [requests]
-  )
-
-  const filtered = useMemo(() => members.filter((m) => {
-    if (!search) return true
-    return m.name.toLowerCase().includes(search.toLowerCase())
-  }), [members, search])
-
-  async function handleIdSearch(e) {
-    e?.preventDefault()
-    const trimmed = idSearch.trim()
-    if (!trimmed) return
-
-    setIdSearching(true)
-    setIdSearchError('')
-    setLookedUpMember(null)
-    setActionMsg('')
-    try {
-      const member = await memberApiService.getById(trimmed)
-      setLookedUpMember(member)
-      setLookupNoteText('')
-    } catch (err) {
-      setIdSearchError(err.message)
-    } finally {
-      setIdSearching(false)
-    }
-  }
-
-  async function handleRequest(memberId) {
-    setActionMsg('')
-    try {
-      await salesRequestService.create(memberId)
-      setActionMsg('Assignment request submitted.')
-      await load()
-      if (lookedUpMember?._id === memberId) {
-        setLookedUpMember(await memberApiService.getById(memberId))
-      }
-    } catch (err) {
-      setActionMsg(err.message)
-    }
-  }
-
-  async function handleAddNote(memberId, text) {
-    if (!text?.trim()) return
-    setActionMsg('')
-    try {
-      await memberApiService.addNote(memberId, text.trim())
-      setNoteTexts((prev) => ({ ...prev, [memberId]: '' }))
-      setLookupNoteText('')
-      setActionMsg('Note added.')
-      await load()
-      if (lookedUpMember?._id === memberId) {
-        setLookedUpMember(await memberApiService.getById(memberId))
-      }
-    } catch (err) {
-      setActionMsg(err.message)
-    }
-  }
-
-  function requestStatus(memberId) {
-    const req = requests.find((r) => (r.member?._id || r.member) === memberId && r.status !== 'rejected')
-    return req?.status || null
-  }
-
-  if (loading) {
-    return <div className="page"><div className="empty"><p>Loading members…</p></div></div>
-  }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h2>My Members</h2>
-          <p>{filtered.length} assigned member{filtered.length !== 1 ? 's' : ''}</p>
+    <Layout>
+      <PageHeader title="Members">
+        <SearchInput value={search} onChange={setSearch} placeholder="Name, phone, ID…" width={200} />
+        <Btn size="sm" onClick={() => setShowAdd(true)}>+ Add Guest</Btn>
+      </PageHeader>
+
+      <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          <StatCard label="Total"   value={loading ? '—' : stats.total}   color="brand" />
+          <StatCard label="Active"  value={loading ? '—' : stats.active}  color="success" />
+          <StatCard label="Frozen"  value={loading ? '—' : stats.frozen}  color="info" />
+          <StatCard label="Expired" value={loading ? '—' : stats.expired} color="danger" />
+          <StatCard label="Guests"  value={loading ? '—' : stats.guest} />
         </div>
-      </div>
 
-      {error && <div className="auth-error" style={{ marginBottom: 16 }}><span>⚠</span> {error}</div>}
-      {actionMsg && <div className="text-sm" style={{ marginBottom: 16, color: 'var(--text-muted)' }}>{actionMsg}</div>}
+        <FilterTabs active={filter} onChange={setFilter} options={[
+          { value: 'all',     label: `All (${stats.total})` },
+          { value: 'active',  label: `Active (${stats.active})` },
+          { value: 'frozen',  label: `Frozen (${stats.frozen})` },
+          { value: 'expired', label: `Expired (${stats.expired})` },
+          { value: 'guest',   label: `Guests (${stats.guest})` },
+        ]} />
 
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="card-header">
-          <div>
-            <div className="card-title">Search by Member ID</div>
-            <div className="text-sm text-muted">Look up any member by their ID — phone is hidden unless assigned to you</div>
-          </div>
-        </div>
-        <form className="flex gap-2" style={{ flexWrap: 'wrap' }} onSubmit={handleIdSearch}>
-          <input
-            className="search-input"
-            placeholder="Enter member ID"
-            value={idSearch}
-            onChange={(e) => setIdSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 220 }}
-          />
-          <button type="submit" className="btn btn-primary btn-sm" style={{ background: ACCENT }} disabled={idSearching || !idSearch.trim()}>
-            {idSearching ? 'Searching…' : 'Search'}
-          </button>
-        </form>
-        {idSearchError && <div className="text-sm" style={{ marginTop: 12, color: 'var(--danger)' }}>{idSearchError}</div>}
-      </div>
-
-      {lookedUpMember && (
-        <div className="card" style={{ marginBottom: 20, borderColor: ACCENT }}>
-          <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
-            <div className="avatar" style={{ borderColor: ACCENT, color: ACCENT, background: `${ACCENT}15` }}>
-              {lookedUpMember.name.charAt(0).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 180 }}>
-              <div style={{ fontWeight: 700 }}>{lookedUpMember.name}</div>
-              <div className="text-sm text-muted" style={{ marginTop: 2 }}>
-                {lookedUpMember.phones ? `📞 ${lookedUpMember.phones}` : '📞 Hidden'}
-                {lookedUpMember.package?.name ? ` · ${lookedUpMember.package.name}` : ''}
+        <Card noPad>
+          <Table loading={loading} skeletonRows={8} headers={['ID', 'Name', 'Phone', 'Status', 'Package', 'Expires', '']}>
+            {!paginated.length && !loading
+              ? <tr><td colSpan={7}><EmptyState message="No members found" /></td></tr>
+              : paginated.map(m => {
+                  const sub = m.subscriptions?.at(-1);
+                  const pkg = sub?.package;
+                  return (
+                    <tr key={m._id} className="tbl-row" onClick={() => navigate(`/members/${m.systemId}`)}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>#{m.systemId}</td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Avatar name={m.name} size="sm" />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones}</td>
+                      <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{pkg ? `${pkg.name} · ${pkg.duration}` : '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{fmtDate(sub?.endDate)}</td>
+                      <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
+                        <Btn variant="outline" size="xs" onClick={() => navigate(`/members/${m.systemId}`)}>View</Btn>
+                      </td>
+                    </tr>
+                  );
+                })}
+          </Table>
+          {!loading && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12, color: 'var(--t4)' }}>{((page-1)*PAGE_SIZE)+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Btn variant="outline" size="xs" disabled={page===1} onClick={() => setPage(p => p-1)}>← Prev</Btn>
+                <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page}/{totalPages}</span>
+                <Btn variant="outline" size="xs" disabled={page===totalPages} onClick={() => setPage(p => p+1)}>Next →</Btn>
               </div>
             </div>
-            <span className={`badge badge-${lookedUpMember.status}`}>{lookedUpMember.status}</span>
-            {lookedUpMember.isAssignedToMe ? (
-              <span className="badge badge-active">Assigned to you</span>
-            ) : lookedUpMember.salesRep ? (
-              <span className="badge">{lookedUpMember.salesRep.name}</span>
-            ) : (
-              <span className="badge">Unassigned</span>
-            )}
-            <button className="btn btn-ghost btn-sm" onClick={() => setLookedUpMember(null)}>Dismiss</button>
-          </div>
-          <MemberDetails
-            member={lookedUpMember}
-            user={user}
-            noteText={lookupNoteText}
-            onNoteChange={setLookupNoteText}
-            onAddNote={() => handleAddNote(lookedUpMember._id, lookupNoteText)}
-            onRequest={handleRequest}
-            requestStatus={requestStatus(lookedUpMember._id)}
-            pendingMemberIds={pendingMemberIds}
-          />
-        </div>
-      )}
-
-      <div className="filter-bar">
-        <input
-          className="search-input"
-          placeholder="Search your members by name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+          )}
+        </Card>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">👥</div>
-          <p>No members assigned to you yet.</p>
-          <p className="text-sm text-muted">Use member ID search above to look up other members.</p>
-        </div>
-      ) : (
-        filtered.map((member) => {
-          const isOpen = expandedId === member._id
+      <AddGuestModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales}
+        currentUser={user} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
+    </Layout>
+  );
+}
 
-          return (
-            <div key={member._id} className="card" style={{ marginBottom: 10, borderColor: isOpen ? ACCENT : undefined }}>
-              <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
-                <div className="avatar" style={{ borderColor: ACCENT, color: ACCENT, background: `${ACCENT}15` }}>
-                  {member.name.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontWeight: 700 }}>{member.name}</div>
-                  <div className="text-sm text-muted" style={{ marginTop: 2 }}>
-                    {member.phones ? `📞 ${member.phones}` : '📞 Hidden'}
-                    {member.package?.name ? ` · ${member.package.name}` : ''}
-                  </div>
-                </div>
-                <span className={`badge badge-${member.status}`}>{member.status}</span>
-                <span className="badge badge-active">Assigned to you</span>
-                <button className="btn btn-ghost btn-sm" onClick={() => setExpandedId(isOpen ? null : member._id)}>
-                  {isOpen ? 'Hide' : 'Details'}
-                </button>
-              </div>
+function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
+  const init = { name: '', phones: '', nationalId: '', gender: '', source: '', packageId: '', assignedSales: '' };
+  const [form, setForm] = useState(init);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const validate = () => { const e = {}; if (!form.name.trim()) e.name = 'Required'; if (!form.phones.trim()) e.phones = 'Required'; setErrors(e); return !Object.keys(e).length; };
 
-              {isOpen && (
-                <MemberDetails
-                  member={member}
-                  user={user}
-                  noteText={noteTexts[member._id]}
-                  onNoteChange={(text) => setNoteTexts((prev) => ({ ...prev, [member._id]: text }))}
-                  onAddNote={() => handleAddNote(member._id, noteTexts[member._id])}
-                />
-              )}
-            </div>
-          )
-        })
-      )}
-    </div>
-  )
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
+      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      setForm(init); setErrors({}); onSuccess();
+    } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add Guest / Member"
+      footer={<><Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn><Btn size="sm" onClick={handleSubmit} disabled={loading}>{loading ? <Spinner size="sm" /> : 'Add'}</Btn></>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+        <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
+        <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
+        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
+        <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
+          <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
+        </Select>
+        <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
+          <option value="">— Select —</option>
+          {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
+        </Select>
+        <Select label="Package" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
+          <option value="">— Guest —</option>
+          {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} – EGP {p.price}</option>)}
+        </Select>
+      </div>
+      <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
+        <option value="">— None —</option>
+        {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
+      </Select>
+    </Modal>
+  );
 }

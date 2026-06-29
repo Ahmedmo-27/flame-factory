@@ -1,249 +1,204 @@
-import React, { useState, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useStore } from '../hooks/useStore'
-import { useSystem } from '../context/SystemContext'
-import MemberModal from '../components/MemberModal'
-import ConfirmModal from '../components/ConfirmModal'
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
+import useDebounce from '../hooks/useDebounce';
+import Layout from '../components/Layout';
+import { PageHeader, Card, CardHeader, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate } from '../components/ui';
+import { getAllMembers, createMember, getPackages, getSalesUsers } from '../api/endpoints';
 
-const STATUS_FILTERS = [
-  { value: '',         label: 'All Status' },
-  { value: 'active',   label: 'Active'     },
-  { value: 'expiring', label: 'Expiring'   },
-  { value: 'expired',  label: 'Expired'    },
-  { value: 'frozen',   label: 'Frozen'     },
-]
+const PAGE_SIZE = 20;
 
 export default function Members() {
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const { store, groups, isFight, config, systemId } = useStore()
-  const { SYSTEMS, activeSystem } = useSystem()
-  const system = SYSTEMS[activeSystem]
+  usePageTitle('Members');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [members, setMembers]   = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [sales, setSales]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [filter, setFilter]     = useState('all');
+  const [search, setSearch]     = useState('');
+  const [page, setPage]         = useState(1);
+  const [showAdd, setShowAdd]   = useState(false);
+  const debouncedSearch = useDebounce(search, 300);
+  const canAdd = ['Receptionist', 'Owner'].includes(user?.role);
 
-  const [members,     setMembers]     = useState(() => store.memberService.getAll())
-  const [search,      setSearch]      = useState('')
-  const [statusFilter, setStatus]     = useState('')
-  const [showModal,   setShowModal]   = useState(false)
-  const [editMember,  setEditMember]  = useState(null)
-  const [deleteTarget, setDelete]     = useState(null)
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [mRes, pRes, sRes] = await Promise.all([getAllMembers(), getPackages(), getSalesUsers()]);
+      setMembers(mRes.data.members ?? []);
+      setPackages(pRes.data.packages ?? []);
+      setSales(sRes.data.salesUsers ?? []);
+    } catch { toast.error('Failed to load members.'); }
+    finally { setLoading(false); }
+  }, []);
 
-  const branchFilter  = searchParams.get('branch')  || ''
-  const sessionFilter = searchParams.get('session') || ''
-  const programFilter = searchParams.get('program') || ''
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
-  function refresh() { setMembers(store.memberService.getAll()) }
+  const stats = useMemo(() => ({
+    total:   members.length,
+    active:  members.filter(m => m.status === 'active').length,
+    frozen:  members.filter(m => m.status === 'frozen').length,
+    expired: members.filter(m => m.status === 'expired').length,
+    guest:   members.filter(m => m.status === 'guest').length,
+  }), [members]);
 
   const filtered = useMemo(() => {
-    return members.filter((m) => {
-      const matchSearch =
-        !search ||
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
-        (m.phone && m.phone.includes(search))
-      const matchGroup = isFight
-        ? (!branchFilter  || m.branch  === branchFilter)
-        : (!sessionFilter || m.session === sessionFilter)
-      const matchProgram = !programFilter || m.program === programFilter
-      const matchStatus  = !statusFilter  || store.memberService.getStatus(m) === statusFilter
-      return matchSearch && matchGroup && matchProgram && matchStatus
-    })
-  }, [members, search, branchFilter, sessionFilter, programFilter, statusFilter])
-
-  function handleSave(data) {
-    if (editMember) {
-      store.memberService.update(editMember.id, data)
-    } else {
-      store.memberService.create(data)
+    let list = filter === 'all' ? members : members.filter(m => m.status === filter);
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      list = list.filter(m =>
+        m.name?.toLowerCase().includes(q) ||
+        m.phones?.includes(q) ||
+        String(m.systemId).includes(q) ||
+        String(m.memberId ?? '').includes(q)
+      );
     }
-    refresh()
-    setShowModal(false)
-    setEditMember(null)
-  }
+    return list;
+  }, [members, filter, debouncedSearch]);
 
-  function handleDelete(id) {
-    store.memberService.delete(id)
-    refresh()
-  }
-
-  function groupLabel(m) {
-    if (isFight) return groups.find((g) => g.id === m.branch)?.label || m.branch || '—'
-    return groups.find((g) => g.id === m.session)?.label || m.session || '—'
-  }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h2>Members</h2>
-          <p>{filtered.length} member{filtered.length !== 1 ? 's' : ''}</p>
+    <Layout>
+      <PageHeader title="Members">
+        <SearchInput value={search} onChange={setSearch} placeholder="Name, phone, ID…" width={210} />
+        {canAdd && <Btn size="sm" onClick={() => setShowAdd(true)}>+ Add Person</Btn>}
+      </PageHeader>
+
+      <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          <StatCard label="Total"   value={loading ? '—' : stats.total}   color="brand" />
+          <StatCard label="Active"  value={loading ? '—' : stats.active}  color="success" />
+          <StatCard label="Frozen"  value={loading ? '—' : stats.frozen}  color="info" />
+          <StatCard label="Expired" value={loading ? '—' : stats.expired} color="danger" />
+          <StatCard label="Guests"  value={loading ? '—' : stats.guest} />
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => { setEditMember(null); setShowModal(true) }}
-        >
-          + Add Member
-        </button>
-      </div>
 
-      <div className="filter-bar">
-        <input
-          className="search-input"
-          placeholder="Search by name or phone..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        {/* Toolbar row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <FilterTabs active={filter} onChange={setFilter} options={[
+            { value: 'all',     label: `All (${stats.total})` },
+            { value: 'active',  label: `Active (${stats.active})` },
+            { value: 'frozen',  label: `Frozen (${stats.frozen})` },
+            { value: 'expired', label: `Expired (${stats.expired})` },
+            { value: 'guest',   label: `Guests (${stats.guest})` },
+          ]} />
+        </div>
 
-        <select
-          className="select-control"
-          value={isFight ? branchFilter : sessionFilter}
-          onChange={(e) => {
-            const val = e.target.value
-            const key = isFight ? 'branch' : 'session'
-            const params = {}
-            if (val) params[key] = val
-            if (programFilter) params.program = programFilter
-            setSearchParams(params)
-          }}
-        >
-          <option value="">{isFight ? 'All Branches' : 'All Sessions'}</option>
-          {groups.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-        </select>
-
-        {isFight && (
-          <select
-            className="select-control"
-            value={programFilter}
-            onChange={(e) => {
-              const params = {}
-              if (branchFilter) params.branch = branchFilter
-              if (e.target.value) params.program = e.target.value
-              setSearchParams(params)
-            }}
-          >
-            <option value="">All Programs</option>
-            {config.programs.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        )}
-
-        <select
-          className="select-control"
-          value={statusFilter}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          {STATUS_FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
-      </div>
-
-      <div className="card">
-        {filtered.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon">👥</div>
-            <p>No members found.</p>
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Member</th>
-                  <th>Phone</th>
-                  <th>Age</th>
-                  <th>{isFight ? 'Branch' : 'Session'}</th>
-                  {isFight && <th>Program</th>}
-                  <th>Type</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((m) => {
-                  const status = store.memberService.getStatus(m)
+        {/* Table card */}
+        <Card noPad>
+          <Table loading={loading} skeletonRows={8}
+            headers={['ID', 'Name', 'Phone', 'Status', 'Package', 'Expires', 'Sales Rep', '']}>
+            {!paginated.length && !loading
+              ? <tr><td colSpan={8}><EmptyState message="No members match your search" /></td></tr>
+              : paginated.map(m => {
+                  const sub = m.subscriptions?.at(-1);
+                  const pkg = sub?.package;
+                  const expiring = sub?.endDate && (new Date(sub.endDate) - new Date()) / 86400000 <= 7 && (new Date(sub.endDate) - new Date()) >= 0;
                   return (
-                    <tr key={m.id}>
-                      <td>
-                        <div
-                          className="flex items-center gap-2"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => navigate(`/members/${m.id}`)}
-                        >
-                          <div className="avatar" style={{ borderColor: system.color, color: system.color, background: `${system.color}14` }}>
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-semibold">{m.name}</span>
+                    <tr key={m._id} className="tbl-row" onClick={() => navigate(`/members/${m.systemId}`)}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>
+                        #{m.systemId}{m.memberId ? ` / M${m.memberId}` : ''}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Avatar name={m.name} size="sm" />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
                         </div>
                       </td>
-                      <td className="text-muted">{m.phone || '—'}</td>
-                      <td className="text-muted">{m.age || '—'}</td>
-                      <td className="text-muted">{groupLabel(m)}</td>
-                      {isFight && (
-                        <td className="text-muted" style={{ textTransform: 'capitalize' }}>
-                          {m.program || '—'}
-                        </td>
-                      )}
-                      <td className="text-muted" style={{ textTransform: 'capitalize' }}>{m.membershipType || '—'}</td>
-                      <td className="text-muted">
-                        {m.membershipStart
-                          ? new Date(m.membershipStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                          : '—'}
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones ?? '—'}</td>
+                      <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
+                      <td style={{ padding: '10px 14px', fontSize: 12 }}>
+                        {pkg ? <span style={{ color: 'var(--t1)', fontWeight: 500 }}>{pkg.name}<br /><span style={{ color: 'var(--t4)', fontSize: 11 }}>{pkg.activityType} · {pkg.duration}</span></span> : <span style={{ color: 'var(--t4)' }}>—</span>}
                       </td>
-                      <td className="text-muted">
-                        {m.membershipEnd
-                          ? new Date(m.membershipEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                          : '—'}
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: expiring ? 'var(--amber)' : 'var(--t3)', fontWeight: expiring ? 600 : 400 }}>
+                        {fmtDate(sub?.endDate)}{expiring && <span style={{ display: 'block', fontSize: 10, color: 'var(--amber)' }}>Expiring soon</span>}
                       </td>
-                      <td><span className={`badge badge-${status}`}>{status}</span></td>
-                      <td>
-                        <div className="flex gap-2">
-                          <button
-                            className="btn btn-ghost btn-sm btn-icon"
-                            onClick={() => navigate(`/members/${m.id}`)}
-                            title="View Profile"
-                          >
-                            →
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm btn-icon"
-                            onClick={() => { setEditMember(m); setShowModal(true) }}
-                            title="Edit"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            className="btn btn-danger btn-sm btn-icon"
-                            onClick={() => setDelete(m)}
-                            title="Delete"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>
+                        {m.assignedSales?.name ?? <span style={{ color: 'var(--t4)' }}>Unassigned</span>}
+                      </td>
+                      <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
+                        <Btn variant="outline" size="xs" onClick={() => navigate(`/members/${m.systemId}`)}>View</Btn>
                       </td>
                     </tr>
-                  )
+                  );
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
+          </Table>
+          {!loading && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 12, color: 'var(--t4)' }}>{((page-1)*PAGE_SIZE)+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Btn variant="outline" size="xs" disabled={page === 1} onClick={() => setPage(p => p-1)}>← Prev</Btn>
+                <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page} / {totalPages}</span>
+                <Btn variant="outline" size="xs" disabled={page === totalPages} onClick={() => setPage(p => p+1)}>Next →</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
       </div>
 
-      {showModal && (
-        <MemberModal
-          member={editMember}
-          onSave={handleSave}
-          onClose={() => { setShowModal(false); setEditMember(null) }}
-          systemId={systemId}
-        />
-      )}
+      {canAdd && <AddPersonModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales} onSuccess={() => { setShowAdd(false); fetchAll(); }} />}
+    </Layout>
+  );
+}
 
-      {deleteTarget && (
-        <ConfirmModal
-          title="Delete Member"
-          message={`Delete "${deleteTarget.name}"? This will also remove their attendance records and comments.`}
-          onConfirm={() => handleDelete(deleteTarget.id)}
-          onClose={() => setDelete(null)}
-        />
-      )}
-    </div>
-  )
+function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
+  const init = { name: '', phones: '', nationalId: '', gender: '', birthdate: '', source: '', packageId: '', assignedSales: '' };
+  const [form, setForm] = useState(init);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const validate = () => {
+    const e = {};
+    if (!form.name.trim())   e.name   = 'Name is required';
+    if (!form.phones.trim()) e.phones = 'Phone is required';
+    setErrors(e); return !Object.keys(e).length;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, birthdate: form.birthdate || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || null });
+      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      setForm(init); setErrors({}); onSuccess();
+    } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add Person"
+      footer={<><Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn><Btn size="sm" onClick={handleSubmit} disabled={loading}>{loading ? <Spinner size="sm" /> : 'Add'}</Btn></>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+        <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
+        <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
+        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
+        <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
+          <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
+        </Select>
+        <Input label="Birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)} />
+        <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
+          <option value="">— Select —</option>
+          {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
+        </Select>
+      </div>
+      <Select label="Package (leave empty for guest)" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
+        <option value="">— Guest —</option>
+        {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} ({p.activityType}) — EGP {p.price}</option>)}
+      </Select>
+      <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
+        <option value="">— None —</option>
+        {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
+      </Select>
+    </Modal>
+  );
 }

@@ -63,6 +63,10 @@ const invitationSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    idFile: {
+        type: String,   // stored file path / URL
+        default: null
+    },
     usedAt: {
         type: Date,
         default: Date.now

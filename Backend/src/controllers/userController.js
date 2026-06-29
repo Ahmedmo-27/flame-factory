@@ -71,4 +71,105 @@ const getSalesUsers = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, getSalesUsers };
+// Get full sales team with stats (for team page)
+const getSalesTeam = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+
+        const salesUsers = await User.find(
+            { role: { $in: ["Sales", "Sales Manager"] } },
+            "name email role monthlyTarget abilities createdAt"
+        ).sort({ name: 1 });
+
+        // For each sales user, compute their member stats
+        const team = await Promise.all(salesUsers.map(async (u) => {
+            const members = await Member.find({ assignedSales: u._id });
+            const active  = members.filter(m => m.status === "active").length;
+            const frozen  = members.filter(m => m.status === "frozen").length;
+            const expired = members.filter(m => m.status === "expired").length;
+            const guests  = members.filter(m => m.status === "guest").length;
+
+            // Revenue this month
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            let monthlyRevenue = 0;
+            members.forEach(m => {
+                (m.subscriptions || []).forEach(sub => {
+                    if (new Date(sub.createdAt) >= monthStart) {
+                        monthlyRevenue += sub.pricePaid || 0;
+                    }
+                });
+            });
+
+            return {
+                _id:            u._id,
+                name:           u.name,
+                email:          u.email,
+                role:           u.role,
+                monthlyTarget:  u.monthlyTarget,
+                abilities:      u.abilities,
+                createdAt:      u.createdAt,
+                stats: {
+                    total:          members.length,
+                    active,
+                    frozen,
+                    expired,
+                    guests,
+                    monthlyRevenue,
+                }
+            };
+        }));
+
+        res.status(200).json({ team });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Get single sales user profile with full member list
+const getSalesProfile = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+
+        const u = await User.findById(req.params.id, "name email role monthlyTarget abilities createdAt");
+        if (!u) return res.status(404).json({ message: "User not found" });
+
+        const members = await Member.find({ assignedSales: u._id })
+            .populate("subscriptions.package", "name duration activityType price")
+            .sort({ createdAt: -1 });
+
+        const now        = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        let monthlyRevenue = 0;
+        members.forEach(m => {
+            (m.subscriptions || []).forEach(sub => {
+                if (new Date(sub.createdAt) >= monthStart) monthlyRevenue += sub.pricePaid || 0;
+            });
+        });
+
+        res.status(200).json({
+            user: {
+                _id:           u._id,
+                name:          u.name,
+                email:         u.email,
+                role:          u.role,
+                monthlyTarget: u.monthlyTarget,
+                abilities:     u.abilities,
+                createdAt:     u.createdAt,
+            },
+            members,
+            stats: {
+                total:          members.length,
+                active:         members.filter(m => m.status === "active").length,
+                frozen:         members.filter(m => m.status === "frozen").length,
+                expired:        members.filter(m => m.status === "expired").length,
+                guests:         members.filter(m => m.status === "guest").length,
+                monthlyRevenue,
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { registerUser, loginUser, getSalesUsers, getSalesTeam, getSalesProfile };

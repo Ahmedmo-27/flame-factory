@@ -347,11 +347,131 @@ const freezeMember = async (req, res) => {
     }
 };
 
+// ─── 7. Add Note ─────────────────────────────────────────────────────────────
+const addNote = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { text } = req.body;
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({ message: "Note text is required" });
+        }
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.notes.push({ text: text.trim(), createdBy: req.user.id });
+        await member.save();
+
+        // Return the new note populated
+        await member.populate("notes.createdBy", "name role");
+        const newNote = member.notes[member.notes.length - 1];
+
+        res.status(201).json({ message: "Note added", note: newNote });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── 8. Add Invitation ────────────────────────────────────────────────────────
+const addInvitation = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { invitedName, invitedPhone } = req.body;
+
+        if (!invitedName || !invitedName.trim()) {
+            return res.status(400).json({ message: "Invited person name is required" });
+        }
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Must have an active subscription with invitation slots
+        const currentPkg = getCurrentPackage(member);
+        if (!currentPkg) {
+            return res.status(400).json({ message: "No active package found" });
+        }
+
+        const allowedInvitations = currentPkg.invitationLimit || 0;
+        if (member.invitationsUsed >= allowedInvitations) {
+            return res.status(400).json({
+                message: `Invitation limit reached. Allowed: ${allowedInvitations}`
+            });
+        }
+
+        // Store uploaded file path if present
+        const idFilePath = req.file ? req.file.path : null;
+
+        member.invitations.push({
+            invitedName:  invitedName.trim(),
+            invitedPhone: invitedPhone || null,
+            idFile:       idFilePath,
+            usedAt:       new Date(),
+            createdBy:    req.user.id
+        });
+        member.invitationsUsed += 1;
+
+        await member.save();
+        await member.populate("invitations.createdBy", "name role");
+        const newInvitation = member.invitations[member.invitations.length - 1];
+
+        res.status(201).json({ message: "Invitation added", invitation: newInvitation });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
+const getAllNotes = async (req, res) => {
+    try {
+        const members = await Member.find({ "notes.0": { $exists: true } })
+            .populate("notes.createdBy", "name role")
+            .select("name systemId memberId phones status notes assignedSales")
+            .populate("assignedSales", "name role");
+
+        // Flatten all notes into a single array with member context
+        const notes = [];
+        members.forEach(member => {
+            member.notes.forEach(note => {
+                notes.push({
+                    _id:        note._id,
+                    text:       note.text,
+                    createdAt:  note.createdAt,
+                    createdBy:  note.createdBy,
+                    member: {
+                        _id:      member._id,
+                        name:     member.name,
+                        systemId: member.systemId,
+                        memberId: member.memberId,
+                        phones:   member.phones,
+                        status:   member.status,
+                        assignedSales: member.assignedSales,
+                    }
+                });
+            });
+        });
+
+        // Sort newest first
+        notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.status(200).json({ count: notes.length, notes });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
     getMemberProfile,
     checkInMember,
     assignSalesman,
-    freezeMember
+    freezeMember,
+    addNote,
+    addInvitation,
+    getAllNotes
 };

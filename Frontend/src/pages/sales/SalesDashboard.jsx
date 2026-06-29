@@ -1,202 +1,122 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import authService from '../../services/authService'
-import memberApiService from '../../services/memberApiService'
-import salesRequestService from '../../services/salesRequestService'
-
-const ACCENT = '#0ea5e9'
-
-function formatCurrency(amount, currency = 'EGP') {
-  return `${Number(amount || 0).toLocaleString()} ${currency}`
-}
-
-function formatMonth(monthKey) {
-  const [year, month] = monthKey.split('-')
-  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
-}
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import usePageTitle from '../../hooks/usePageTitle';
+import Layout from '../../components/Layout';
+import { PageHeader, Card, CardHeader, StatCard, Table, Btn, EmptyState, Avatar, fmtDateTime } from '../../components/ui';
+import { getAllMembers } from '../../api/endpoints';
 
 export default function SalesDashboard() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const [revenue, setRevenue] = useState(null)
-  const [members, setMembers] = useState([])
-  const [requests, setRequests] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  usePageTitle('Dashboard');
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [members,  setMembers]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [showToday, setToday]   = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      setError('')
-      try {
-        const [revenueData, memberData, requestData] = await Promise.all([
-          authService.getSalesRevenue(),
-          memberApiService.getAll(),
-          salesRequestService.getAll(),
-        ])
-        setRevenue(revenueData)
-        setMembers(memberData)
-        setRequests(requestData)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
+  const fetchMembers = useCallback(async () => {
+    setLoading(true);
+    try { const res = await getAllMembers(); setMembers(res.data.members ?? []); }
+    catch { toast.error('Failed to load data.'); }
+    finally { setLoading(false); }
+  }, []);
 
-  const assignedMembers = useMemo(
-    () => members.filter((m) => m.salesRep?._id === user?.id),
-    [members, user?.id]
-  )
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  const pendingRequests = useMemo(
-    () => requests.filter((r) => r.status === 'pending'),
-    [requests]
-  )
+  const myMembers = useMemo(() =>
+    user?.role === 'Sales'
+      ? members.filter(m => { const sid = m.assignedSales?._id ?? m.assignedSales; return sid && String(sid) === String(user._id); })
+      : members,
+    [members, user]);
 
-  const monthChange = useMemo(() => {
-    if (!revenue?.lastMonthRevenue) return null
-    const diff = revenue.currentMonthRevenue - revenue.lastMonthRevenue
-    const pct = Math.round((diff / revenue.lastMonthRevenue) * 100)
-    return { diff, pct }
-  }, [revenue])
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
 
-  if (loading) {
-    return (
-      <div className="page">
-        <div className="empty"><p>Loading dashboard…</p></div>
-      </div>
-    )
-  }
+  const todayMembers = useMemo(() =>
+    myMembers.filter(m => { const s = m.subscriptions?.at(-1); if (!s) return false; const d = new Date(s.createdAt); d.setHours(0,0,0,0); return d.getTime() === today.getTime(); }),
+    [myMembers, today]);
+
+  const todayRevenue = useMemo(() => todayMembers.reduce((sum, m) => sum + (m.subscriptions?.at(-1)?.pricePaid ?? 0), 0), [todayMembers]);
+
+  const stats = useMemo(() => ({
+    active:  myMembers.filter(m => m.status === 'active').length,
+    frozen:  myMembers.filter(m => m.status === 'frozen').length,
+    expired: myMembers.filter(m => m.status === 'expired').length,
+    guests:  myMembers.filter(m => m.status === 'guest').length,
+    total:   myMembers.length,
+  }), [myMembers]);
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h2>Sales Dashboard</h2>
-          <p>Welcome back, {user?.name}</p>
-        </div>
-        <div className="text-muted text-sm">
+    <Layout>
+      <PageHeader title="Dashboard">
+        <span style={{ fontSize: 12, color: 'var(--t4)' }}>
           {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-        </div>
-      </div>
+        </span>
+      </PageHeader>
 
-      {error && (
-        <div className="auth-error" style={{ marginBottom: 20 }}>
-          <span>⚠</span> {error}
+      <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          <StatCard label="Today's Revenue" value={loading ? '—' : `EGP ${todayRevenue.toLocaleString()}`} color="brand"
+            sub={`${todayMembers.length} subscription${todayMembers.length !== 1 ? 's' : ''} today`} onClick={() => setToday(t => !t)} />
+          <StatCard label="Active"  value={loading ? '—' : stats.active}  color="success" />
+          <StatCard label="Frozen"  value={loading ? '—' : stats.frozen}  color="info" />
+          <StatCard label="Expired" value={loading ? '—' : stats.expired} color="danger" />
+          <StatCard label="Guests"  value={loading ? '—' : stats.guests} />
         </div>
-      )}
 
-      <div className="stats-grid">
-        <div className="stat-card active">
-          <div className="label">This Month</div>
-          <div className="value" style={{ color: ACCENT }}>
-            {formatCurrency(revenue?.currentMonthRevenue, revenue?.currency)}
-          </div>
-          <div className="sub">
-            {revenue?.currentMonth ? formatMonth(revenue.currentMonth) : 'Current month'}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Last Month</div>
-          <div className="value">{formatCurrency(revenue?.lastMonthRevenue, revenue?.currency)}</div>
-          <div className="sub">
-            {monthChange
-              ? `${monthChange.diff >= 0 ? '+' : ''}${formatCurrency(monthChange.diff, revenue?.currency)} vs last month`
-              : 'Previous period'}
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="label">My Members</div>
-          <div className="value">{assignedMembers.length}</div>
-          <div className="sub">Assigned to you</div>
-        </div>
-        <div className="stat-card expiring">
-          <div className="label">Pending Requests</div>
-          <div className="value">{pendingRequests.length}</div>
-          <div className="sub">Awaiting approval</div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div className="card-header">
-          <div className="card-title">Monthly Revenue</div>
-          <span className="text-muted text-sm">Last 6 months</span>
-        </div>
-        {revenue?.monthlyBreakdown?.length === 0 ? (
-          <div className="empty"><p>No sales recorded yet.</p></div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th>Sales</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...(revenue?.monthlyBreakdown || [])].reverse().map((row) => (
-                  <tr key={row.month}>
-                    <td>{formatMonth(row.month)}</td>
-                    <td>{row.salesCount}</td>
-                    <td style={{ fontWeight: row.month === revenue?.currentMonth ? 700 : 400, color: row.month === revenue?.currentMonth ? ACCENT : undefined }}>
-                      {formatCurrency(row.revenue, revenue?.currency)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Recent Assignments</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales/members')}>View all</button>
-          </div>
-          {assignedMembers.length === 0 ? (
-            <div className="empty"><p>No members assigned yet.</p></div>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Package</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignedMembers.slice(0, 5).map((m) => (
-                    <tr key={m._id}>
-                      <td>{m.name}</td>
-                      <td>{m.package?.name || '—'}</td>
-                      <td><span className={`badge badge-${m.status}`}>{m.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Today panel */}
+        {showToday && (
+          <Card noPad className="fade-up">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Today's Subscriptions ({todayMembers.length})</span>
+              <Btn variant="ghost" size="xs" onClick={() => setToday(false)}>Close</Btn>
             </div>
-          )}
-        </div>
+            {!todayMembers.length ? <EmptyState message="No subscriptions today" /> :
+              <Table loading={loading} headers={['Member', 'Phone', 'Package', 'Price', 'Time']}>
+                {todayMembers.map(m => {
+                  const sub = m.subscriptions?.at(-1);
+                  return (
+                    <tr key={m._id} className="tbl-row" onClick={() => navigate(`/members/${m.systemId}`)}
+                      style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Avatar name={m.name} size="sm" />
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{sub?.package?.name ?? '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>EGP {sub?.pricePaid ?? 0}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)' }}>{fmtDateTime(sub?.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            }
+          </Card>
+        )}
 
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Find a Member</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/sales/members')}>Search by ID</button>
-          </div>
-          <div className="empty" style={{ padding: '24px 16px' }}>
-            <p>Look up any member using their ID on the Members page.</p>
-            <p className="text-sm text-muted">Phone numbers are only visible for members assigned to you.</p>
-          </div>
+        {/* Quick actions */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          {[
+            { label: 'Members',  sub: `${stats.total} total`,     to: '/sales/members' },
+            { label: 'Requests', sub: 'Assignment requests',       to: '/sales/requests' },
+            { label: 'Check In', sub: 'Quick member check-in',     to: '/checkin' },
+          ].map(c => (
+            <button key={c.to} onClick={() => navigate(c.to)} style={{
+              background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
+              padding: '16px 18px', textAlign: 'left', cursor: 'pointer', transition: 'border-color 0.12s, box-shadow 0.12s',
+              fontFamily: 'inherit',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(15,23,42,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>{c.label}</p>
+              <p style={{ fontSize: 12, color: 'var(--t4)' }}>{c.sub}</p>
+            </button>
+          ))}
         </div>
       </div>
-    </div>
-  )
+    </Layout>
+  );
 }

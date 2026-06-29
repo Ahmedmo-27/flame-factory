@@ -1,14 +1,10 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
 import './index.css'
-import { runMigration } from './services/migrate.js'
+import App from './App.jsx'
 
-// Migrate old flat localStorage keys → namespaced keys (runs once)
-runMigration()
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
     <App />
-  </React.StrictMode>,
+  </StrictMode>,
 )

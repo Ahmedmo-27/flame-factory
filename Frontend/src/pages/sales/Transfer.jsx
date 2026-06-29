@@ -220,6 +220,11 @@ export default function Transfer() {
             {selectedIds.size > 0 && (
               <Btn variant="ghost" size="xs" onClick={() => setSelectedIds(new Set())}>Clear selection</Btn>
             )}
+            {paginated.length > 0 && (
+              <Btn variant="ghost" size="xs" onClick={toggleSelectPage}>
+                {paginated.every((m) => selectedIds.has(m._id)) ? 'Deselect page' : 'Select page'}
+              </Btn>
+            )}
           </div>
 
           {loading ? (
@@ -228,59 +233,40 @@ export default function Transfer() {
             <EmptyState message="No members match your filters" />
           ) : (
             <>
-              <Table>
-                <thead>
-                  <tr>
-                    <th style={{ width: 36, padding: '8px 14px' }}>
-                      <input
-                        type="checkbox"
-                        checked={paginated.length > 0 && paginated.every((m) => selectedIds.has(m._id))}
-                        onChange={toggleSelectPage}
-                        aria-label="Select all on page"
-                      />
-                    </th>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Current Sales Rep</th>
-                    <th>Status</th>
-                    <th>Phone</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.map((m) => {
-                    const selected = selectedIds.has(m._id);
-                    return (
-                      <tr
-                        key={m._id}
-                        className="tbl-row"
-                        onClick={() => toggleSelect(m._id)}
-                        style={{ cursor: 'pointer', background: selected ? 'var(--sky-bg)' : undefined }}
-                      >
-                        <td style={{ padding: '10px 14px' }} onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() => toggleSelect(m._id)}
-                          />
-                        </td>
-                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>
-                          #{m.systemId}{m.memberId ? ` / M${m.memberId}` : ''}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Avatar name={m.name} size="sm" />
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>
-                          {repName(m.assignedSales)}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
-                        <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones ?? '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+              <Table headers={['', 'ID', 'Name', 'Current Sales Rep', 'Status', 'Phone']}>
+                {paginated.map((m) => {
+                  const selected = selectedIds.has(m._id);
+                  return (
+                    <tr
+                      key={m._id}
+                      className="tbl-row"
+                      onClick={() => toggleSelect(m._id)}
+                      style={{ cursor: 'pointer', background: selected ? 'var(--sky-bg)' : undefined }}
+                    >
+                      <td style={{ padding: '10px 14px' }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSelect(m._id)}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>
+                        #{m.systemId}{m.memberId ? ` / M${m.memberId}` : ''}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Avatar name={m.name} size="sm" />
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>
+                        {repName(m.assignedSales)}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones ?? '—'}</td>
+                    </tr>
+                  );
+                })}
               </Table>
 
               {totalPages > 1 && (

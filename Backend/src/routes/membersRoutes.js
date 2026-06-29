@@ -54,6 +54,8 @@ router.get("/", protect, (req, res, next) => {
     return res.status(403).json({ message: "Access denied" });
 });
 
+router.get("/all-notes", protect, authorize("Sales Manager", "Owner"), getAllNotes);
+
 router.get("/:memberId", protect, (req, res, next) => {
     if (["Sales", "Sales Manager"].includes(req.user.role)) {
         return getMemberById(req, res, next);
@@ -70,7 +72,6 @@ router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Own
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
-router.get("/all-notes",                protect, authorize("Sales Manager", "Owner"), getAllNotes);
 
 
 module.exports = router;

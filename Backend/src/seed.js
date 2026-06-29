@@ -1,12 +1,12 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const connectMongo = require("./config/connectMongo");
-const bcrypt = require("bcryptjs");
 const User = require("./models/User");
 const Package = require("./models/Package");
 const Member = require("./models/Member");
 const ProfileView = require("./models/ProfileView");
 const SalesRepRequest = require("./models/SalesRepRequest");
+const { hashPassword } = require("./utils/passwordUtils");
 
 const TEST_PASSWORD = "password123";
 
@@ -118,7 +118,7 @@ async function seed() {
 
   await clearSeedData();
 
-  const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+  const passwordHash = await hashPassword(TEST_PASSWORD);
 
   const users = {};
   for (const user of USERS) {

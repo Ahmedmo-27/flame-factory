@@ -37,7 +37,14 @@ export default function Login() {
         navigate('/members', { replace: true });
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Invalid email or password.';
+      let msg;
+      if (!err.response) {
+        msg = import.meta.env.VITE_API_URL
+          ? 'Cannot reach the server. Check your connection and API URL.'
+          : 'App is misconfigured: API URL is missing (VITE_API_URL).';
+      } else {
+        msg = err.response.data?.message || 'Invalid email or password.';
+      }
       toast.error(msg);
       setErrors({ form: msg });
     } finally {

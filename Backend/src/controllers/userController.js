@@ -1,7 +1,8 @@
 const User = require("../models/User");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { formatUserResponse } = require("../utils/userAbilities");
+const logger = require("../utils/logger");
+const { hashPassword, verifyPassword, normalizeEmail } = require("../utils/passwordUtils");
 const {
     monthKey,
     dayKey,
@@ -12,48 +13,106 @@ const {
 } = require("../utils/revenueUtils");
 
 const registerUser = async (req, res) => {
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     try {
+        logger.auth("info", "Register attempt", {
+            requestId,
+            ip: req.ip,
+            hasJwtSecret: Boolean(process.env.JWT_SECRET),
+        });
+
         if (!process.env.JWT_SECRET) {
+            logger.auth("error", "Register blocked: JWT_SECRET missing", { requestId });
             return res.status(500).json({ message: "Server misconfigured: JWT_SECRET is missing" });
         }
 
-        const { name, email, password, role } = req.body;
+        const { name, password } = req.body;
+        const email = normalizeEmail(req.body.email);
+
+        if (!email || !password) {
+            logger.auth("warn", "Register validation failed", { requestId, reason: "missing_fields" });
+            return res.status(400).json({ message: "Email and password are required" });
+        }
 
         const userExists = await User.findOne({ email });
         if (userExists) {
+            logger.auth("warn", "Register rejected: user exists", { requestId, email });
             return res.status(400).json({ message: "User already exists" });
         }
 
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        const hashedPassword = await hashPassword(password);
+        const user = await User.create({ name, email, password: hashedPassword, role: "Receptionist" });
 
-        const user = await User.create({ name, email, password: hashedPassword, role });
+        logger.auth("info", "Register success", {
+            requestId,
+            userId: user._id.toString(),
+            email: user.email,
+            role: user.role,
+        });
 
         res.status(201).json({
             message: "User created",
             user: { _id: user._id, name: user.name, email: user.email, role: user.role },
         });
     } catch (error) {
-        console.error("registerUser error:", error);
+        logger.auth("error", "Register error", { requestId, error: error.message, stack: error.stack });
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
 const loginUser = async (req, res) => {
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     try {
+        const rawEmail = req.body?.email;
+        const email = normalizeEmail(rawEmail);
+        const passwordProvided = Boolean(req.body?.password);
+        const passwordLength = req.body?.password ? String(req.body.password).length : 0;
+
+        logger.auth("info", "Login attempt", {
+            requestId,
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+            rawEmail: rawEmail || null,
+            normalizedEmail: email || null,
+            emailNormalized: rawEmail !== email,
+            passwordProvided,
+            passwordLength,
+            hasJwtSecret: Boolean(process.env.JWT_SECRET),
+            apiBaseHint: req.get("origin") || req.get("referer") || null,
+        });
+
         if (!process.env.JWT_SECRET) {
+            logger.auth("error", "Login blocked: JWT_SECRET missing", { requestId, email });
             return res.status(500).json({ message: "Server misconfigured: JWT_SECRET is missing" });
         }
 
-        const { email, password } = req.body;
+        if (!email || !req.body?.password) {
+            logger.auth("warn", "Login validation failed", { requestId, reason: "missing_fields" });
+            return res.status(400).json({ message: "Email and password are required" });
+        }
 
         const user = await User.findOne({ email });
         if (!user) {
+            logger.auth("warn", "Login failed: user not found", { requestId, email });
             return res.status(400).json({ message: "User not found" });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
+        const { match, inspection, compareSkipped } = await verifyPassword(
+            req.body.password,
+            user.password,
+            { requestId, userId: user._id.toString(), email }
+        );
+
+        if (compareSkipped || !match) {
+            logger.auth("warn", "Login failed: invalid password", {
+                requestId,
+                userId: user._id.toString(),
+                email,
+                inspection,
+                compareSkipped,
+            });
             return res.status(400).json({ message: "Invalid password" });
         }
 
@@ -63,13 +122,20 @@ const loginUser = async (req, res) => {
             { expiresIn: "1d" }
         );
 
+        logger.auth("info", "Login success", {
+            requestId,
+            userId: user._id.toString(),
+            email: user.email,
+            role: user.role,
+        });
+
         res.json({
             message: "Login successful",
             token,
             user: formatUserResponse(user),
         });
     } catch (error) {
-        console.error("loginUser error:", error);
+        logger.auth("error", "Login error", { requestId, error: error.message, stack: error.stack });
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
@@ -78,7 +144,7 @@ const getSalesUsers = async (req, res) => {
     try {
         const salesUsers = await User.find(
             { role: { $in: ["Sales", "Sales Manager"] } },
-            "name role"
+            "name role _id"
         ).sort({ name: 1 });
 
         res.status(200).json({ salesUsers });
@@ -377,6 +443,82 @@ const getSalesProfile = async (req, res) => {
     }
 };
 
+const updateSalesRepTarget = async (req, res) => {
+    try {
+        if (req.user.role !== "Sales Manager") {
+            return res.status(403).json({ message: "Only sales managers can update representative targets" });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (user.role !== "Sales") {
+            return res.status(400).json({ message: "Targets can only be set for sales representatives" });
+        }
+
+        const { monthlyTarget } = req.body;
+        if (monthlyTarget === undefined || monthlyTarget === null) {
+            return res.status(400).json({ message: "monthlyTarget is required" });
+        }
+
+        const target = Number(monthlyTarget);
+        if (isNaN(target) || target < 0) {
+            return res.status(400).json({ message: "monthlyTarget must be a number >= 0" });
+        }
+
+        user.monthlyTarget = target;
+        await user.save();
+        res.json({ message: "Target updated", user: formatUserResponse(user) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const createStaffUser = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const { name, email, password, role } = req.body;
+
+        if (!name || !email || !password || !role) {
+            return res.status(400).json({ message: "name, email, password, and role are required" });
+        }
+
+        if (!["Sales", "Receptionist"].includes(role)) {
+            return res.status(400).json({ message: "Role must be Sales or Receptionist" });
+        }
+
+        const userExists = await User.findOne({ email: normalizeEmail(email) });
+        if (userExists) {
+            return res.status(400).json({ message: "User already exists" });
+        }
+
+        const normalizedEmail = normalizeEmail(email);
+        const hashedPassword = await hashPassword(password);
+
+        const user = await User.create({ name, email: normalizedEmail, password: hashedPassword, role });
+
+        logger.auth("info", "Staff user created", {
+            createdBy: req.user.id,
+            userId: user._id.toString(),
+            email: user.email,
+            role: user.role,
+        });
+
+        res.status(201).json({
+            message: "Staff user created",
+            user: formatUserResponse(user),
+        });
+    } catch (error) {
+        logger.auth("error", "Staff user create error", { error: error.message, stack: error.stack });
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 const updateSalesRepAbilities = async (req, res) => {
     try {
         if (req.user.role !== "Sales Manager") {
@@ -420,6 +562,8 @@ module.exports = {
     getSalesReps,
     getMyProfile,
     getUserById,
+    updateSalesRepTarget,
+    createStaffUser,
     updateSalesRepAbilities,
     getSalesTeam,
     getSalesProfile,

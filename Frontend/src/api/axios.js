@@ -1,8 +1,17 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+const apiBaseURL = import.meta.env.VITE_API_URL;
+
+if (!apiBaseURL) {
+  console.error(
+    'VITE_API_URL is not set. Login and API calls will fail. ' +
+    'Set VITE_API_URL in Frontend/.env (dev) or your hosting provider env vars (prod).'
+  );
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: apiBaseURL,
   timeout: 15000,
 });
 
@@ -15,7 +24,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.config?.url?.includes('/users/login')) {
+      console.error('[api] Login response error', {
+        status: err.response?.status,
+        message: err.response?.data?.message,
+        baseURL: err.config?.baseURL,
+      });
+    }
+
+    if (err.response?.status === 401 && !err.config?.url?.includes('/users/login')) {
       localStorage.removeItem('ff_token');
       localStorage.removeItem('ff_user');
       toast.error('Session expired. Please sign in again.');

@@ -23,7 +23,7 @@ export default function Members() {
   const [page, setPage]         = useState(1);
   const [showAdd, setShowAdd]   = useState(false);
   const debouncedSearch = useDebounce(search, 300);
-  const canAdd = ['Receptionist', 'Owner'].includes(user?.role);
+  const canAdd = ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);

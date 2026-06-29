@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GlobalSearch from './GlobalSearch';
+import NotificationBell from './NotificationBell';
 
 const NAV = {
   Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
   Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/checkin', label: 'Check In' }],
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }
@@ -19,6 +20,7 @@ export default function Layout({ children }) {
   const [drop, setDrop]       = useState(false);
   const dropRef               = useRef(null);
   const items                 = NAV[user?.role] ?? NAV.Receptionist;
+  const showNotifications     = ['Sales', 'Sales Manager'].includes(user?.role);
 
   useEffect(() => {
     const h = e => { if (dropRef.current && !dropRef.current.contains(e.target)) setDrop(false); };
@@ -79,6 +81,8 @@ export default function Layout({ children }) {
 
           {/* Right */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+
+            {showNotifications && <NotificationBell />}
 
             {/* Profile */}
             <div ref={dropRef} style={{ position: 'relative' }}>

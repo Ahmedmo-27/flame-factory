@@ -42,6 +42,8 @@ export default function Login() {
         msg = import.meta.env.VITE_API_URL
           ? 'Cannot reach the server. Check your connection and API URL.'
           : 'App is misconfigured: API URL is missing (VITE_API_URL).';
+      } else if (err.response.status === 404) {
+        msg = 'API endpoint not found. Set VITE_API_URL to your backend URL including /api (e.g. https://flame-factory.onrender.com/api).';
       } else {
         msg = err.response.data?.message || 'Invalid email or password.';
       }

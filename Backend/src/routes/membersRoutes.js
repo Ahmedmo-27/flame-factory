@@ -66,7 +66,8 @@ router.get("/:memberId", protect, (req, res, next) => {
     return res.status(403).json({ message: "Access denied" });
 });
 
-router.post("/:memberId/notes", ...salesAccess, addNote);
+router.post("/:memberId/notes", ...notesAccess, addNote);
+router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
 
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);

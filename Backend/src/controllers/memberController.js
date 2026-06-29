@@ -391,14 +391,14 @@ function isAssignedToRep(memberObj, userId) {
     return Boolean(repId && repId === userId.toString());
 }
 
-function formatSalesMember(memberObj, userId) {
+function formatSalesMember(memberObj, userId, role) {
     attachCurrentPackage(memberObj);
     if (memberObj.assignedSales) {
         memberObj.salesRep = memberObj.assignedSales;
     }
     memberObj.Type = memberObj.source;
     memberObj.isAssignedToMe = isAssignedToRep(memberObj, userId);
-    if (!memberObj.isAssignedToMe) {
+    if (role === "Sales" && !memberObj.isAssignedToMe) {
         memberObj.phones = null;
     }
     return memberObj;
@@ -416,13 +416,17 @@ const getMembers = async (req, res) => {
                 .populate("assignedSales", "name email")
                 .populate("subscriptions.package", "name price duration activityType");
 
-            return res.json(
-                members.map((member) => formatSalesMember(member.toObject(), req.user.id))
+            const formatted = members.map((member) =>
+                formatSalesMember(member.toObject(), req.user.id, req.user.role)
             );
+            return res.status(200).json({ count: formatted.length, members: formatted });
         }
 
         const members = await salesMemberQuery();
-        res.json(members.map((member) => formatSalesMember(member.toObject(), req.user.id)));
+        const formatted = members.map((member) =>
+            formatSalesMember(member.toObject(), req.user.id, req.user.role)
+        );
+        res.status(200).json({ count: formatted.length, members: formatted });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -444,7 +448,7 @@ const getMemberById = async (req, res) => {
 
         const memberObj = member.toObject();
         if (["Sales", "Sales Manager"].includes(req.user.role)) {
-            return res.json(formatSalesMember(memberObj, req.user.id));
+            return res.json(formatSalesMember(memberObj, req.user.id, req.user.role));
         }
 
         res.json(memberObj);

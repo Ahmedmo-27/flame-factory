@@ -37,8 +37,19 @@ export default function MemberProfile() {
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
-    try { const res = await getMemberProfile(id); setData(res.data); }
-    catch { toast.error('Member not found.'); navigate(-1); }
+    try {
+      const res = await getMemberProfile(id);
+      if (!res.data?.member) {
+        toast.error('Member not found.');
+        navigate(-1);
+        return;
+      }
+      setData(res.data);
+    } catch (e) {
+      const msg = e.response?.data?.message;
+      toast.error(msg === 'Access denied' ? 'You do not have permission to view this profile.' : (msg ?? 'Member not found.'));
+      navigate(-1);
+    }
     finally { setLoading(false); }
   }, [id, navigate]);
 

@@ -16,7 +16,8 @@ function buildMemberFilter(id) {
     }
 
     if (/^\d+$/.test(value)) {
-        return { memberId: Number(value) };
+        const numId = Number(value);
+        return { $or: [{ systemId: numId }, { memberId: numId }] };
     }
 
     return null;

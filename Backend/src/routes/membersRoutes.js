@@ -57,10 +57,8 @@ router.get("/", protect, (req, res, next) => {
 router.get("/all-notes", protect, authorize("Sales Manager", "Owner"), getAllNotes);
 
 router.get("/:memberId", protect, (req, res, next) => {
-    if (["Sales", "Sales Manager"].includes(req.user.role)) {
-        return getMemberById(req, res, next);
-    }
-    if (["Receptionist", "Owner"].includes(req.user.role)) {
+    const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant"];
+    if (profileRoles.includes(req.user.role)) {
         return getMemberProfile(req, res, next);
     }
     return res.status(403).json({ message: "Access denied" });

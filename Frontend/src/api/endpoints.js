@@ -26,6 +26,8 @@ export const assignSales       = (id, salesId) =>
   api.patch(`/members/${id}/assign-sales`, { salesId });
 export const bulkTransferSalesReps = (data) =>
   api.post('/members/bulk-transfer-sales', data);
+export const switchSalesRep = (id, newSalesRepId) =>
+  api.put(`/members/${id}/sales-rep`, { newSalesRepId });
 export const freezeMember      = (id, data) =>
   api.patch(`/members/${id}/freeze`, data);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);

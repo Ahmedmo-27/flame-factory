@@ -63,11 +63,8 @@ const calcEndDate = (startDate, duration) => {
 
 // ─── Helper: find by systemId, memberId, or MongoDB _id ──────────────────────
 const findMember = async (id) => {
-    const numId = Number(id);
-    const isNumeric = !isNaN(numId) && numId >= 100;
-    const query = isNumeric
-        ? { $or: [{ systemId: numId }, { memberId: numId }] }
-        : { _id: id };
+    const query = buildMemberFilter(id);
+    if (!query) return null;
     return Member.findOne(query).populate("subscriptions.package");
 };
 
@@ -161,11 +158,10 @@ const getAllMembers = async (req, res) => {
 const getMemberProfile = async (req, res) => {
     try {
         const { memberId } = req.params;
-        const numId = Number(memberId);
-        const isNumeric = !isNaN(numId) && numId >= 100;
-        const query = isNumeric
-            ? { $or: [{ systemId: numId }, { memberId: numId }] }
-            : { _id: memberId };
+        const query = buildMemberFilter(memberId);
+        if (!query) {
+            return res.status(400).json({ message: "Invalid member ID" });
+        }
 
         const member = await Member.findOne(query)
             .populate("subscriptions.package", "name duration activityType price freezeLimitDays invitationLimit renewalDiscountPercent")
@@ -195,8 +191,13 @@ const getMemberProfile = async (req, res) => {
             .populate("viewedBy", "name role")
             .sort({ createdAt: -1 });
 
+        const memberPayload = member.toObject();
+        if (req.user.role === "Sales" && !isAssignedToRep(memberPayload, req.user.id)) {
+            memberPayload.phones = null;
+        }
+
         res.status(200).json({
-            member,
+            member: memberPayload,
             checkIns,
             profileViews,
             stats: {
@@ -530,50 +531,78 @@ const bulkTransferSalesReps = async (req, res) => {
     try {
         const { fromSalesRepId, toSalesRepId, memberIds } = req.body;
 
-        if (!fromSalesRepId || !toSalesRepId) {
-            return res.status(400).json({ message: "fromSalesRepId and toSalesRepId are required" });
+        if (!toSalesRepId) {
+            return res.status(400).json({ message: "toSalesRepId is required" });
         }
 
-        if (fromSalesRepId === toSalesRepId) {
-            return res.status(400).json({ message: "Source and destination sales reps must differ" });
-        }
-
-        const fromUser = await User.findById(fromSalesRepId);
         const toUser = await validateSalesAssignee(toSalesRepId);
-
-        if (!fromUser || !["Sales", "Sales Manager"].includes(fromUser.role)) {
-            return res.status(400).json({ message: "Invalid source sales rep" });
-        }
         if (!toUser) {
             return res.status(400).json({ message: "Invalid destination sales rep" });
         }
 
-        let members = await Member.find({ assignedSales: fromSalesRepId });
+        if (fromSalesRepId && fromSalesRepId === toSalesRepId) {
+            return res.status(400).json({ message: "Source and destination sales reps must differ" });
+        }
 
-        if (memberIds && memberIds.length > 0) {
-            const idSet = new Set(memberIds.map(String));
-            const invalid = memberIds.filter((mid) => {
-                return !members.some((m) => m._id.toString() === String(mid));
-            });
-            if (invalid.length > 0) {
+        let fromUser = null;
+        if (fromSalesRepId) {
+            fromUser = await User.findById(fromSalesRepId);
+            if (!fromUser || !["Sales", "Sales Manager"].includes(fromUser.role)) {
+                return res.status(400).json({ message: "Invalid source sales rep" });
+            }
+        }
+
+        let members;
+
+        if (memberIds?.length > 0) {
+            members = await Member.find({ _id: { $in: memberIds } });
+            if (members.length !== memberIds.length) {
+                const found = new Set(members.map((m) => m._id.toString()));
+                const missing = memberIds.filter((id) => !found.has(String(id)));
                 return res.status(400).json({
-                    message: "Some members are not assigned to the source sales rep",
-                    invalidMemberIds: invalid,
+                    message: "One or more members not found",
+                    invalidMemberIds: missing,
                 });
             }
-            members = members.filter((m) => idSet.has(m._id.toString()));
+            if (fromSalesRepId) {
+                const invalid = members.filter(
+                    (m) => !m.assignedSales || m.assignedSales.toString() !== fromSalesRepId
+                );
+                if (invalid.length > 0) {
+                    return res.status(400).json({
+                        message: "Some members are not assigned to the source sales rep",
+                        invalidMemberIds: invalid.map((m) => m._id),
+                    });
+                }
+            }
+        } else if (fromSalesRepId) {
+            members = await Member.find({ assignedSales: fromSalesRepId });
+        } else {
+            return res.status(400).json({ message: "Provide memberIds or fromSalesRepId" });
         }
+
+        members = members.filter(
+            (m) => !m.assignedSales || m.assignedSales.toString() !== toSalesRepId
+        );
 
         if (!members.length) {
             return res.status(400).json({ message: "No members to transfer" });
         }
 
+        await Member.populate(members, { path: "assignedSales", select: "name" });
+
         const transferredIds = [];
         for (const member of members) {
+            const prevName = member.assignedSales?.name ?? null;
             member.assignedSales = toSalesRepId;
+            const logText = fromUser && prevName
+                ? `Bulk transferred from ${prevName} to ${toUser.name}`
+                : prevName
+                    ? `Transferred from ${prevName} to ${toUser.name}`
+                    : `Assigned to ${toUser.name}`;
             member.userlog.push({
                 type: "assign",
-                text: `Bulk transferred from ${fromUser.name} to ${toUser.name}`,
+                text: logText,
                 createdBy: req.user.id,
             });
             await member.save();

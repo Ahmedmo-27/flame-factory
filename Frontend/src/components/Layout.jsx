@@ -7,8 +7,8 @@ import NotificationBell from './NotificationBell';
 const NAV = {
   Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
   Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/checkin', label: 'Check In' }],
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }

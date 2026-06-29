@@ -5,7 +5,7 @@ const {
     updateRequestStatus,
     getRequests
 } = require("../controllers/salesRequestController");
-const protect   = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
 
 // All routes require authentication

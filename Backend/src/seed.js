@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const User = require("./models/User");
 const Package = require("./models/Package");
 const Member = require("./models/Member");
+const ProfileView = require("./models/ProfileView");
 const SalesRepRequest = require("./models/SalesRepRequest");
 
 const TEST_PASSWORD = "password123";
@@ -37,14 +38,69 @@ const USERS = [
   },
 ];
 
-async function upsertUser({ name, email, role, passwordHash, abilities }) {
-  const update = { name, email, role, password: passwordHash };
-  if (abilities) update.abilities = abilities;
-  return User.findOneAndUpdate(
-    { email },
-    update,
-    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-  );
+const SEED_USER_EMAILS = USERS.map((u) => u.email);
+
+const SEED_MEMBER_PHONES = [
+  "01012345678",
+  "01098765432",
+  "01122334455",
+  "01233445566",
+];
+
+const SEED_MEMBER_IDS = [1, 2, 3, 4];
+const SEED_SYSTEM_IDS = [100, 101, 102, 103];
+const SEED_MEMBERSHIP_IDS = [100, 101, 102];
+
+const SEED_PACKAGE_NAMES = ["Basic Monthly", "Premium Quarterly"];
+
+function seedMemberFilter() {
+  return {
+    $or: [
+      { phones: { $in: SEED_MEMBER_PHONES } },
+      { memberId: { $in: SEED_MEMBER_IDS } },
+      { systemId: { $in: SEED_SYSTEM_IDS } },
+      { membershipId: { $in: SEED_MEMBERSHIP_IDS } },
+    ],
+  };
+}
+
+async function clearSeedData() {
+  const seedUsers = await User.find({ email: { $in: SEED_USER_EMAILS } }).select("_id");
+  const seedUserIds = seedUsers.map((u) => u._id);
+
+  const seedMembers = await Member.find(seedMemberFilter()).select("_id");
+  const seedMemberIds = seedMembers.map((m) => m._id);
+
+  const [profileViews, requests, members, packages, users] = await Promise.all([
+    ProfileView.deleteMany({ member: { $in: seedMemberIds } }),
+    SalesRepRequest.deleteMany({
+      $or: [
+        { member: { $in: seedMemberIds } },
+        { requestedBy: { $in: seedUserIds } },
+      ],
+    }),
+    Member.deleteMany(seedMemberFilter()),
+    Package.deleteMany({ name: { $in: SEED_PACKAGE_NAMES } }),
+    User.deleteMany({ email: { $in: SEED_USER_EMAILS } }),
+  ]);
+
+  console.log("Removed existing seed data:");
+  console.log(`  ProfileView: ${profileViews.deletedCount}`);
+  console.log(`  SalesRepRequest: ${requests.deletedCount}`);
+  console.log(`  Member: ${members.deletedCount}`);
+  console.log(`  Package: ${packages.deletedCount}`);
+  console.log(`  User: ${users.deletedCount}`);
+}
+
+function calcEndDate(startDate, duration) {
+  const end = new Date(startDate);
+  switch (duration) {
+    case "1 month":  end.setMonth(end.getMonth() + 1); break;
+    case "3 months": end.setMonth(end.getMonth() + 3); break;
+    case "6 months": end.setMonth(end.getMonth() + 6); break;
+    case "1 year":   end.setFullYear(end.getFullYear() + 1); break;
+  }
+  return end;
 }
 
 async function seed() {
@@ -60,21 +116,19 @@ async function seed() {
     process.exit(1);
   }
 
-  // Remove legacy unique index that blocks multiple members without memberId
-  try {
-    await Member.collection.dropIndex("memberId_1");
-    console.log("Dropped stale memberId index");
-  } catch (err) {
-    if (err.code !== 27 && err.codeName !== "IndexNotFound") {
-      console.warn("Could not drop memberId index:", err.message);
-    }
-  }
+  await clearSeedData();
 
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
 
   const users = {};
   for (const user of USERS) {
-    const doc = await upsertUser({ ...user, passwordHash });
+    const doc = await User.create({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: passwordHash,
+      ...(user.abilities ? { abilities: user.abilities } : {}),
+    });
     users[user.email] = doc;
     console.log(`✓ ${user.role}: ${user.email}`);
   }
@@ -84,92 +138,110 @@ async function seed() {
   const sales2 = users["sales2@test.com"];
 
   const packages = await Promise.all([
-    Package.findOneAndUpdate(
-      { name: "Basic Monthly" },
-      {
-        name: "Basic Monthly",
-        type: "monthly",
-        price: 1500,
-        durationMonths: 1,
-        isActive: true,
-        createdBy: manager._id,
-      },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    ),
-    Package.findOneAndUpdate(
-      { name: "Premium Quarterly" },
-      {
-        name: "Premium Quarterly",
-        type: "quarterly",
-        price: 4000,
-        durationMonths: 3,
-        isActive: true,
-        createdBy: manager._id,
-      },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    ),
+    Package.create({
+      name: "Basic Monthly",
+      activityType: "gym",
+      duration: "1 month",
+      price: 1500,
+      isActive: true,
+      createdBy: manager._id,
+    }),
+    Package.create({
+      name: "Premium Quarterly",
+      activityType: "gym",
+      duration: "3 months",
+      price: 4000,
+      isActive: true,
+      createdBy: manager._id,
+    }),
   ]);
 
   const [basicPkg, premiumPkg] = packages;
 
   const memberSeeds = [
     {
+      memberId: 1,
+      systemId: 100,
+      membershipId: 100,
       name: "Karim Hassan",
       phones: "01012345678",
       salesRep: sales1._id,
-      package: basicPkg._id,
-      Type: "Walk in",
+      source: "Walk in",
       status: "active",
+      isMember: true,
       notes: [{ text: "Interested in morning sessions.", createdBy: sales1._id }],
+      pkg: basicPkg,
     },
     {
+      memberId: 2,
+      systemId: 101,
+      membershipId: 101,
       name: "Mona Ali",
       phones: "01098765432",
       salesRep: sales2._id,
-      package: premiumPkg._id,
-      Type: "Social media",
+      source: "Social media",
       status: "active",
+      isMember: true,
       notes: [{ text: "Referred by existing member.", createdBy: sales2._id }],
+      pkg: premiumPkg,
     },
     {
+      memberId: 3,
+      systemId: 102,
       name: "Youssef Ibrahim",
       phones: "01122334455",
       salesRep: null,
-      package: basicPkg._id,
-      Type: "sales call",
-      status: "active",
+      source: "sales call",
+      status: "guest",
+      isMember: false,
+      pkg: basicPkg,
     },
     {
+      memberId: 4,
+      systemId: 103,
+      membershipId: 102,
       name: "Nour Mahmoud",
       phones: "01233445566",
       salesRep: sales2._id,
-      package: premiumPkg._id,
-      Type: "referal",
+      source: "referral",
       status: "active",
+      isMember: true,
+      pkg: premiumPkg,
     },
   ];
 
   const members = {};
   for (const seed of memberSeeds) {
-    const doc = await Member.findOneAndUpdate(
-      { phones: seed.phones },
-      { ...seed, createdBy: manager._id },
-      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-    );
+    const startDate = new Date();
+    const { pkg, ...memberFields } = seed;
+    const update = {
+      ...memberFields,
+      createdBy: manager._id,
+    };
+
+    if (seed.isMember) {
+      update.subscriptions = [{
+        subscriptionId: seed.membershipId,
+        package: pkg._id,
+        startDate,
+        endDate: calcEndDate(startDate, pkg.duration),
+        pricePaid: pkg.price,
+        discountPercent: 0,
+        isRenewal: false,
+        createdBy: manager._id,
+      }];
+    }
+
+    const doc = await Member.create(update);
     members[seed.name] = doc;
     console.log(`✓ Member: ${seed.name}`);
   }
 
-  // Pending takeover request: sales1 wants Nour (assigned to sales2)
-  await SalesRepRequest.findOneAndUpdate(
-    { member: members["Nour Mahmoud"]._id, requestedBy: sales1._id, status: "pending" },
-    {
-      member: members["Nour Mahmoud"]._id,
-      requestedBy: sales1._id,
-      status: "pending",
-    },
-    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
-  );
+  await SalesRepRequest.create({
+    member: members["Nour Mahmoud"]._id,
+    requestedBy: sales1._id,
+    status: "pending",
+  });
   console.log("✓ Pending request: sales1 → Nour Mahmoud (takeover from sales2)");
 
   console.log("\n--- Test accounts (password for all: password123) ---");

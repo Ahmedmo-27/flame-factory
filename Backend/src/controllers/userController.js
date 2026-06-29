@@ -298,6 +298,85 @@ const getUserById = async (req, res) => {
     }
 };
 
+const STATUS_STAT_KEYS = { active: "active", frozen: "frozen", expired: "expired", guest: "guests" };
+
+function buildRepStats(members, repId, now = new Date()) {
+    const stats = { total: 0, active: 0, frozen: 0, expired: 0, guests: 0, monthlyRevenue: 0 };
+    const repKey = repId.toString();
+    const currentMonthKey = monthKey(now);
+
+    members.forEach((member) => {
+        const assignedId = member.assignedSales?._id?.toString() || member.assignedSales?.toString();
+        if (assignedId !== repKey) return;
+
+        stats.total += 1;
+        const statKey = STATUS_STAT_KEYS[member.status];
+        if (statKey) stats[statKey] += 1;
+
+        const price = memberPrice(member);
+        if (!price) return;
+
+        const sub = getCurrentSubscription(member);
+        const saleDate = sub?.createdAt || member.createdAt;
+        if (monthKey(saleDate) === currentMonthKey) {
+            stats.monthlyRevenue += price;
+        }
+    });
+
+    return stats;
+}
+
+const getSalesTeam = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+        require("../models/Package");
+
+        const [team, members] = await Promise.all([
+            User.find({ role: { $in: ["Sales", "Sales Manager"] } })
+                .select("name email role monthlyTarget abilities createdAt")
+                .sort({ name: 1 }),
+            Member.find().populate("subscriptions.package"),
+        ]);
+
+        const now = new Date();
+        const teamWithStats = team.map((user) => ({
+            ...formatUserResponse(user),
+            stats: buildRepStats(members, user._id, now),
+        }));
+
+        res.json({ team: teamWithStats });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const getSalesProfile = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+        require("../models/Package");
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (!["Sales", "Sales Manager"].includes(user.role)) {
+            return res.status(400).json({ message: "Profile is only available for sales team members" });
+        }
+
+        const members = await Member.find({ assignedSales: user._id })
+            .populate("subscriptions.package", "name price duration activityType");
+
+        res.json({
+            user: formatUserResponse(user),
+            stats: buildRepStats(members, user._id),
+            members: members.map((m) => m.toObject()),
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 const updateSalesRepAbilities = async (req, res) => {
     try {
         if (req.user.role !== "Sales Manager") {
@@ -342,4 +421,6 @@ module.exports = {
     getMyProfile,
     getUserById,
     updateSalesRepAbilities,
+    getSalesTeam,
+    getSalesProfile,
 };

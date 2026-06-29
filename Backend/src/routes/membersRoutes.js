@@ -13,8 +13,7 @@ const {
     getMembers,
     getMemberById,
     addNote,
-    switchSalesRep,,
-    addNote,
+    switchSalesRep,
     addInvitation,
     getAllNotes
 } = require("../controllers/memberController");
@@ -41,7 +40,7 @@ const salesAccess = [protect, authorizeRoles("Sales", "Sales Manager", "Owner")]
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-router.post("/", ...receptionAccess, createMember);
+router.post("/", ...writeAccess, createMember);
 
 router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager"].includes(req.user.role)) {
@@ -66,9 +65,9 @@ router.get("/:memberId", protect, (req, res, next) => {
 router.post("/:memberId/notes", ...salesAccess, addNote);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
 
-router.post("/:memberId/checkin", ...receptionAccess, checkInMember);
-router.patch("/:memberId/assign-sales", ...receptionAccess, assignSalesman);
-router.patch("/:memberId/freeze", ...receptionAccess, freezeMember);
+router.post("/:memberId/checkin", ...writeAccess, checkInMember);
+router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
+router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
 router.get("/all-notes",                protect, authorize("Sales Manager", "Owner"), getAllNotes);
 
 

@@ -27,11 +27,9 @@ router.get("/sales-revenue", protect, getSalesRevenue);
 router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner"), getSalesManagerRevenue);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/sales", protect, getSalesUsers);
+router.get("/team", protect, authorizeRoles("Sales Manager", "Owner"), getSalesTeam);
+router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner"), getSalesProfile);
 router.get("/:id", protect, getUserById);
 router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);
-
-// Full team list with stats — Sales Manager and Owner only
-router.get("/team",         protect, authorize("Sales Manager", "Owner"), getSalesTeam);
-router.get("/team/:id",     protect, authorize("Sales Manager", "Owner"), getSalesProfile);
 
 module.exports = router;

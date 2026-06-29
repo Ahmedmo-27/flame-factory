@@ -2,6 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Btn, Input, Spinner, EmptyState, fmtDate, fmtDateTime } from '../../../components/ui';
 import { addInvitation } from '../../../api/endpoints';
+import { apiOrigin } from '../../../api/axios';
 
 export default function InvitationsTab({ member, user, onRefresh }) {
   const [name,  setName]  = useState('');
@@ -85,7 +86,7 @@ export default function InvitationsTab({ member, user, onRefresh }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                   {inv.idFile && (
-                    <a href={`${import.meta.env.VITE_API_URL?.replace('/api','')}/uploads/${inv.idFile.split('/').pop()}`}
+                    <a href={`${apiOrigin}/uploads/${inv.idFile.split('/').pop()}`}
                       target="_blank" rel="noopener noreferrer"
                       style={{ fontSize: 12, color: 'var(--blue)', textDecoration: 'none' }}>View ID</a>
                   )}

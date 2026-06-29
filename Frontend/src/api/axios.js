@@ -1,12 +1,27 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const apiBaseURL = import.meta.env.VITE_API_URL;
+/** Ensure base URL ends with /api (backend mounts routes under /api/*). */
+function normalizeApiBaseURL(url) {
+  if (!url) return url;
+  const trimmed = url.replace(/\/+$/, '');
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
 
-if (!apiBaseURL) {
+const rawApiURL = import.meta.env.VITE_API_URL;
+const apiBaseURL = normalizeApiBaseURL(rawApiURL);
+
+/** Server origin without /api — use for static paths like /uploads. */
+export const apiOrigin = apiBaseURL?.replace(/\/api$/, '') ?? '';
+
+if (!rawApiURL) {
   console.error(
     'VITE_API_URL is not set. Login and API calls will fail. ' +
     'Set VITE_API_URL in Frontend/.env (dev) or your hosting provider env vars (prod).'
+  );
+} else if (rawApiURL !== apiBaseURL) {
+  console.warn(
+    `[api] VITE_API_URL should end with /api. Normalized "${rawApiURL}" → "${apiBaseURL}".`
   );
 }
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { logRequest, logResponse, logError } from './apiLogger';
 
 /** Ensure base URL ends with /api (backend mounts routes under /api/*). */
 function normalizeApiBaseURL(url) {
@@ -33,17 +34,25 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('ff_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  config.headers['X-Request-Id'] = crypto.randomUUID().slice(0, 8);
+  logRequest(config);
   return config;
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    logResponse(res);
+    return res;
+  },
   (err) => {
+    logError(err);
+
     if (err.config?.url?.includes('/users/login')) {
       console.error('[api] Login response error', {
         status: err.response?.status,
         message: err.response?.data?.message,
         baseURL: err.config?.baseURL,
+        requestId: err.response?.headers?.['x-request-id'] || err.config?.headers?.['X-Request-Id'],
       });
     }
 

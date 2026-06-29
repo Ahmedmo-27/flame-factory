@@ -4,6 +4,8 @@ const path = require("path");
 const LOG_DIR = path.join(__dirname, "../../logs");
 const LOG_FILE = path.join(LOG_DIR, "app.log");
 const AUTH_LOG_FILE = path.join(LOG_DIR, "auth.log");
+const HTTP_LOG_FILE = path.join(LOG_DIR, "http.log");
+const ERRORS_LOG_FILE = path.join(LOG_DIR, "errors.log");
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const MIN_LEVEL = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
@@ -49,8 +51,15 @@ function log(level, category, message, meta = {}, options = {}) {
     }
 
     writeToFile(LOG_FILE, line);
+
     if (options.auth || category === "auth") {
         writeToFile(AUTH_LOG_FILE, line);
+    }
+    if (options.http || category === "http") {
+        writeToFile(HTTP_LOG_FILE, line);
+    }
+    if (level === "error") {
+        writeToFile(ERRORS_LOG_FILE, line);
     }
 }
 
@@ -60,6 +69,7 @@ const logger = {
     warn: (category, message, meta, options) => log("warn", category, message, meta, options),
     error: (category, message, meta, options) => log("error", category, message, meta, options),
     auth: (level, message, meta = {}) => log(level, "auth", message, meta, { auth: true }),
+    http: (level, message, meta = {}) => log(level, "http", message, meta, { http: true }),
 };
 
 module.exports = logger;

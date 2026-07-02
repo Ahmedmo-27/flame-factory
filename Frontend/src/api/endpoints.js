@@ -7,8 +7,16 @@ export const login        = (email, password) =>
 export const getSalesUsers   = () => api.get('/users/sales');
 export const getSalesTeam    = () => api.get('/users/team');
 export const getSalesProfile = (id) => api.get(`/users/team/${id}`);
+export const getSalesManagerRevenue = (params = {}) =>
+  api.get('/users/sales-manager/revenue', { params });
+export const getSubscriptionsByDate = (params = {}) =>
+  api.get('/users/sales-manager/subscriptions', { params });
+export const getSalesMySubscriptions = (params = {}) =>
+  api.get('/users/my-subscriptions', { params });
 export const updateSalesRepTarget = (id, monthlyTarget) =>
   api.patch(`/users/${id}/target`, { monthlyTarget });
+export const updateSalesRepAbilities = (id, abilities) =>
+  api.patch(`/users/${id}/abilities`, { abilities });
 export const createStaffUser = (data) => api.post('/users/staff', data);
 
 // ── Notifications ─────────────────────────────────────────────────────────────

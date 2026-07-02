@@ -12,7 +12,7 @@ export default function NotFound() {
         <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)', marginBottom: 8 }}>Page not found</h1>
         <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 24 }}>The page you're looking for doesn't exist or you don't have access.</p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <Btn variant="outline" size="sm" onClick={() => navigate(-1)}>← Go Back</Btn>
+          <Btn variant="outline" size="sm" onClick={() => navigate(-1)}>Go Back</Btn>
           <Btn size="sm" onClick={() => navigate('/')}>Go Home</Btn>
         </div>
       </div>

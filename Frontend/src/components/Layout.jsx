@@ -6,9 +6,9 @@ import NotificationBell from './NotificationBell';
 
 const NAV = {
   Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
-  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/checkin', label: 'Check In' }],
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/checkin', label: 'Check In' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }
@@ -44,17 +44,17 @@ export default function Layout({ children }) {
         background: 'var(--navy)',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}>
-        <div className="wrap" style={{ display: 'flex', alignItems: 'center', height: 52, gap: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 52, padding: '0 20px', position: 'relative' }}>
 
-          {/* Logo */}
-          <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0, marginRight: 36 }}>
+          {/* ── LEFT: Logo ───────────────────────────────────────── */}
+          <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>🔥</span>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.2px' }}>FlamFactory</span>
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>GYM</span>
           </div>
 
-          {/* Desktop links */}
-          <nav id="desk-nav" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* ── CENTER: Nav links (desktop only) ─────────────────── */}
+          <nav id="desk-nav" style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
             {items.map(item => (
               <NavLink key={item.to} to={item.to} style={{ textDecoration: 'none' }}>
                 {({ isActive }) => (
@@ -65,6 +65,7 @@ export default function Layout({ children }) {
                     background: isActive ? 'rgba(255,255,255,0.10)' : 'transparent',
                     cursor: 'pointer', transition: 'all 0.12s',
                     borderBottom: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
+                    whiteSpace: 'nowrap',
                   }}
                     onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
                     onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.50)'; e.currentTarget.style.background = 'transparent'; } }}
@@ -74,13 +75,12 @@ export default function Layout({ children }) {
             ))}
           </nav>
 
-          {/* Global search — centered between nav and profile */}
-          <div id="desk-nav" style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '0 16px' }}>
-            <GlobalSearch />
-          </div>
-
-          {/* Right */}
+          {/* ── RIGHT: Search + Notifications + User ─────────────── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+
+            <div id="desk-search">
+              <GlobalSearch />
+            </div>
 
             {showNotifications && <NotificationBell />}
 
@@ -199,10 +199,11 @@ export default function Layout({ children }) {
 
       <style>{`
         @media (max-width: 767px) {
-          #desk-nav   { display: none !important; }
-          #mob-btn    { display: flex !important; }
-          #prof-text  { display: none !important; }
-          #prof-arrow { display: none !important; }
+          #desk-nav    { display: none !important; }
+          #desk-search { display: none !important; }
+          #mob-btn     { display: flex !important; }
+          #prof-text   { display: none !important; }
+          #prof-arrow  { display: none !important; }
         }
       `}</style>
     </div>

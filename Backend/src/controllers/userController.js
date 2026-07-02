@@ -228,8 +228,9 @@ const getSalesManagerRevenue = async (req, res) => {
         const Member = require("../models/Member");
         require("../models/Package");
 
-        const now = new Date();
-        const selectedMonth = req.query.month || monthKey(now);
+        const now          = new Date();
+        const selectedDate = req.query.date  || null; // YYYY-MM-DD  – specific day filter
+        const currentYear  = now.getFullYear();
 
         const [members, reps] = await Promise.all([
             Member.find()
@@ -238,76 +239,56 @@ const getSalesManagerRevenue = async (req, res) => {
             User.find({ role: "Sales" }).select("name email _id monthlyTarget"),
         ]);
 
+        // Build monthly map for the past 12 months
         const monthlyMap = buildMonthlyMap(12, now);
-        let currentDayRevenue = 0;
-        let currentMonthRevenue = 0;
-        let selectedMonthRevenue = 0;
 
-        const repStats = {};
-        reps.forEach((rep) => {
-            repStats[rep._id.toString()] = {
-                rep: {
-                    _id: rep._id,
-                    name: rep.name,
-                    email: rep.email,
-                    monthlyTarget: rep.monthlyTarget ?? 0,
-                },
-                revenue: 0,
-                salesCount: 0,
-            };
-        });
+        let todayRevenue         = 0;
+        let selectedDateRevenue  = 0;
+        let currentYearRevenue   = 0;
 
+        // Iterate every subscription of every member for accurate per-date attribution
         members.forEach((member) => {
-            const price = memberPrice(member);
-            if (!price) return;
+            if (!member.subscriptions?.length) return;
 
-            const sub = getCurrentSubscription(member);
-            const createdAt = sub?.createdAt || member.createdAt;
-            const key = monthKey(createdAt);
+            member.subscriptions.forEach((sub) => {
+                const price = sub.pricePaid || sub.package?.price || 0;
+                if (!price) return;
 
-            if (monthlyMap[key]) {
-                monthlyMap[key].revenue += price;
-                monthlyMap[key].salesCount += 1;
-            }
+                // startDate is the actual sale date — never use createdAt for revenue
+                const saleDate = sub.startDate;
+                if (!saleDate) return;
 
-            if (isSameDay(createdAt, now)) {
-                currentDayRevenue += price;
-            }
+                const key = monthKey(saleDate);
 
-            if (key === monthKey(now)) {
-                currentMonthRevenue += price;
-            }
+                if (monthlyMap[key]) {
+                    monthlyMap[key].revenue    += price;
+                    monthlyMap[key].salesCount += 1;
+                }
 
-            if (key === selectedMonth) {
-                selectedMonthRevenue += price;
-            }
+                if (isSameDay(saleDate, now)) todayRevenue += price;
 
-            const repId = member.assignedSales?._id?.toString() || member.assignedSales?.toString();
-            if (repId && repStats[repId] && key === selectedMonth) {
-                repStats[repId].revenue += price;
-                repStats[repId].salesCount += 1;
-            }
+                if (new Date(saleDate).getFullYear() === currentYear) {
+                    currentYearRevenue += price;
+                }
+
+                if (selectedDate && dayKey(saleDate) === selectedDate) {
+                    selectedDateRevenue += price;
+                }
+            });
         });
 
-        const repBreakdown = Object.values(repStats)
-            .map((entry) => ({
-                ...entry,
-                targetProgress: entry.rep.monthlyTarget
-                    ? Math.round((entry.revenue / entry.rep.monthlyTarget) * 100)
-                    : null,
-            }))
-            .sort((a, b) => b.revenue - a.revenue);
+        // Monthly totals sorted newest → oldest for the 12-month window
+        const monthlyBreakdown = Object.values(monthlyMap).reverse();
 
         res.json({
-            currency: "EGP",
-            currentDay: dayKey(now),
-            currentDayRevenue,
-            currentMonth: monthKey(now),
-            currentMonthRevenue,
-            selectedMonth,
-            selectedMonthRevenue,
-            monthlyBreakdown: Object.values(monthlyMap),
-            repBreakdown,
+            currency:           "EGP",
+            today:              dayKey(now),
+            todayRevenue,
+            currentYear,
+            currentYearRevenue,
+            selectedDate,
+            selectedDateRevenue,
+            monthlyBreakdown,   // [{month, revenue, salesCount}]
         });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
@@ -553,6 +534,164 @@ const updateSalesRepAbilities = async (req, res) => {
     }
 };
 
+// Returns all subscriptions (with member info) whose startDate falls within a date range
+// Query params: dateFrom (YYYY-MM-DD), dateTo (YYYY-MM-DD), salesRepId (optional)
+// Defaults: dateFrom = today, dateTo = today
+const getSubscriptionsByDate = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const Member = require("../models/Member");
+
+        const today     = dayKey(new Date());
+        const dateFrom  = req.query.dateFrom || req.query.date || today;
+        const dateTo    = req.query.dateTo   || req.query.date || today;
+        const salesRepId = req.query.salesRepId || null;
+
+        const [fromY, fromM, fromD] = dateFrom.split("-").map(Number);
+        const [toY,   toM,   toD  ] = dateTo.split("-").map(Number);
+
+        const dayStart = new Date(Date.UTC(fromY, fromM - 1, fromD, 0, 0, 0));
+        const dayEnd   = new Date(Date.UTC(toY,   toM   - 1, toD,   23, 59, 59, 999));
+
+        if (dayEnd < dayStart) {
+            return res.status(400).json({ message: "dateTo must be on or after dateFrom" });
+        }
+
+        const filter = {
+            "subscriptions.startDate": { $gte: dayStart, $lte: dayEnd },
+        };
+        if (salesRepId) {
+            filter.assignedSales = salesRepId;
+        }
+
+        const members = await Member.find(filter)
+            .populate("subscriptions.package", "name price duration activityType")
+            .populate("assignedSales", "name role")
+            .populate("createdBy", "name role");
+
+        // Flatten to one entry per matching subscription
+        const entries = [];
+        members.forEach((member) => {
+            member.subscriptions.forEach((sub) => {
+                const sd = new Date(sub.startDate);
+                if (sd >= dayStart && sd <= dayEnd) {
+                    entries.push({
+                        member: {
+                            _id:           member._id,
+                            name:          member.name,
+                            systemId:      member.systemId,
+                            memberId:      member.memberId,
+                            phones:        member.phones,
+                            status:        member.status,
+                            assignedSales: member.assignedSales,
+                        },
+                        subscription: {
+                            _id:             sub._id,
+                            subscriptionId:  sub.subscriptionId,
+                            package:         sub.package,
+                            startDate:       sub.startDate,
+                            endDate:         sub.endDate,
+                            pricePaid:       sub.pricePaid,
+                            discountPercent: sub.discountPercent,
+                            isRenewal:       sub.isRenewal,
+                        },
+                    });
+                }
+            });
+        });
+
+        entries.sort((a, b) => new Date(b.subscription.startDate) - new Date(a.subscription.startDate));
+
+        const totalRevenue = entries.reduce((s, e) => s + (e.subscription.pricePaid || 0), 0);
+
+        res.json({
+            dateFrom,
+            dateTo,
+            salesRepId,
+            count: entries.length,
+            totalRevenue,
+            entries,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+// Sales rep version — same logic but scoped to req.user.id automatically
+const getSalesMySubscriptions = async (req, res) => {
+    try {
+        if (req.user.role !== "Sales") {
+            return res.status(403).json({ message: "Only sales representatives can access this" });
+        }
+
+        const Member = require("../models/Member");
+
+        const today    = dayKey(new Date());
+        const dateFrom = req.query.dateFrom || today;
+        const dateTo   = req.query.dateTo   || today;
+
+        const [fromY, fromM, fromD] = dateFrom.split("-").map(Number);
+        const [toY,   toM,   toD  ] = dateTo.split("-").map(Number);
+
+        const dayStart = new Date(Date.UTC(fromY, fromM - 1, fromD, 0, 0, 0));
+        const dayEnd   = new Date(Date.UTC(toY,   toM   - 1, toD,   23, 59, 59, 999));
+
+        if (dayEnd < dayStart) {
+            return res.status(400).json({ message: "dateTo must be on or after dateFrom" });
+        }
+
+        const members = await Member.find({
+            assignedSales: req.user.id,
+            "subscriptions.startDate": { $gte: dayStart, $lte: dayEnd },
+        })
+            .populate("subscriptions.package", "name price duration activityType")
+            .populate("assignedSales", "name role");
+
+        const entries = [];
+        members.forEach((member) => {
+            member.subscriptions.forEach((sub) => {
+                const sd = new Date(sub.startDate);
+                if (sd >= dayStart && sd <= dayEnd) {
+                    entries.push({
+                        member: {
+                            _id:           member._id,
+                            name:          member.name,
+                            systemId:      member.systemId,
+                            phones:        member.phones,
+                            status:        member.status,
+                        },
+                        subscription: {
+                            _id:             sub._id,
+                            subscriptionId:  sub.subscriptionId,
+                            package:         sub.package,
+                            startDate:       sub.startDate,
+                            endDate:         sub.endDate,
+                            pricePaid:       sub.pricePaid,
+                            discountPercent: sub.discountPercent,
+                            isRenewal:       sub.isRenewal,
+                        },
+                    });
+                }
+            });
+        });
+
+        entries.sort((a, b) => new Date(b.subscription.startDate) - new Date(a.subscription.startDate));
+
+        res.json({
+            dateFrom,
+            dateTo,
+            count: entries.length,
+            totalRevenue: entries.reduce((s, e) => s + (e.subscription.pricePaid || 0), 0),
+            entries,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
@@ -567,4 +706,6 @@ module.exports = {
     updateSalesRepAbilities,
     getSalesTeam,
     getSalesProfile,
+    getSubscriptionsByDate,
+    getSalesMySubscriptions,
 };

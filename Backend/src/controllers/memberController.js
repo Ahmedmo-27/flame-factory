@@ -367,7 +367,17 @@ const freezeMember = async (req, res) => {
 
         member.freeze.push({ startDate: start, endDate: end, createdBy: req.user.id });
         member.freezeDaysUsed += requestedDays;
-        member.status = "frozen";
+
+        // Only set status to frozen if the freeze starts today or in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startDay = new Date(start);
+        startDay.setHours(0, 0, 0, 0);
+        if (startDay <= today) {
+            member.status = "frozen";
+        }
+        // If startDate is in the future, status stays "active" until the freeze begins
+
         await member.save();
 
         res.status(200).json({

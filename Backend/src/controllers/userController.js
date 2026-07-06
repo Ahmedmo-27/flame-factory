@@ -469,8 +469,8 @@ const createStaffUser = async (req, res) => {
             return res.status(400).json({ message: "name, email, password, and role are required" });
         }
 
-        if (!["Sales", "Receptionist"].includes(role)) {
-            return res.status(400).json({ message: "Role must be Sales or Receptionist" });
+        if (!["Sales", "Receptionist", "Accountant"].includes(role)) {
+            return res.status(400).json({ message: "Role must be Sales, Receptionist, or Accountant" });
         }
 
         const userExists = await User.findOne({ email: normalizeEmail(email) });

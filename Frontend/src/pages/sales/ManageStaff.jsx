@@ -47,7 +47,7 @@ export default function ManageStaff() {
 
   return (
     <Layout>
-      <PageHeader title="Manage Staff" subtitle="Create accounts for sales representatives and receptionists" />
+      <PageHeader title="Manage Staff" subtitle="Create accounts for sales representatives, receptionists, and accountants" />
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32, maxWidth: 480 }}>
         <Card>
@@ -79,6 +79,7 @@ export default function ManageStaff() {
             >
               <option value="Sales">Sales Representative</option>
               <option value="Receptionist">Receptionist</option>
+              <option value="Accountant">Accountant</option>
             </Select>
             <div style={{ paddingTop: 4 }}>
               <Btn type="submit" disabled={loading}>

@@ -36,7 +36,7 @@ export default function NotificationBell() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getNotifications();
+      const res = await getNotifications({ limit: 30, page: 1 });
       setNotifications(res.data.notifications ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }

@@ -20,14 +20,14 @@ export const updateSalesRepAbilities = (id, abilities) =>
 export const createStaffUser = (data) => api.post('/users/staff', data);
 
 // ── Notifications ─────────────────────────────────────────────────────────────
-export const getNotifications    = () => api.get('/notifications');
+export const getNotifications    = (params) => api.get('/notifications', { params });
 export const getUnreadCount      = () => api.get('/notifications/unread-count');
 export const markNotificationRead = (id) => api.patch(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => api.patch('/notifications/read-all');
 
 // ── Members ───────────────────────────────────────────────────────────────────
-export const getAllMembers     = ()         => api.get('/members');
-export const getAllNotes       = ()         => api.get('/members/all-notes');
+export const getAllMembers     = (params) => api.get('/members', { params });
+export const getAllNotes       = (params) => api.get('/members/all-notes', { params });
 export const getMemberProfile  = (id)       => api.get(`/members/${id}`);
 export const createMember      = (data)     => api.post('/members', data);
 export const assignSales       = (id, salesId) =>
@@ -47,7 +47,7 @@ export const addInvitation     = (id, formData) =>
   });
 
 // ── Packages ──────────────────────────────────────────────────────────────────
-export const getPackages   = ()         => api.get('/packages');
+export const getPackages   = (params) => api.get('/packages', { params });
 export const createPackage = (data)     => api.post('/packages', data);
 export const updatePackage = (id, data) => api.patch(`/packages/${id}`, data);
 export const deletePackage = (id)       => api.delete(`/packages/${id}`);
@@ -56,7 +56,7 @@ export const assignPackage       = (id, data) =>
   api.post(`/members/${id}/package`, data);
 
 // ── Package Exceptions ────────────────────────────────────────────────────────
-export const getPackageExceptions         = () => api.get('/package-exceptions');
+export const getPackageExceptions         = (params) => api.get('/package-exceptions', { params });
 export const getMemberPendingException    = (memberId) =>
   api.get(`/package-exceptions/member/${memberId}`);
 export const createPackageException       = (data) => api.post('/package-exceptions', data);
@@ -64,7 +64,7 @@ export const updatePackageExceptionStatus = (id, status, reviewNote) =>
   api.put(`/package-exceptions/${id}/status`, { status, reviewNote });
 
 // ── Sales Requests ────────────────────────────────────────────────────────────
-export const getRequests         = ()           => api.get('/requests');
+export const getRequests         = (params) => api.get('/requests', { params });
 export const createRequest       = (memberId)   =>
   api.post('/requests', { memberId });
 export const updateRequestStatus = (id, status) =>

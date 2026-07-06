@@ -233,7 +233,7 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
   const [creatingPackage, setCreatingPackage] = useState(false);
 
   const loadPackages = useCallback(() => {
-    return getPackages()
+    return getPackages({ limit: 100 })
       .then(res => setPackages(res.data?.packages ?? []))
       .catch(() => toast.error('Failed to load packages.'));
   }, []);

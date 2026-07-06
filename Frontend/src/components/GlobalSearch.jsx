@@ -18,7 +18,6 @@ export default function GlobalSearch() {
   const wrapRef   = useRef(null);
 
   const [query,    setQuery]    = useState('');
-  const [members,  setMembers]  = useState([]);
   const [results,  setResults]  = useState([]);
   const [open,     setOpen]     = useState(false);
   const [cursor,   setCursor]   = useState(-1);
@@ -27,29 +26,25 @@ export default function GlobalSearch() {
   const canAdd = ['Receptionist', 'Owner', 'Sales', 'Sales Manager'].includes(user?.role);
   const debouncedQuery = useDebounce(query, 200);
 
-  // Load members once on mount and cache
   useEffect(() => {
-    getAllMembers()
-      .then(res => setMembers(res.data.members ?? []))
-      .catch(() => {});
-  }, []);
-
-  // Filter locally — instant, no extra API calls
-  useEffect(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = debouncedQuery.trim();
     if (!q) { setResults([]); setOpen(false); setCursor(-1); return; }
 
-    const matched = members.filter(m =>
-      m.name?.toLowerCase().includes(q) ||
-      m.phones?.includes(q) ||
-      String(m.systemId).includes(q) ||
-      String(m.memberId ?? '').includes(q)
-    ).slice(0, 8); // max 8 results
+    let cancelled = false;
+    getAllMembers({ search: q, limit: 8, page: 1 })
+      .then(res => {
+        if (cancelled) return;
+        const matched = res.data.members ?? [];
+        setResults(matched);
+        setOpen(true);
+        setCursor(-1);
+      })
+      .catch(() => {
+        if (!cancelled) setResults([]);
+      });
 
-    setResults(matched);
-    setOpen(true); // open even when empty — to show "Add" option
-    setCursor(-1);
-  }, [debouncedQuery, members]);
+    return () => { cancelled = true; };
+  }, [debouncedQuery]);
 
   // Close on outside click
   useEffect(() => {
@@ -276,9 +271,6 @@ export default function GlobalSearch() {
           initialName={query.trim()}
           onClose={() => { setShowAdd(false); setQuery(''); }}
           onSuccess={(systemId) => { setShowAdd(false); setQuery(''); navigate(`/members/${systemId}`); }}
-          onMembersRefresh={() => {
-            getAllMembers().then(res => setMembers(res.data.members ?? [])).catch(() => {});
-          }}
         />
       )}
     </div>
@@ -286,7 +278,7 @@ export default function GlobalSearch() {
 }
 
 // ── Add Person Modal (inline, no import needed) ───────────────────────────────
-function AddPersonModal({ initialName, onClose, onSuccess, onMembersRefresh }) {
+function AddPersonModal({ initialName, onClose, onSuccess }) {
   const [packages,  setPackages]  = useState([]);
   const [sales,     setSales]     = useState([]);
   const [form, setForm] = useState({
@@ -299,7 +291,7 @@ function AddPersonModal({ initialName, onClose, onSuccess, onMembersRefresh }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    Promise.all([getPackages(), getSalesUsers()])
+    Promise.all([getPackages({ limit: 100 }), getSalesUsers()])
       .then(([pRes, sRes]) => {
         setPackages(pRes.data.packages ?? []);
         setSales(sRes.data.salesUsers ?? []);
@@ -327,7 +319,6 @@ function AddPersonModal({ initialName, onClose, onSuccess, onMembersRefresh }) {
         packageId:     form.packageId     || null,
         assignedSales: form.assignedSales || null,
       });
-      onMembersRefresh();
       onSuccess(res.data.member.systemId);
     } catch (e) {
       setErrors({ form: e.response?.data?.message || 'Failed to add person.' });

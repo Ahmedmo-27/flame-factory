@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate } from '../../components/ui';
+import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../../components/ui';
 import { getAllMembers, createMember, getPackages, getSalesUsers } from '../../api/endpoints';
 
 const PAGE_SIZE = 20;
@@ -21,46 +21,43 @@ export default function SalesMembers() {
   const [filter,   setFilter]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [page,     setPage]     = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [stats, setStats] = useState({ total: 0, active: 0, frozen: 0, expired: 0, guest: 0 });
   const [showAdd,  setShowAdd]  = useState(false);
   const debouncedSearch = useDebounce(search, 300);
 
-  const fetchAll = useCallback(async () => {
+  const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, pRes, sRes] = await Promise.all([getAllMembers(), getPackages(), getSalesUsers()]);
-      setMembers(mRes.data.members ?? []); setPackages(pRes.data.packages ?? []); setSales(sRes.data.salesUsers ?? []);
+      const res = await getAllMembers({
+        page,
+        limit: PAGE_SIZE,
+        status: filter,
+        search: debouncedSearch || undefined,
+      });
+      setMembers(res.data.members ?? []);
+      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+      if (res.data.stats) setStats(res.data.stats);
     } catch { toast.error('Failed to load data.'); }
     finally { setLoading(false); }
+  }, [page, filter, debouncedSearch]);
+
+  const fetchMeta = useCallback(async () => {
+    try {
+      const [pRes, sRes] = await Promise.all([
+        getPackages({ limit: 100 }),
+        getSalesUsers(),
+      ]);
+      setPackages(pRes.data.packages ?? []);
+      setSales(sRes.data.salesUsers ?? []);
+    } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
-  const myMembers = useMemo(() =>
-    user?.role === 'Sales'
-      ? members.filter(m => { const sid = m.assignedSales?._id ?? m.assignedSales; return sid && String(sid) === String(user._id); })
-      : members,
-    [members, user]);
-
-  const stats = useMemo(() => ({
-    total:   myMembers.length,
-    active:  myMembers.filter(m => m.status === 'active').length,
-    frozen:  myMembers.filter(m => m.status === 'frozen').length,
-    expired: myMembers.filter(m => m.status === 'expired').length,
-    guest:   myMembers.filter(m => m.status === 'guest').length,
-  }), [myMembers]);
-
-  const filtered = useMemo(() => {
-    let list = filter === 'all' ? myMembers : myMembers.filter(m => m.status === filter);
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter(m => m.name?.toLowerCase().includes(q) || m.phones?.includes(q) || String(m.systemId).includes(q));
-    }
-    return list;
-  }, [myMembers, filter, debouncedSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = members;
 
   return (
     <Layout>
@@ -114,21 +111,20 @@ export default function SalesMembers() {
                   );
                 })}
           </Table>
-          {!loading && totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 12, color: 'var(--t4)' }}>{((page-1)*PAGE_SIZE)+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Btn variant="outline" size="xs" disabled={page===1} onClick={() => setPage(p => p-1)}>← Prev</Btn>
-                <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page}/{totalPages}</span>
-                <Btn variant="outline" size="xs" disabled={page===totalPages} onClick={() => setPage(p => p+1)}>Next →</Btn>
-              </div>
-            </div>
+          {!loading && (
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pagination.limit ?? PAGE_SIZE}
+              onPageChange={setPage}
+            />
           )}
         </Card>
       </div>
 
       <AddGuestModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales}
-        currentUser={user} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
+        currentUser={user} onSuccess={() => { setShowAdd(false); fetchMembers(); }} />
     </Layout>
   );
 }

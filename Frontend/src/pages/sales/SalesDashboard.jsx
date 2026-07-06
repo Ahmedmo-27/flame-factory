@@ -1,50 +1,51 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, CardHeader, StatCard, Table, Btn, EmptyState, Avatar, fmtDateTime } from '../../components/ui';
+import { PageHeader, Card, StatCard, Table, Btn, EmptyState, Avatar, fmtDateTime } from '../../components/ui';
 import { getAllMembers } from '../../api/endpoints';
 
 export default function SalesDashboard() {
   usePageTitle('Dashboard');
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const [members,  setMembers]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [showToday, setToday]   = useState(false);
+  const [stats, setStats] = useState({ total: 0, active: 0, frozen: 0, expired: 0, guest: 0 });
+  const [todayMembers, setTodayMembers] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingToday, setLoadingToday] = useState(false);
+  const [showToday, setToday] = useState(false);
 
-  const fetchMembers = useCallback(async () => {
-    setLoading(true);
-    try { const res = await getAllMembers(); setMembers(res.data.members ?? []); }
-    catch { toast.error('Failed to load data.'); }
-    finally { setLoading(false); }
+  const fetchStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const res = await getAllMembers({ page: 1, limit: 1 });
+      setStats(res.data.stats ?? { total: 0, active: 0, frozen: 0, expired: 0, guest: 0 });
+    } catch {
+      toast.error('Failed to load data.');
+    } finally {
+      setLoadingStats(false);
+    }
   }, []);
 
-  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  const fetchToday = useCallback(async () => {
+    setLoadingToday(true);
+    try {
+      const res = await getAllMembers({ subscribedToday: 'true', limit: 100, page: 1 });
+      setTodayMembers(res.data.members ?? []);
+    } catch {
+      toast.error('Failed to load today\'s subscriptions.');
+    } finally {
+      setLoadingToday(false);
+    }
+  }, []);
 
-  const myMembers = useMemo(() =>
-    user?.role === 'Sales'
-      ? members.filter(m => { const sid = m.assignedSales?._id ?? m.assignedSales; return sid && String(sid) === String(user._id); })
-      : members,
-    [members, user]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { fetchToday(); }, [fetchToday]);
 
-  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
-
-  const todayMembers = useMemo(() =>
-    myMembers.filter(m => { const s = m.subscriptions?.at(-1); if (!s) return false; const d = new Date(s.createdAt); d.setHours(0,0,0,0); return d.getTime() === today.getTime(); }),
-    [myMembers, today]);
-
-  const todayRevenue = useMemo(() => todayMembers.reduce((sum, m) => sum + (m.subscriptions?.at(-1)?.pricePaid ?? 0), 0), [todayMembers]);
-
-  const stats = useMemo(() => ({
-    active:  myMembers.filter(m => m.status === 'active').length,
-    frozen:  myMembers.filter(m => m.status === 'frozen').length,
-    expired: myMembers.filter(m => m.status === 'expired').length,
-    guests:  myMembers.filter(m => m.status === 'guest').length,
-    total:   myMembers.length,
-  }), [myMembers]);
+  const todayRevenue = useMemo(
+    () => todayMembers.reduce((sum, m) => sum + (m.subscriptions?.at(-1)?.pricePaid ?? 0), 0),
+    [todayMembers]
+  );
 
   return (
     <Layout>
@@ -55,25 +56,23 @@ export default function SalesDashboard() {
       </PageHeader>
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
-        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-          <StatCard label="Today's Revenue" value={loading ? '—' : `EGP ${todayRevenue.toLocaleString()}`} color="brand"
+          <StatCard label="Today's Revenue" value={loadingToday ? '—' : `EGP ${todayRevenue.toLocaleString()}`} color="brand"
             sub={`${todayMembers.length} subscription${todayMembers.length !== 1 ? 's' : ''} today`} onClick={() => setToday(t => !t)} />
-          <StatCard label="Active"  value={loading ? '—' : stats.active}  color="success" />
-          <StatCard label="Frozen"  value={loading ? '—' : stats.frozen}  color="info" />
-          <StatCard label="Expired" value={loading ? '—' : stats.expired} color="danger" />
-          <StatCard label="Guests"  value={loading ? '—' : stats.guests} />
+          <StatCard label="Active"  value={loadingStats ? '—' : stats.active}  color="success" />
+          <StatCard label="Frozen"  value={loadingStats ? '—' : stats.frozen}  color="info" />
+          <StatCard label="Expired" value={loadingStats ? '—' : stats.expired} color="danger" />
+          <StatCard label="Guests"  value={loadingStats ? '—' : stats.guest} />
         </div>
 
-        {/* Today panel */}
         {showToday && (
           <Card noPad className="fade-up">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Today's Subscriptions ({todayMembers.length})</span>
               <Btn variant="ghost" size="xs" onClick={() => setToday(false)}>Close</Btn>
             </div>
-            {!todayMembers.length ? <EmptyState message="No subscriptions today" /> :
-              <Table loading={loading} headers={['Member', 'Phone', 'Package', 'Price', 'Time']}>
+            {!todayMembers.length && !loadingToday ? <EmptyState message="No subscriptions today" /> :
+              <Table loading={loadingToday} headers={['Member', 'Phone', 'Package', 'Price', 'Time']}>
                 {todayMembers.map(m => {
                   const sub = m.subscriptions?.at(-1);
                   return (
@@ -97,7 +96,6 @@ export default function SalesDashboard() {
           </Card>
         )}
 
-        {/* Quick actions */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
             { label: 'Members',  sub: `${stats.total} total`,     to: '/sales/members' },

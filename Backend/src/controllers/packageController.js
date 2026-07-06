@@ -1,4 +1,5 @@
 const Package = require("../models/Package");
+const { parsePagination, buildPagination } = require("../utils/pagination");
 
 // Create catalog package (Sales Manager / Owner)
 const createPackage = async (req, res) => {
@@ -40,8 +41,19 @@ const createPackage = async (req, res) => {
 // Get all active packages
 const getAllPackages = async (req, res) => {
     try {
-        const packages = await Package.find({ isActive: true, hasException: { $ne: true } }).sort({ createdAt: -1 });
-        res.status(200).json({ count: packages.length, packages });
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50 });
+        const filter = { isActive: true, hasException: { $ne: true } };
+
+        const [total, packages] = await Promise.all([
+            Package.countDocuments(filter),
+            Package.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+        ]);
+
+        res.status(200).json({
+            count: total,
+            packages,
+            pagination: buildPagination(page, limit, total),
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

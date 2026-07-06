@@ -1,14 +1,25 @@
 const Notification = require("../models/Notification");
+const { parsePagination, buildPagination } = require("../utils/pagination");
 
 const getNotifications = async (req, res) => {
     try {
-        const notifications = await Notification.find({ recipient: req.user.id })
-            .populate("member", "name systemId memberId")
-            .populate("createdBy", "name")
-            .sort({ createdAt: -1 })
-            .limit(50);
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 25 });
 
-        res.json({ notifications });
+        const filter = { recipient: req.user.id };
+        const [total, notifications] = await Promise.all([
+            Notification.countDocuments(filter),
+            Notification.find(filter)
+                .populate("member", "name systemId memberId")
+                .populate("createdBy", "name")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+        ]);
+
+        res.json({
+            notifications,
+            pagination: buildPagination(page, limit, total),
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }

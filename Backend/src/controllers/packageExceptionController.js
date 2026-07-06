@@ -7,6 +7,7 @@ const {
     notifyPackageExceptionPending,
     notifyPackageExceptionResolved,
 } = require("../utils/notificationService");
+const { parsePagination, buildPagination } = require("../utils/pagination");
 
 const calcEndDate = (startDate, duration) => {
     const end = new Date(startDate);
@@ -251,19 +252,36 @@ const updateExceptionStatus = async (req, res) => {
 // List exceptions — Sales Manager sees own; Accountant/Owner see all pending
 const getExceptions = async (req, res) => {
     try {
+        const { page, limit, skip } = parsePagination(req.query);
         let filter = {};
         if (req.user.role === "Sales Manager") {
             filter.proposedBy = req.user.id;
         }
 
-        const requests = await PackageExceptionRequest.find(filter)
-            .populate("member", "name systemId memberId status")
-            .populate("basePackage", "name duration price activityType")
-            .populate("proposedBy", "name email")
-            .populate("reviewedBy", "name")
-            .sort({ createdAt: -1 });
+        if (req.query.status && req.query.status !== "all") {
+            if (req.query.status === "resolved") {
+                filter.status = { $ne: "pending" };
+            } else {
+                filter.status = req.query.status;
+            }
+        }
 
-        res.json(requests);
+        const [total, requests] = await Promise.all([
+            PackageExceptionRequest.countDocuments(filter),
+            PackageExceptionRequest.find(filter)
+                .populate("member", "name systemId memberId status")
+                .populate("basePackage", "name duration price activityType")
+                .populate("proposedBy", "name email")
+                .populate("reviewedBy", "name")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+        ]);
+
+        res.json({
+            requests,
+            pagination: buildPagination(page, limit, total),
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }

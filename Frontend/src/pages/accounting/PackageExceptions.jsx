@@ -4,32 +4,60 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, Table, Badge, Btn, ConfirmDialog, EmptyState, fmtDateTime } from '../../components/ui';
+import { PageHeader, Card, Table, Badge, Btn, ConfirmDialog, EmptyState, fmtDateTime, Pagination } from '../../components/ui';
 import { getPackageExceptions, updatePackageExceptionStatus } from '../../api/endpoints';
+
+const PAGE_SIZE = 10;
 
 export default function PackageExceptions() {
   usePageTitle('Package Exceptions');
   const { user } = useAuth();
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState([]);
+  const [resolved, setResolved] = useState([]);
+  const [pendingPagination, setPendingPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [resolvedPagination, setResolvedPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [pendingPage, setPendingPage] = useState(1);
+  const [resolvedPage, setResolvedPage] = useState(1);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [loadingResolved, setLoadingResolved] = useState(true);
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const isReviewer = ['Accountant', 'Owner'].includes(user?.role);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const fetchPending = useCallback(async () => {
+    setLoadingPending(true);
     try {
-      const res = await getPackageExceptions();
-      setRequests(Array.isArray(res.data) ? res.data : []);
+      const res = await getPackageExceptions({ status: 'pending', page: pendingPage, limit: PAGE_SIZE });
+      setPending(res.data.requests ?? []);
+      setPendingPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
     } catch {
       toast.error('Failed to load package exceptions.');
     } finally {
-      setLoading(false);
+      setLoadingPending(false);
     }
-  }, []);
+  }, [pendingPage]);
 
-  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+  const fetchResolved = useCallback(async () => {
+    setLoadingResolved(true);
+    try {
+      const res = await getPackageExceptions({ status: 'resolved', page: resolvedPage, limit: PAGE_SIZE });
+      setResolved(res.data.requests ?? []);
+      setResolvedPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+    } catch {
+      toast.error('Failed to load exception history.');
+    } finally {
+      setLoadingResolved(false);
+    }
+  }, [resolvedPage]);
+
+  const fetchRequests = useCallback(() => {
+    fetchPending();
+    fetchResolved();
+  }, [fetchPending, fetchResolved]);
+
+  useEffect(() => { fetchPending(); }, [fetchPending]);
+  useEffect(() => { fetchResolved(); }, [fetchResolved]);
 
   const handleAction = async () => {
     if (!confirm) return;
@@ -46,9 +74,6 @@ export default function PackageExceptions() {
     }
   };
 
-  const pending  = requests.filter(r => r.status === 'pending');
-  const resolved = requests.filter(r => r.status !== 'pending');
-
   const headers = isReviewer
     ? ['Member', 'Package', 'Proposed By', 'Price Paid', 'Submitted', 'Status', 'Actions']
     : ['Member', 'Package', 'Proposed By', 'Price Paid', 'Submitted', 'Status'];
@@ -58,15 +83,17 @@ export default function PackageExceptions() {
       <PageHeader title="Package Exceptions" />
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
-        <Card noPad>
+        <Card noPad style={{ marginBottom: 16 }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Pending ({pending.length})</span>
-            {pending.length > 0 && isReviewer && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Pending ({pendingPagination.total})</span>
+            {pendingPagination.total > 0 && isReviewer && (
               <span style={{ fontSize: 11, background: 'var(--amber-bg)', color: 'var(--amber)', border: '1px solid var(--amber-bd)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>Needs Review</span>
             )}
           </div>
-          {!pending.length && !loading ? <EmptyState message="No pending package exceptions" /> :
-            <Table loading={loading} skeletonRows={3} headers={headers}>
+          {!pending.length && !loadingPending
+            ? <EmptyState message="No pending package exceptions" />
+            : <>
+            <Table loading={loadingPending} skeletonRows={3} headers={headers}>
               {pending.map(r => (
                 <tr key={r._id} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 14px' }}>
@@ -93,16 +120,26 @@ export default function PackageExceptions() {
                 </tr>
               ))}
             </Table>
+            <Pagination
+              page={pendingPagination.page}
+              totalPages={pendingPagination.totalPages}
+              total={pendingPagination.total}
+              pageSize={pendingPagination.limit ?? PAGE_SIZE}
+              onPageChange={setPendingPage}
+            />
+            </>
           }
         </Card>
 
         <Card noPad>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>History ({resolved.length})</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>History ({resolvedPagination.total})</span>
           </div>
-          {!resolved.length ? <EmptyState message="No resolved exceptions" /> :
-            <Table headers={['Member', 'Package', 'Proposed By', 'Reviewed By', 'Price Paid', 'Submitted', 'Status']}>
-              {[...resolved].reverse().map(r => (
+          {!resolved.length && !loadingResolved
+            ? <EmptyState message="No resolved exceptions" />
+            : <>
+            <Table loading={loadingResolved} headers={['Member', 'Package', 'Proposed By', 'Reviewed By', 'Price Paid', 'Submitted', 'Status']}>
+              {resolved.map(r => (
                 <tr key={r._id} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{r.member?.name ?? '—'}</td>
                   <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{r.name}</td>
@@ -114,6 +151,14 @@ export default function PackageExceptions() {
                 </tr>
               ))}
             </Table>
+            <Pagination
+              page={resolvedPagination.page}
+              totalPages={resolvedPagination.totalPages}
+              total={resolvedPagination.total}
+              pageSize={resolvedPagination.limit ?? PAGE_SIZE}
+              onPageChange={setResolvedPage}
+            />
+            </>
           }
         </Card>
       </div>

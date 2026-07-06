@@ -6,6 +6,8 @@ const { resolveAbilities } = require("../utils/userAbilities");
 const { attachCurrentPackage } = require("../utils/revenueUtils");
 const { findMemberByIdentifier, buildMemberFilter } = require("../utils/memberLookup");
 const { notifyMemberAssigned } = require("../utils/notificationService");
+const { parsePagination, buildPagination } = require("../utils/pagination");
+const { buildMemberListFilter, getMemberStatusStats } = require("../utils/memberFilters");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -142,13 +144,36 @@ const createMember = async (req, res) => {
 // ─── 2. Get All Members ───────────────────────────────────────────────────────
 const getAllMembers = async (req, res) => {
     try {
-        const members = await Member.find()
-            .populate("subscriptions.package", "name duration activityType")
-            .populate("createdBy", "name")
-            .populate("assignedSales", "name role")
-            .sort({ systemId: 1 });
+        const { page, limit, skip } = parsePagination(req.query);
+        const filter = buildMemberListFilter({
+            status: req.query.status,
+            search: req.query.search,
+            assignedSales: req.query.assignedSales,
+            unassigned: req.query.unassigned,
+            subscribedToday: req.query.subscribedToday,
+        });
 
-        res.status(200).json({ count: members.length, members });
+        const statsFilter = { ...filter };
+        delete statsFilter["subscriptions.createdAt"];
+
+        const [total, members, stats] = await Promise.all([
+            Member.countDocuments(filter),
+            Member.find(filter)
+                .populate("subscriptions.package", "name duration activityType")
+                .populate("createdBy", "name")
+                .populate("assignedSales", "name role")
+                .sort({ systemId: 1 })
+                .skip(skip)
+                .limit(limit),
+            getMemberStatusStats(Member, statsFilter),
+        ]);
+
+        res.status(200).json({
+            count: total,
+            members,
+            pagination: buildPagination(page, limit, total),
+            stats,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -415,29 +440,42 @@ function formatSalesMember(memberObj, userId, role) {
     return memberObj;
 }
 
-const salesMemberQuery = () =>
-    Member.find()
-        .populate("assignedSales", "name email")
-        .populate("subscriptions.package", "name price duration activityType");
-
 const getMembers = async (req, res) => {
     try {
-        if (req.user.role === "Sales") {
-            const members = await Member.find({ assignedSales: req.user.id })
+        const { page, limit, skip } = parsePagination(req.query);
+        const filter = buildMemberListFilter({
+            status: req.query.status,
+            search: req.query.search,
+            assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
+            unassigned: req.query.unassigned,
+            subscribedToday: req.query.subscribedToday,
+        });
+
+        const statsFilter = { ...filter };
+        delete statsFilter["subscriptions.createdAt"];
+
+        const [total, members] = await Promise.all([
+            Member.countDocuments(filter),
+            Member.find(filter)
                 .populate("assignedSales", "name email")
-                .populate("subscriptions.package", "name price duration activityType");
+                .populate("subscriptions.package", "name price duration activityType")
+                .sort({ systemId: 1 })
+                .skip(skip)
+                .limit(limit),
+        ]);
 
-            const formatted = members.map((member) =>
-                formatSalesMember(member.toObject(), req.user.id, req.user.role)
-            );
-            return res.status(200).json({ count: formatted.length, members: formatted });
-        }
-
-        const members = await salesMemberQuery();
         const formatted = members.map((member) =>
             formatSalesMember(member.toObject(), req.user.id, req.user.role)
         );
-        res.status(200).json({ count: formatted.length, members: formatted });
+
+        const stats = await getMemberStatusStats(Member, statsFilter);
+
+        res.status(200).json({
+            count: total,
+            members: formatted,
+            pagination: buildPagination(page, limit, total),
+            stats,
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -687,37 +725,93 @@ const addInvitation = async (req, res) => {
 // ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
 const getAllNotes = async (req, res) => {
     try {
-        const members = await Member.find({ "notes.0": { $exists: true } })
-            .populate("notes.createdBy", "name role")
-            .select("name systemId memberId phones status notes assignedSales")
-            .populate("assignedSales", "name role");
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 25 });
+        const match = { "notes.0": { $exists: true } };
 
-        // Flatten all notes into a single array with member context
-        const notes = [];
-        members.forEach(member => {
-            member.notes.forEach(note => {
-                notes.push({
-                    _id:        note._id,
-                    text:       note.text,
-                    createdAt:  note.createdAt,
-                    createdBy:  note.createdBy,
-                    member: {
-                        _id:      member._id,
-                        name:     member.name,
-                        systemId: member.systemId,
-                        memberId: member.memberId,
-                        phones:   member.phones,
-                        status:   member.status,
-                        assignedSales: member.assignedSales,
-                    }
-                });
-            });
+        if (req.query.createdBy) {
+            match["notes.createdBy"] = req.query.createdBy;
+        }
+
+        const search = req.query.search?.trim();
+        const searchMatch = search
+            ? {
+                $or: [
+                    { name: { $regex: search, $options: "i" } },
+                    { phones: { $regex: search, $options: "i" } },
+                    { "notes.text": { $regex: search, $options: "i" } },
+                ],
+            }
+            : null;
+
+        const pipeline = [
+            { $match: match },
+            { $unwind: "$notes" },
+            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": req.query.createdBy } }] : []),
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "notes.createdBy",
+                    foreignField: "_id",
+                    as: "noteAuthor",
+                },
+            },
+            { $unwind: { path: "$noteAuthor", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "assignedSales",
+                    foreignField: "_id",
+                    as: "salesRep",
+                },
+            },
+            { $unwind: { path: "$salesRep", preserveNullAndEmptyArrays: true } },
+            ...(searchMatch ? [{ $match: searchMatch }] : []),
+            { $sort: { "notes.createdAt": -1 } },
+            {
+                $facet: {
+                    data: [
+                        { $skip: skip },
+                        { $limit: limit },
+                        {
+                            $project: {
+                                _id: "$notes._id",
+                                text: "$notes.text",
+                                createdAt: "$notes.createdAt",
+                                createdBy: {
+                                    _id: "$noteAuthor._id",
+                                    name: "$noteAuthor.name",
+                                    role: "$noteAuthor.role",
+                                },
+                                member: {
+                                    _id: "$_id",
+                                    name: "$name",
+                                    systemId: "$systemId",
+                                    memberId: "$memberId",
+                                    phones: "$phones",
+                                    status: "$status",
+                                    assignedSales: {
+                                        _id: "$salesRep._id",
+                                        name: "$salesRep.name",
+                                        role: "$salesRep.role",
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                    total: [{ $count: "count" }],
+                },
+            },
+        ];
+
+        const result = await Member.aggregate(pipeline);
+        const notes = result[0]?.data ?? [];
+        const total = result[0]?.total[0]?.count ?? 0;
+
+        res.status(200).json({
+            count: total,
+            notes,
+            pagination: buildPagination(page, limit, total),
         });
-
-        // Sort newest first
-        notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        res.status(200).json({ count: notes.length, notes });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -1,0 +1,54 @@
+function buildMemberListFilter({ status, search, assignedSales, unassigned, subscribedToday }) {
+    const filter = {};
+
+    if (status && status !== "all") {
+        filter.status = status;
+    }
+
+    if (unassigned === "true") {
+        filter.assignedSales = null;
+    } else if (assignedSales) {
+        filter.assignedSales = assignedSales;
+    }
+
+    if (subscribedToday === "true") {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        filter["subscriptions.createdAt"] = { $gte: start, $lt: end };
+    }
+
+    if (search?.trim()) {
+        const q = search.trim();
+        const or = [
+            { name: { $regex: q, $options: "i" } },
+            { phones: { $regex: q, $options: "i" } },
+        ];
+        const num = Number(q);
+        if (!Number.isNaN(num)) {
+            or.push({ systemId: num }, { memberId: num });
+        }
+        filter.$or = or;
+    }
+
+    return filter;
+}
+
+async function getMemberStatusStats(Member, baseFilter = {}) {
+    const groups = await Member.aggregate([
+        { $match: baseFilter },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    const stats = { total: 0, active: 0, frozen: 0, expired: 0, guest: 0 };
+    groups.forEach((g) => {
+        if (g._id && Object.prototype.hasOwnProperty.call(stats, g._id)) {
+            stats[g._id] = g.count;
+        }
+        stats.total += g.count;
+    });
+    return stats;
+}
+
+module.exports = { buildMemberListFilter, getMemberStatusStats };

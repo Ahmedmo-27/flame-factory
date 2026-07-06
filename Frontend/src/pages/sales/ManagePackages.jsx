@@ -4,10 +4,12 @@ import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
 import {
   PageHeader, Card, CardHeader, Btn,
-  Spinner, Modal, ConfirmDialog, Table, EmptyState, fmtDate,
+  Spinner, Modal, ConfirmDialog, Table, EmptyState, fmtDate, Pagination,
 } from '../../components/ui';
 import PackageForm, { EMPTY_PACKAGE_FORM, validatePackageForm, packageFormToPayload } from '../../components/PackageForm';
 import { getPackages, createPackage, updatePackage, deletePackage } from '../../api/endpoints';
+
+const PAGE_SIZE = 15;
 
 const ACTIVITY_COLOR = {
   gym:          { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
@@ -34,6 +36,8 @@ export default function ManagePackages() {
 
   const [packages, setPackages] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
 
   const [showCreate,    setShowCreate]    = useState(false);
   const [createForm,    setCreateForm]    = useState(EMPTY_PACKAGE_FORM);
@@ -51,11 +55,12 @@ export default function ManagePackages() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getPackages();
+      const res = await getPackages({ page, limit: PAGE_SIZE });
       setPackages(res.data.packages ?? []);
+      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
     } catch { toast.error('Failed to load packages'); }
     finally { setLoading(false); }
-  }, []);
+  }, [page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -132,7 +137,7 @@ export default function ManagePackages() {
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
         <Card noPad>
-          <CardHeader title={`Active Packages (${packages.length})`} />
+          <CardHeader title={`Active Packages (${pagination.total})`} />
           <Table
             headers={['Name', 'Activity', 'Duration', 'Price', 'Freeze', 'Invites', 'Discount', 'Created', '']}
             loading={loading} skeletonRows={4}
@@ -179,6 +184,13 @@ export default function ManagePackages() {
               </tr>
             ))}
           </Table>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            pageSize={pagination.limit ?? PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </Card>
       </div>
 

@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
 import {
   PageHeader, Card, CardHeader, Table, Badge, Btn, Spinner, EmptyState,
-  SearchInput, Avatar, Select, Input,
+  SearchInput, Avatar, Select, Input, Pagination,
 } from '../../components/ui';
 import { getAllMembers, getSalesUsers, bulkTransferSalesReps, switchSalesRep } from '../../api/endpoints';
 
@@ -22,6 +22,7 @@ export default function Transfer() {
   const [search, setSearch]         = useState('');
   const [repFilter, setRepFilter]   = useState('all');
   const [page, setPage]             = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [transferTo, setTransferTo] = useState('');
 
@@ -31,51 +32,46 @@ export default function Transfer() {
 
   const debouncedSearch = useDebounce(search, 300);
 
-  const fetchData = useCallback(async () => {
+  const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, sRes] = await Promise.all([getAllMembers(), getSalesUsers()]);
-      setMembers(mRes.data.members ?? []);
-      setSalesUsers(sRes.data.salesUsers ?? []);
+      const params = {
+        page,
+        limit: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+      };
+      if (repFilter === 'unassigned') params.unassigned = 'true';
+      else if (repFilter !== 'all') params.assignedSales = repFilter;
+
+      const res = await getAllMembers(params);
+      setMembers(res.data.members ?? []);
+      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
     } catch {
       toast.error('Failed to load members.');
     } finally {
       setLoading(false);
     }
+  }, [page, repFilter, debouncedSearch]);
+
+  const fetchSalesUsers = useCallback(async () => {
+    try {
+      const sRes = await getSalesUsers();
+      setSalesUsers(sRes.data.salesUsers ?? []);
+    } catch {
+      toast.error('Failed to load sales users.');
+    }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchSalesUsers(); }, [fetchSalesUsers]);
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
   useEffect(() => { setPage(1); }, [repFilter, debouncedSearch]);
+
+  const paginated = members;
 
   const repName = (rep) => {
     if (!rep) return 'Unassigned';
     return typeof rep === 'object' ? rep.name : salesUsers.find((s) => s._id === rep)?.name ?? '—';
   };
-
-  const filtered = useMemo(() => {
-    let list = members;
-    if (repFilter === 'unassigned') {
-      list = list.filter((m) => !m.assignedSales);
-    } else if (repFilter !== 'all') {
-      list = list.filter((m) => {
-        const id = m.assignedSales?._id ?? m.assignedSales;
-        return id && String(id) === repFilter;
-      });
-    }
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter((m) =>
-        m.name?.toLowerCase().includes(q) ||
-        m.phones?.includes(q) ||
-        String(m.systemId).includes(q) ||
-        String(m.memberId ?? '').includes(q)
-      );
-    }
-    return list;
-  }, [members, repFilter, debouncedSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const toggleSelect = (memberId) => {
     setSelectedIds((prev) => {
@@ -114,7 +110,7 @@ export default function Transfer() {
       });
       toast.success(`Transferred ${res.data.transferredCount} member(s)`);
       setSelectedIds(new Set());
-      fetchData();
+      fetchMembers();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Transfer failed');
     } finally {
@@ -137,7 +133,7 @@ export default function Transfer() {
       await switchSalesRep(quickId.trim(), quickTo);
       toast.success('Member transferred successfully');
       setQuickId('');
-      fetchData();
+      fetchMembers();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Transfer failed');
     } finally {
@@ -269,13 +265,13 @@ export default function Transfer() {
                 })}
               </Table>
 
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-                  <Btn variant="outline" size="xs" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Prev</Btn>
-                  <span style={{ fontSize: 12, color: 'var(--t4)' }}>Page {page} of {totalPages}</span>
-                  <Btn variant="outline" size="xs" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Btn>
-                </div>
-              )}
+              <Pagination
+                page={pagination.page}
+                totalPages={pagination.totalPages}
+                total={pagination.total}
+                pageSize={pagination.limit ?? PAGE_SIZE}
+                onPageChange={setPage}
+              />
             </>
           )}
         </Card>

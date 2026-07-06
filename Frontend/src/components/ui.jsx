@@ -1,6 +1,7 @@
 // ─── FlamFactory UI — sharp, data-dense design system ────────────────────────
 
-import { useState, useEffect, useRef, useMemo, Children } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, Children, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 export function Spinner({ size = 'md' }) {
@@ -185,10 +186,12 @@ function SearchableSelect({
 }) {
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
+  const listRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(-1);
   const [focused, setFocused] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState(null);
 
   const locked = disabled || readOnly;
   const stringValue = String(value ?? '');
@@ -216,9 +219,35 @@ function SearchableSelect({
     return selectableOptions;
   }, [selectableOptions, query, initialLimit]);
 
+  const updateDropdownRect = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setDropdownRect(null);
+      return;
+    }
+    updateDropdownRect();
+    window.addEventListener('resize', updateDropdownRect);
+    window.addEventListener('scroll', updateDropdownRect, true);
+    return () => {
+      window.removeEventListener('resize', updateDropdownRect);
+      window.removeEventListener('scroll', updateDropdownRect, true);
+    };
+  }, [open, updateDropdownRect, filtered.length]);
+
   useEffect(() => {
     const close = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+      const inWrap = wrapRef.current?.contains(e.target);
+      const inList = listRef.current?.contains(e.target);
+      if (!inWrap && !inList) {
         setOpen(false);
         setQuery('');
         setCursor(-1);
@@ -290,6 +319,59 @@ function SearchableSelect({
   const inputValue = open || focused ? query : (selected?.label ?? '');
   const showMuted = !open && !focused && !hasValue;
 
+  const dropdown = open && !locked && dropdownRect ? (
+    <div
+      ref={listRef}
+      role="listbox"
+      style={{
+        position: 'fixed',
+        top: dropdownRect.top,
+        left: dropdownRect.left,
+        width: dropdownRect.width,
+        zIndex: 1000,
+        background: '#fff',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        boxShadow: '0 8px 28px rgba(15,23,42,0.18)',
+        maxHeight: 240,
+        overflowY: 'auto',
+      }}
+    >
+      {!filtered.length ? (
+        <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
+          {query.trim() ? 'No matches' : 'No packages available'}
+        </div>
+      ) : filtered.map((opt, i) => {
+        const active = i === cursor;
+        const isSelected = opt.value === stringValue;
+        return (
+          <button
+            key={`${opt.value}-${i}`}
+            type="button"
+            role="option"
+            aria-selected={isSelected}
+            disabled={opt.disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setCursor(i)}
+            onClick={() => pick(opt)}
+            style={{
+              width: '100%', textAlign: 'left', border: 'none',
+              padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+              cursor: opt.disabled ? 'not-allowed' : 'pointer',
+              background: active ? 'var(--bg)' : isSelected ? 'var(--blue-bg, #eff6ff)' : '#fff',
+              color: opt.disabled ? 'var(--t4)' : 'var(--t1)',
+              fontWeight: isSelected ? 600 : 400,
+              borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+              opacity: opt.disabled ? 0.5 : 1,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
   return (
     <div ref={wrapRef} style={{ position: 'relative', ...style }}>
       <input
@@ -329,50 +411,7 @@ function SearchableSelect({
         <path d="m6 9 6 6 6-6" />
       </svg>
 
-      {open && !locked && (
-        <div
-          role="listbox"
-          style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-            background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
-            boxShadow: '0 6px 20px rgba(15,23,42,0.12)',
-            maxHeight: 220, overflowY: 'auto',
-          }}
-        >
-          {!filtered.length ? (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
-              {query.trim() ? 'No matches' : 'No packages available'}
-            </div>
-          ) : filtered.map((opt, i) => {
-            const active = i === cursor;
-            const isSelected = opt.value === stringValue;
-            return (
-              <button
-                key={`${opt.value}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                disabled={opt.disabled}
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setCursor(i)}
-                onClick={() => pick(opt)}
-                style={{
-                  width: '100%', textAlign: 'left', border: 'none',
-                  padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
-                  cursor: opt.disabled ? 'not-allowed' : 'pointer',
-                  background: active ? 'var(--bg)' : isSelected ? 'var(--blue-bg, #eff6ff)' : '#fff',
-                  color: opt.disabled ? 'var(--t4)' : opt.value === '' ? 'var(--t4)' : 'var(--t1)',
-                  fontWeight: isSelected ? 600 : 400,
-                  borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-                  opacity: opt.disabled ? 0.5 : 1,
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {dropdown && createPortal(dropdown, document.body)}
     </div>
   );
 }

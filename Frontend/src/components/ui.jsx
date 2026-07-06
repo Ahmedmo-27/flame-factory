@@ -126,7 +126,7 @@ export function Input({ label, error, hint, ...props }) {
     </Field>
   );
 }
-export function Select({ label, error, hint, children, options: optionsProp, placeholder, ...props }) {
+export function Select({ label, error, hint, children, options: optionsProp, placeholder, initialLimit, ...props }) {
   const options = useMemo(() => {
     if (optionsProp?.length) {
       return optionsProp.map((o) => ({
@@ -160,6 +160,7 @@ export function Select({ label, error, hint, children, options: optionsProp, pla
       <SearchableSelect
         options={options}
         placeholder={resolvedPlaceholder}
+        initialLimit={initialLimit}
         error={error}
         {...props}
       />
@@ -176,6 +177,7 @@ function SearchableSelect({
   disabled,
   readOnly,
   placeholder = 'Type to search…',
+  initialLimit,
   error,
   style,
   name,
@@ -196,15 +198,23 @@ function SearchableSelect({
     [options, stringValue],
   );
 
+  const selectableOptions = useMemo(
+    () => options.filter((o) => o.value !== ''),
+    [options],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter(
-      (o) =>
-        o.label.toLowerCase().includes(q) ||
-        o.value.toLowerCase().includes(q),
-    );
-  }, [options, query]);
+    if (q) {
+      return selectableOptions.filter(
+        (o) =>
+          o.label.toLowerCase().includes(q) ||
+          o.value.toLowerCase().includes(q),
+      );
+    }
+    if (initialLimit) return selectableOptions.slice(0, initialLimit);
+    return selectableOptions;
+  }, [selectableOptions, query, initialLimit]);
 
   useEffect(() => {
     const close = (e) => {
@@ -235,7 +245,7 @@ function SearchableSelect({
   const openList = () => {
     if (locked) return;
     setOpen(true);
-    setQuery(selected?.label ?? '');
+    setQuery(selected ? selected.label : '');
     setCursor(-1);
   };
 
@@ -330,7 +340,9 @@ function SearchableSelect({
           }}
         >
           {!filtered.length ? (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>No matches</div>
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
+              {query.trim() ? 'No matches' : 'No packages available'}
+            </div>
           ) : filtered.map((opt, i) => {
             const active = i === cursor;
             const isSelected = opt.value === stringValue;

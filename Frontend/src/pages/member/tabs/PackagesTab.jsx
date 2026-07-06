@@ -436,8 +436,13 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
         <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16, lineHeight: 1.6 }}>
           Assign a package to <strong>{member.name}</strong> immediately.
         </p>
-        <Select label="Package *" value={form.basePackageId} onChange={e => handleAccountantPackageChange(e.target.value)}>
-          <option value="">Select package…</option>
+        <Select
+          label="Package *"
+          value={form.basePackageId}
+          onChange={e => handleAccountantPackageChange(e.target.value)}
+          placeholder="Search packages…"
+          initialLimit={5}
+        >
           {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
         </Select>
         {form.basePackageId && catalogPlaceholders && (
@@ -473,8 +478,14 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: form.basePackageId ? 0 : 16 }}>
         <div style={{ flex: 1 }}>
-          <Select label="Package *" value={form.basePackageId} onChange={e => handlePackageChange(e.target.value)} disabled={!!pending}>
-            <option value="">Select package…</option>
+          <Select
+            label="Package *"
+            value={form.basePackageId}
+            onChange={e => handlePackageChange(e.target.value)}
+            disabled={!!pending}
+            placeholder="Search packages…"
+            initialLimit={5}
+          >
             {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
           </Select>
         </div>

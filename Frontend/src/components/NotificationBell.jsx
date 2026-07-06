@@ -75,7 +75,9 @@ export default function NotificationBell() {
     }
     setOpen(false);
     const memberId = n.member?.systemId || n.member?._id;
-    if (memberId) navigate(`/members/${memberId}`);
+    if (!memberId) return;
+    const tab = n.type === 'package_exception_pending' ? '?tab=packages' : '';
+    navigate(`/members/${memberId}${tab}`);
   };
 
   const handleMarkAll = async () => {

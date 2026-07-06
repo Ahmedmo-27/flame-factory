@@ -44,6 +44,17 @@ export const createPackage = (data)     => api.post('/packages', data);
 export const updatePackage = (id, data) => api.patch(`/packages/${id}`, data);
 export const deletePackage = (id)       => api.delete(`/packages/${id}`);
 
+export const assignPackage       = (id, data) =>
+  api.post(`/members/${id}/package`, data);
+
+// ── Package Exceptions ────────────────────────────────────────────────────────
+export const getPackageExceptions         = () => api.get('/package-exceptions');
+export const getMemberPendingException    = (memberId) =>
+  api.get(`/package-exceptions/member/${memberId}`);
+export const createPackageException       = (data) => api.post('/package-exceptions', data);
+export const updatePackageExceptionStatus = (id, status, reviewNote) =>
+  api.put(`/package-exceptions/${id}/status`, { status, reviewNote });
+
 // ── Sales Requests ────────────────────────────────────────────────────────────
 export const getRequests         = ()           => api.get('/requests');
 export const createRequest       = (memberId)   =>

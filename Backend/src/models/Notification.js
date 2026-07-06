@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ["member_assigned"],
+        enum: ["member_assigned", "package_exception_pending", "package_exception_resolved"],
         required: true,
     },
     title: {
@@ -31,6 +31,10 @@ const notificationSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
+        default: null,
+    },
+    metadata: {
+        type: mongoose.Schema.Types.Mixed,
         default: null,
     },
 }, { timestamps: true });

@@ -8,7 +8,7 @@ const {
     markAllAsRead,
 } = require("../controllers/notificationController");
 
-router.use(protect, authorizeRoles("Sales", "Sales Manager"));
+router.use(protect, authorizeRoles("Sales", "Sales Manager", "Accountant"));
 
 router.get("/", getNotifications);
 router.get("/unread-count", getUnreadCount);

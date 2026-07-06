@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
@@ -26,14 +26,20 @@ const TABS = [
 
 export default function MemberProfile() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [data, setData]         = useState(null);
   const [loading, setLoading]   = useState(true);
-  const [activeTab, setTab]     = useState('personal');
+  const [activeTab, setTab]     = useState(() => searchParams.get('tab') || 'personal');
   const [checkingIn, setChecking] = useState(false);
 
   usePageTitle(data?.member?.name ?? 'Profile');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && TABS.some(t => t.id === tab)) setTab(tab);
+  }, [searchParams]);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -91,7 +97,7 @@ export default function MemberProfile() {
             <Tabs tabs={TABS} active={activeTab} onChange={setTab} />
             <div className="fade-up">
               {activeTab === 'personal'    && <PersonalTab    member={member} user={user} onRefresh={fetchProfile} />}
-              {activeTab === 'packages'    && <PackagesTab    member={member} />}
+              {activeTab === 'packages'    && <PackagesTab    member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'callcenter'  && <CallCenterTab  member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'freeze'      && <FreezeTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'invitations' && <InvitationsTab member={member} user={user} onRefresh={fetchProfile} />}

@@ -149,6 +149,35 @@ export function Textarea({ label, error, hint, ...props }) {
   );
 }
 
+export function Switch({ label, hint, checked, onChange, disabled }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 0' }}>
+      <div>
+        {label && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{label}</div>}
+        {hint && <div style={{ fontSize: 11, color: 'var(--t4)', marginTop: 2 }}>{hint}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => !disabled && onChange?.(!checked)}
+        style={{
+          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+          background: checked ? 'var(--blue)' : 'var(--border-md)',
+          position: 'relative', transition: 'background 0.15s', flexShrink: 0, opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 3, left: checked ? 23 : 3, width: 18, height: 18,
+          borderRadius: '50%', background: '#fff', transition: 'left 0.15s',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        }} />
+      </button>
+    </div>
+  );
+}
+
 // ── Alert ─────────────────────────────────────────────────────────────────────
 const AL = {
   error:   { bg: 'var(--red-bg)',   color: 'var(--red)',   border: 'var(--red-bd)',   accent: 'var(--red)'   },

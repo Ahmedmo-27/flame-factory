@@ -16,7 +16,7 @@ const createPackage = async (req, res) => {
 // Get all active packages
 const getAllPackages = async (req, res) => {
     try {
-        const packages = await Package.find({ isActive: true }).sort({ createdAt: -1 });
+        const packages = await Package.find({ isActive: true, hasException: { $ne: true } }).sort({ createdAt: -1 });
         res.status(200).json({ count: packages.length, packages });
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -14,6 +14,7 @@ import SalesPersonProfile from './pages/sales/SalesPersonProfile';
 import ManageStaff        from './pages/sales/ManageStaff';
 import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
+import PackageExceptions  from './pages/accounting/PackageExceptions';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
 
@@ -30,6 +31,7 @@ function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+  if (user.role === 'Accountant') return <Navigate to="/accounting/exceptions" replace />;
   return <Navigate to="/members" replace />;
 }
 
@@ -100,6 +102,13 @@ function AppRoutes() {
       <Route path="/sales/transfer" element={
         <PrivateRoute roles={['Sales Manager', 'Owner']}>
           <Transfer />
+        </PrivateRoute>
+      } />
+
+      {/* Accountant routes */}
+      <Route path="/accounting/exceptions" element={
+        <PrivateRoute roles={['Accountant', 'Owner', 'Sales Manager']}>
+          <PackageExceptions />
         </PrivateRoute>
       } />
 

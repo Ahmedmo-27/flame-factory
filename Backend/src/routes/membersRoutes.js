@@ -16,7 +16,8 @@ const {
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,
-    getAllNotes
+    getAllNotes,
+    assignPackage,
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager"].includes(req.user.role)) {
         return getMembers(req, res, next);
     }
-    if (["Receptionist", "Owner"].includes(req.user.role)) {
+    if (["Receptionist", "Owner", "Accountant"].includes(req.user.role)) {
         return getAllMembers(req, res, next);
     }
     return res.status(403).json({ message: "Access denied" });
@@ -71,6 +72,7 @@ router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Own
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
+router.post("/:memberId/package", protect, authorize("Sales Manager", "Owner"), assignPackage);
 
 
 module.exports = router;

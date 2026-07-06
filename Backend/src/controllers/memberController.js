@@ -713,6 +713,66 @@ const getAllNotes = async (req, res) => {
     }
 };
 
+// ─── Assign catalog package directly (no exception / no approval) ─────────────
+const assignPackage = async (req, res) => {
+    try {
+        const { packageId, pricePaid, discountPercent, startDate } = req.body;
+        if (!packageId) {
+            return res.status(400).json({ message: "Package ID is required" });
+        }
+
+        const member = await findMember(req.params.memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        const PackageExceptionRequest = require("../models/PackageExceptionRequest");
+        const pending = await PackageExceptionRequest.findOne({ member: member._id, status: "pending" });
+        if (pending) {
+            return res.status(400).json({ message: "This member has a pending package exception awaiting approval" });
+        }
+
+        const pkg = await Package.findById(packageId);
+        if (!pkg || !pkg.isActive || pkg.hasException) {
+            return res.status(400).json({ message: "Package not found or unavailable" });
+        }
+
+        const start = startDate ? new Date(startDate) : new Date();
+        const endDate = calcEndDate(start, pkg.duration);
+        const subscriptionId = await generateSubscriptionId();
+        const hadSubscription = member.subscriptions?.length > 0;
+
+        if (!member.memberId) {
+            member.memberId = await generateMemberId();
+        }
+
+        member.isMember = true;
+        member.status = "active";
+        member.subscriptions.push({
+            subscriptionId,
+            package: pkg._id,
+            startDate: start,
+            endDate,
+            pricePaid: pricePaid ?? pkg.price,
+            discountPercent: discountPercent ?? 0,
+            isRenewal: hadSubscription,
+            createdBy: req.user.id,
+        });
+        member.freezeDaysUsed = 0;
+        member.invitationsUsed = 0;
+        member.userlog.push({
+            type: hadSubscription ? "renewal" : "other",
+            text: `Package assigned: ${pkg.name}`,
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.status(200).json({ message: "Package assigned successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -726,5 +786,6 @@ module.exports = {
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,
-    getAllNotes
+    getAllNotes,
+    assignPackage,
 };

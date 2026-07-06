@@ -1,0 +1,531 @@
+import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
+import usePageTitle from '../../hooks/usePageTitle';
+import Layout from '../../components/Layout';
+import { PageHeader, Card, CardHeader, Spinner, EmptyState, Badge, Avatar, fmtDate } from '../../components/ui';
+import { getSalesManagerRevenue, getSubscriptionsByDate, getSalesUsers } from '../../api/endpoints';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmt  = (n) => Number(n ?? 0).toLocaleString('en-EG');
+const TODAY = new Date().toISOString().slice(0, 10);
+
+function ProgressBar({ value, max, height = 6 }) {
+  if (!max) return null;
+  const pct    = Math.min(100, Math.round((value / max) * 100));
+  const color  = pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--blue)' : 'var(--amber)';
+  return (
+    <div style={{ height, background: 'var(--bg)', borderRadius: 3, border: '1px solid var(--border)', overflow: 'hidden', marginTop: 6 }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, color = 'var(--t1)', accent }) {
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderLeft: accent ? `3px solid ${accent}` : '1px solid var(--border)',
+      borderRadius: 8, padding: '14px 16px',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color, letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--t4)', marginTop: 5 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Inner tab bar ─────────────────────────────────────────────────────────────
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+      {tabs.map(t => (
+        <button key={t.id} onClick={() => onChange(t.id)} style={{
+          padding: '8px 18px', background: 'none', border: 'none',
+          borderBottom: `2px solid ${active === t.id ? 'var(--navy)' : 'transparent'}`,
+          marginBottom: -1,
+          color: active === t.id ? 'var(--t1)' : 'var(--t3)',
+          fontSize: 13, fontWeight: active === t.id ? 700 : 400,
+          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+          transition: 'color 0.12s',
+        }}
+          onMouseEnter={e => { if (active !== t.id) e.currentTarget.style.color = 'var(--t2)'; }}
+          onMouseLeave={e => { if (active !== t.id) e.currentTarget.style.color = 'var(--t3)'; }}
+        >{t.label}</button>
+      ))}
+    </div>
+  );
+}
+
+// ── Tab: Today ────────────────────────────────────────────────────────────────
+function TodayTab({ data, selectedDate, setSelectedDate, loading }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Today KPI */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <Stat
+          label="Today's Revenue"
+          value={`${fmt(data?.todayRevenue)} EGP`}
+          sub={data?.today}
+          accent="var(--blue)"
+          color="var(--blue)"
+        />
+        <Stat
+          label="This Year's Revenue"
+          value={`${fmt(data?.currentYearRevenue)} EGP`}
+          sub={String(data?.currentYear ?? '')}
+          accent="var(--green)"
+          color="var(--green)"
+        />
+      </div>
+
+      {/* Date picker */}
+      <Card>
+        <CardHeader title="Revenue on a Specific Date" />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Pick a Date
+            </label>
+            <input
+              type="date" value={selectedDate} max={TODAY}
+              onChange={e => setSelectedDate(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff' }}
+            />
+          </div>
+          {selectedDate && (
+            <button onClick={() => setSelectedDate('')} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, border: '1px solid var(--border-md)', borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--t3)', fontFamily: 'inherit' }}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        {selectedDate && !loading && (
+          <div style={{ marginTop: 16, padding: '14px 16px', background: 'var(--bg)', borderRadius: 7, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 6 }}>
+              Revenue on {selectedDate}
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: data?.selectedDateRevenue > 0 ? 'var(--blue)' : 'var(--t3)' }}>
+              {fmt(data?.selectedDateRevenue)} EGP
+            </div>
+            {data?.selectedDateRevenue === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--t4)', marginTop: 4 }}>No revenue recorded on this date.</div>
+            )}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Tab: Monthly ──────────────────────────────────────────────────────────────
+function MonthlyTab({ data, loading }) {
+  const months = data?.monthlyBreakdown ?? [];
+  const maxRevenue = Math.max(...months.map(m => m.revenue), 1);
+  const total = months.reduce((s, m) => s + m.revenue, 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+        <Stat label="12-Month Total"   value={`${fmt(total)} EGP`}             accent="var(--navy)"  color="var(--navy)" />
+        <Stat label="Year-to-Date"     value={`${fmt(data?.currentYearRevenue)} EGP`} accent="var(--green)" color="var(--green)" />
+        <Stat label="Months Tracked"   value={months.length}                   accent="var(--sky)"   color="var(--sky)" />
+      </div>
+
+      {/* Bar chart */}
+      {months.length > 0 && (
+        <Card>
+          <CardHeader title="Monthly Revenue — Last 12 Months" />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120, marginBottom: 8 }}>
+            {[...months].reverse().map(m => {
+              const h = Math.max(4, Math.round((m.revenue / maxRevenue) * 110));
+              const isCurrentMonth = data?.today?.startsWith(m.month);
+              return (
+                <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }} title={`${m.month}: ${fmt(m.revenue)} EGP`}>
+                  {m.revenue > 0 && (
+                    <div style={{ fontSize: 8, color: 'var(--t4)', fontWeight: 600 }}>
+                      {m.revenue >= 1000 ? `${Math.round(m.revenue / 1000)}k` : m.revenue}
+                    </div>
+                  )}
+                  <div style={{
+                    width: '100%', height: h, borderRadius: '3px 3px 0 0',
+                    background: isCurrentMonth ? 'var(--navy)' : m.revenue > 0 ? 'var(--blue)' : 'var(--border)',
+                    opacity: m.revenue === 0 ? 0.3 : 1,
+                    transition: 'height 0.3s ease',
+                  }} />
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--t4)' }}>
+            {[...months].reverse().filter((_, i) => i % 3 === 0).map(m => (
+              <span key={m.month}>{m.month.slice(5)}/{m.month.slice(2, 4)}</span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Table */}
+      <Card noPad>
+        <CardHeader title="Month-by-Month Breakdown" />
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        ) : months.length === 0 ? (
+          <EmptyState message="No data available" />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                {['Month', 'Revenue (EGP)', 'Subscriptions', 'Share'].map(h => (
+                  <th key={h} style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t3)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {months.map(m => {
+                const share = total > 0 ? Math.round((m.revenue / total) * 100) : 0;
+                const isCurrentMonth = data?.today?.startsWith(m.month);
+                return (
+                  <tr key={m.month} style={{ borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '10px 16px', fontWeight: isCurrentMonth ? 700 : 400, color: 'var(--t1)' }}>
+                      {m.month}
+                      {isCurrentMonth && (
+                        <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 600, background: 'var(--navy)', color: '#fff', padding: '1px 6px', borderRadius: 3 }}>NOW</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 16px', fontWeight: 700, color: m.revenue > 0 ? 'var(--green)' : 'var(--t4)' }}>
+                      {fmt(m.revenue)}
+                    </td>
+                    <td style={{ padding: '10px 16px', color: 'var(--t2)' }}>{m.salesCount}</td>
+                    <td style={{ padding: '10px 16px', minWidth: 120 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${share}%`, background: 'var(--blue)', borderRadius: 2 }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--t4)', flexShrink: 0 }}>{share}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)' }}>
+                <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--t1)' }}>Total</td>
+                <td style={{ padding: '10px 16px', fontWeight: 800, color: 'var(--navy)' }}>{fmt(total)}</td>
+                <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--t2)' }}>{months.reduce((s, m) => s + m.salesCount, 0)}</td>
+                <td style={{ padding: '10px 16px' }}></td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Tab: Annual ───────────────────────────────────────────────────────────────
+function AnnualTab({ data, loading }) {
+  const months = data?.monthlyBreakdown ?? [];
+  const yearMonths = months.filter(m => m.month.startsWith(String(data?.currentYear ?? '')));
+  const yearTotal  = yearMonths.reduce((s, m) => s + m.revenue, 0);
+  const yearSales  = yearMonths.reduce((s, m) => s + m.salesCount, 0);
+  const bestMonth  = [...yearMonths].sort((a, b) => b.revenue - a.revenue)[0];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <Stat label={`${data?.currentYear} Revenue`} value={`${fmt(yearTotal)} EGP`} accent="var(--navy)" color="var(--navy)" />
+        <Stat label="Subscriptions This Year" value={yearSales} accent="var(--blue)" color="var(--blue)" />
+        <Stat label="Best Month" value={bestMonth ? `${bestMonth.month}` : '—'} sub={bestMonth ? `${fmt(bestMonth.revenue)} EGP` : ''} accent="var(--green)" color="var(--green)" />
+        <Stat label="Monthly Average" value={yearMonths.length > 0 ? `${fmt(Math.round(yearTotal / yearMonths.length))} EGP` : '—'} accent="var(--amber)" color="var(--amber)" />
+      </div>
+
+      <Card noPad>
+        <CardHeader title={`${data?.currentYear ?? ''} Monthly Breakdown`} />
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spinner /></div>
+        ) : yearMonths.length === 0 ? (
+          <EmptyState message="No data for this year" />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                {['Month', 'Revenue (EGP)', 'Subscriptions'].map(h => (
+                  <th key={h} style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t3)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {yearMonths.map(m => {
+                const isCurrentMonth = data?.today?.startsWith(m.month);
+                return (
+                  <tr key={m.month} style={{ borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '10px 16px', fontWeight: isCurrentMonth ? 700 : 400, color: 'var(--t1)' }}>
+                      {new Date(m.month + '-01').toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
+                      {isCurrentMonth && (
+                        <span style={{ marginLeft: 7, fontSize: 10, fontWeight: 600, background: 'var(--navy)', color: '#fff', padding: '1px 6px', borderRadius: 3 }}>NOW</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 16px', fontWeight: 700, color: m.revenue > 0 ? 'var(--green)' : 'var(--t4)' }}>
+                      {fmt(m.revenue)}
+                    </td>
+                    <td style={{ padding: '10px 16px', color: 'var(--t2)' }}>{m.salesCount}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)' }}>
+                <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--t1)' }}>Year Total</td>
+                <td style={{ padding: '10px 16px', fontWeight: 800, color: 'var(--navy)' }}>{fmt(yearTotal)}</td>
+                <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--t2)' }}>{yearSales}</td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Tab: Subscriptions ────────────────────────────────────────────────────────
+function SubscriptionsTab() {
+  const [dateFrom,    setDateFrom]    = useState(TODAY);
+  const [dateTo,      setDateTo]      = useState(TODAY);
+  const [salesRepId,  setSalesRepId]  = useState('');
+  const [salesReps,   setSalesReps]   = useState([]);
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+
+  // Load sales reps for the filter dropdown
+  useEffect(() => {
+    getSalesUsers()
+      .then(r => setSalesReps(r.data.salesUsers ?? []))
+      .catch(() => {});
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { dateFrom, dateTo };
+      if (salesRepId) params.salesRepId = salesRepId;
+      const res = await getSubscriptionsByDate(params);
+      setData(res.data);
+    } catch {
+      toast.error('Failed to load subscriptions');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo, salesRepId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const entries = data?.entries ?? [];
+  const newCount     = entries.filter(e => !e.subscription.isRenewal).length;
+  const renewalCount = entries.filter(e =>  e.subscription.isRenewal).length;
+
+  const resetToToday = () => { setDateFrom(TODAY); setDateTo(TODAY); setSalesRepId(''); };
+  const isToday = dateFrom === TODAY && dateTo === TODAY && !salesRepId;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Filters ──────────────────────────────────────────────── */}
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+
+          {/* From */}
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>From</label>
+            <input type="date" value={dateFrom} max={dateTo || TODAY}
+              onChange={e => setDateFrom(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff' }}
+            />
+          </div>
+
+          {/* To */}
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>To</label>
+            <input type="date" value={dateTo} min={dateFrom} max={TODAY}
+              onChange={e => setDateTo(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff' }}
+            />
+          </div>
+
+          {/* Sales rep filter */}
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Sales Rep</label>
+            <select value={salesRepId} onChange={e => setSalesRepId(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff' }}
+            >
+              <option value="">All Sales Reps</option>
+              {salesReps
+                .filter(r => r.role === 'Sales')
+                .map(r => <option key={r._id} value={r._id}>{r.name}</option>)
+              }
+            </select>
+          </div>
+
+          {/* Reset */}
+          {!isToday && (
+            <button onClick={resetToToday} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, border: '1px solid var(--border-md)', borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--t3)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              Reset to Today
+            </button>
+          )}
+        </div>
+      </Card>
+
+      {/* ── Summary cards ────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Subscriptions', value: data?.count ?? 0,              color: 'var(--blue)',  accent: 'var(--blue)' },
+          { label: 'Revenue',       value: `${fmt(data?.totalRevenue)} EGP`, color: 'var(--green)', accent: 'var(--green)' },
+          { label: 'New Members',   value: newCount,                       color: 'var(--navy)',  accent: 'var(--navy)' },
+          { label: 'Renewals',      value: renewalCount,                   color: 'var(--amber)', accent: 'var(--amber)' },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `3px solid ${s.accent}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Table ────────────────────────────────────────────────── */}
+      <Card noPad>
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
+        ) : entries.length === 0 ? (
+          <EmptyState icon="📋" message="No subscriptions found" sub="Try adjusting the date range or sales rep filter" />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                {['Member', 'Package', 'Price Paid', 'Start Date', 'Expires', 'Sales Rep', 'Type'].map(h => (
+                  <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t3)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}
+                  onMouseEnter={ev => ev.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                >
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Avatar name={e.member.name} size="sm" />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{e.member.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--t4)' }}>#{e.member.systemId}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 14px', color: 'var(--t2)', fontSize: 13 }}>
+                    {e.subscription.package?.name ?? '—'}
+                    {e.subscription.package?.activityType && (
+                      <div style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'capitalize', marginTop: 1 }}>{e.subscription.package.activityType}</div>
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--green)', fontSize: 13, whiteSpace: 'nowrap' }}>
+                    {fmt(e.subscription.pricePaid)} EGP
+                    {e.subscription.discountPercent > 0 && (
+                      <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--amber)', fontWeight: 600 }}>-{e.subscription.discountPercent}%</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 14px', color: 'var(--t3)', fontSize: 12 }}>{fmtDate(e.subscription.startDate)}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--t3)', fontSize: 12 }}>{fmtDate(e.subscription.endDate)}</td>
+                  <td style={{ padding: '10px 14px', color: 'var(--t2)', fontSize: 12 }}>
+                    {e.member.assignedSales?.name ?? <span style={{ color: 'var(--t4)' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
+                      background: e.subscription.isRenewal ? 'var(--amber-bg)' : 'var(--green-bg)',
+                      color:      e.subscription.isRenewal ? 'var(--amber)'    : 'var(--green)',
+                      border: `1px solid ${e.subscription.isRenewal ? 'var(--amber-bd)' : 'var(--green-bd)'}`,
+                    }}>
+                      {e.subscription.isRenewal ? 'Renewal' : 'New'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)' }}>
+                <td colSpan={2} style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--t1)' }}>Total ({entries.length})</td>
+                <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--green)' }}>{fmt(data?.totalRevenue)} EGP</td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+export default function TargetDashboard() {
+  usePageTitle('Targets');
+
+  const [data,         setData]         = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [tab,          setTab]          = useState('today');
+  const [selectedDate, setSelectedDate] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (selectedDate) params.date = selectedDate;
+      const res = await getSalesManagerRevenue(params);
+      setData(res.data);
+    } catch {
+      toast.error('Failed to load revenue data');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const TABS = [
+    { id: 'today',         label: 'Today / Date' },
+    { id: 'monthly',       label: 'Monthly' },
+    { id: 'annual',        label: 'Annual' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+  ];
+
+  return (
+    <Layout>
+      <PageHeader title="Targets" />
+
+      <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+        <TabBar tabs={TABS} active={tab} onChange={setTab} />
+
+        {loading && !data ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
+            <Spinner size="lg" />
+          </div>
+        ) : (
+          <>
+            {tab === 'today'         && <TodayTab         data={data} selectedDate={selectedDate} setSelectedDate={setSelectedDate} loading={loading} />}
+            {tab === 'monthly'       && <MonthlyTab       data={data} loading={loading} />}
+            {tab === 'annual'        && <AnnualTab        data={data} loading={loading} />}
+            {tab === 'subscriptions' && <SubscriptionsTab />}
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+}

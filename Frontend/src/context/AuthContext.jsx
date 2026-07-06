@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { login as loginApi } from '../api/endpoints';
+import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -13,7 +14,31 @@ function parseUser() {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(parseUser);
+  const [user,    setUser]    = useState(null);
+  const [checked, setChecked] = useState(false); // true once token is verified
+
+  // On mount — verify stored token is still valid with the backend
+  useEffect(() => {
+    const token = localStorage.getItem('ff_token');
+    if (!token) {
+      setChecked(true);
+      return;
+    }
+    api.get('/users/me')
+      .then(res => {
+        // Token is valid — use fresh user data from backend
+        const u = res.data;
+        localStorage.setItem('ff_user', JSON.stringify(u));
+        setUser(u);
+      })
+      .catch(() => {
+        // Token is invalid/expired — clear everything
+        localStorage.removeItem('ff_token');
+        localStorage.removeItem('ff_user');
+        setUser(null);
+      })
+      .finally(() => setChecked(true));
+  }, []);
 
   const signIn = useCallback(async (email, password) => {
     const apiUrl = import.meta.env.VITE_API_URL;
@@ -51,10 +76,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // Refresh user from storage (e.g. after profile update)
   const refreshUser = useCallback(() => {
-    setUser(parseUser());
+    api.get('/users/me')
+      .then(res => setUser(res.data))
+      .catch(() => {});
   }, []);
+
+  // Don't render children until token is verified — prevents flash of protected content
+  if (!checked) return null;
 
   return (
     <AuthContext.Provider value={{ user, signIn, signOut, refreshUser }}>

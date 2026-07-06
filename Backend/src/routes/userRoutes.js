@@ -13,7 +13,9 @@ const {
     createStaffUser,
     updateSalesRepAbilities,
     getSalesTeam,
-    getSalesProfile
+    getSalesProfile,
+    getSubscriptionsByDate,
+    getSalesMySubscriptions,
 } = require("../controllers/userController");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 
@@ -27,6 +29,8 @@ router.get("/profile", protect, (req, res) => {
 router.get("/me", protect, getMyProfile);
 router.get("/sales-revenue", protect, getSalesRevenue);
 router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner"), getSalesManagerRevenue);
+router.get("/sales-manager/subscriptions", protect, authorizeRoles("Sales Manager", "Owner"), getSubscriptionsByDate);
+router.get("/my-subscriptions", protect, authorizeRoles("Sales"), getSalesMySubscriptions);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/sales", protect, getSalesUsers);
 router.get("/team", protect, authorizeRoles("Sales Manager", "Owner"), getSalesTeam);

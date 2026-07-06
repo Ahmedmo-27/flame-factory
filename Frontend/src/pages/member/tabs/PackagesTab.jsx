@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
+import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, fmtDateTime, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
 import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage } from '../../../api/endpoints';
 
 const ACTIVITY_TYPES = ['gym', 'crossfit', 'box', 'mma', 'kickboxing', 'calisthenics'];
@@ -61,6 +61,7 @@ export default function PackagesTab({ member, user, onRefresh }) {
     { label: 'Package',          value: pkg.name },
     { label: 'Activity',         value: pkg.activityType },
     { label: 'Duration',         value: pkg.duration },
+    { label: 'Created At',       value: fmtDateTime(lastSub.createdAt) },
     { label: 'Start',            value: fmtDate(lastSub.startDate) },
     { label: 'Expiry',           value: fmtDate(lastSub.endDate) },
     { label: 'Price Paid',       value: `EGP ${lastSub.pricePaid}` },
@@ -130,13 +131,14 @@ export default function PackagesTab({ member, user, onRefresh }) {
           <CardHeader title={`Subscription History (${subs.length})`} />
         </div>
         {!subs.length ? <EmptyState message="No subscriptions on record" /> :
-          <Table headers={['Sub #', 'Package', 'Activity', 'Duration', 'Start', 'End', 'Price', 'Discount', 'Exception', 'Renewal']}>
+          <Table headers={['Sub #', 'Package', 'Activity', 'Duration', 'Created At', 'Start', 'End', 'Price', 'Discount', 'Exception', 'Renewal']}>
             {[...subs].reverse().map((s, i) => (
               <tr key={s._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{s.subscriptionId ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{s.package?.name ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.package?.activityType ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{s.package?.duration ?? '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDateTime(s.createdAt)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.startDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.endDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>EGP {s.pricePaid}</td>

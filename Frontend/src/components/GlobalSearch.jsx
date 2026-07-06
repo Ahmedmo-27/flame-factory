@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAllMembers, getPackages, getSalesUsers, createMember } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import useDebounce from '../hooks/useDebounce';
+import { Input, Select, Btn, Spinner } from './ui';
 
 const STATUS_DOT = {
   active:  '#16a34a',
@@ -327,15 +328,7 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
     }
   };
 
-  const inputStyle = (err) => ({
-    width: '100%', padding: '8px 11px', fontSize: 13,
-    border: `1px solid ${err ? 'var(--red-bd)' : 'var(--border)'}`,
-    borderRadius: 6, outline: 'none', color: 'var(--t1)',
-    background: '#fff', fontFamily: 'inherit',
-    transition: 'border-color 0.12s, box-shadow 0.12s',
-  });
-
-  const labelStyle = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--t2)', marginBottom: 5 };
+  const SOURCES = ['Social media', 'Walk in', 'Word of mouth', 'referral', 'sales call', 'data entry', 'others'];
 
   return (
     <div onClick={onClose} style={{
@@ -363,87 +356,43 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Full Name *</label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Full name" style={inputStyle(errors.name)}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = errors.name ? 'var(--red-bd)' : 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
-              {errors.name && <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors.name}</p>}
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Phone *</label>
-              <input value={form.phones} onChange={e => set('phones', e.target.value)} placeholder="Phone number" style={inputStyle(errors.phones)}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = errors.phones ? 'var(--red-bd)' : 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
-              {errors.phones && <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errors.phones}</p>}
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>National ID</label>
-              <input value={form.nationalId} onChange={e => set('nationalId', e.target.value)} placeholder="Optional" style={inputStyle(false)}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Gender</label>
-              <select value={form.gender} onChange={e => set('gender', e.target.value)} style={{ ...inputStyle(false), appearance: 'auto' }}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}>
-                <option value="">— Select —</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Birthdate</label>
-              <input type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)} style={inputStyle(false)}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>Source</label>
-              <select value={form.source} onChange={e => set('source', e.target.value)} style={{ ...inputStyle(false), appearance: 'auto' }}
-                onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-                onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}>
-                <option value="">— Select —</option>
-                {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
+            <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} placeholder="Full name" />
+            <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} placeholder="Phone number" />
+            <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} placeholder="Optional" />
+            <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
+              <option value="">— Select —</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </Select>
+            <Input label="Birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)} />
+            <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
+              <option value="">— Select —</option>
+              {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+            </Select>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Package <span style={{ fontWeight: 400, color: 'var(--t4)' }}>(leave empty to add as guest)</span></label>
-            <select value={form.packageId} onChange={e => set('packageId', e.target.value)} style={{ ...inputStyle(false), appearance: 'auto' }}
-              onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-              onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}>
-              <option value="">— Guest (no package) —</option>
-              {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} ({p.activityType}) — EGP {p.price}</option>)}
-            </select>
-          </div>
+          <Select
+            label="Package (leave empty for guest)"
+            value={form.packageId}
+            onChange={e => set('packageId', e.target.value)}
+          >
+            <option value="">— Guest (no package) —</option>
+            {packages.map(p => (
+              <option key={p._id} value={p._id}>{p.name} – {p.duration} ({p.activityType}) — EGP {p.price}</option>
+            ))}
+          </Select>
 
-          <div style={{ marginBottom: 4 }}>
-            <label style={labelStyle}>Assign Sales Rep</label>
-            <select value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)} style={{ ...inputStyle(false), appearance: 'auto' }}
-              onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-              onBlur={e  => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}>
-              <option value="">— None —</option>
-              {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
-            </select>
-          </div>
+          <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
+            <option value="">— None —</option>
+            {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
+          </Select>
         </div>
 
-        {/* Footer */}
         <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={onClose} disabled={loading} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 600, background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--t2)', fontFamily: 'inherit' }}>
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={loading} style={{ padding: '7px 16px', fontSize: 12, fontWeight: 600, background: loading ? '#93c5fd' : 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
-            {loading
-              ? <><span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} /> Adding…</>
-              : 'Add Person'
-            }
-          </button>
+          <Btn variant="ghost" size="sm" onClick={onClose} disabled={loading}>Cancel</Btn>
+          <Btn size="sm" onClick={handleSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" /> : 'Add Person'}
+          </Btn>
         </div>
       </div>
     </div>

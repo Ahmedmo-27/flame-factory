@@ -1,5 +1,7 @@
 // ─── FlamFactory UI — sharp, data-dense design system ────────────────────────
 
+import { useState, useEffect, useRef, useMemo, Children } from 'react';
+
 // ── Spinner ───────────────────────────────────────────────────────────────────
 export function Spinner({ size = 'md' }) {
   const cls = size === 'sm' ? 'spin spin-sm' : size === 'lg' ? 'spin spin-lg' : 'spin';
@@ -124,16 +126,242 @@ export function Input({ label, error, hint, ...props }) {
     </Field>
   );
 }
-export function Select({ label, error, hint, children, ...props }) {
+export function Select({ label, error, hint, children, options: optionsProp, placeholder, ...props }) {
+  const options = useMemo(() => {
+    if (optionsProp?.length) {
+      return optionsProp.map((o) => ({
+        value: String(o.value ?? ''),
+        label: String(o.label ?? o.value ?? ''),
+        disabled: !!o.disabled,
+      }));
+    }
+    const parsed = [];
+    Children.forEach(children, (child) => {
+      if (!child || typeof child === 'string') return;
+      const p = child.props ?? {};
+      if (p.value === undefined && child.type !== 'option') return;
+      const labelText = typeof p.children === 'string'
+        ? p.children
+        : Children.toArray(p.children).join('');
+      parsed.push({
+        value: String(p.value ?? ''),
+        label: labelText || String(p.value ?? ''),
+        disabled: !!p.disabled,
+      });
+    });
+    return parsed;
+  }, [children, optionsProp]);
+
+  const emptyOption = options.find((o) => o.value === '');
+  const resolvedPlaceholder = placeholder ?? (emptyOption?.label || 'Type to search…');
+
   return (
     <Field label={label} error={error} hint={hint}>
-      <select
+      <SearchableSelect
+        options={options}
+        placeholder={resolvedPlaceholder}
+        error={error}
         {...props}
-        style={{ ...inputBase(error), appearance: 'auto' }}
-        onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-        onBlur={e  => { e.target.style.borderColor = error ? 'var(--red-bd)' : 'var(--border)'; e.target.style.boxShadow = 'none'; }}
-      >{children}</select>
+      />
     </Field>
+  );
+}
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  onBlur,
+  onFocus,
+  disabled,
+  readOnly,
+  placeholder = 'Type to search…',
+  error,
+  style,
+  name,
+  id,
+}) {
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [cursor, setCursor] = useState(-1);
+  const [focused, setFocused] = useState(false);
+
+  const locked = disabled || readOnly;
+  const stringValue = String(value ?? '');
+
+  const selected = useMemo(
+    () => options.find((o) => o.value === stringValue),
+    [options, stringValue],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.value.toLowerCase().includes(q),
+    );
+  }, [options, query]);
+
+  useEffect(() => {
+    const close = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery('');
+        setCursor(-1);
+        setFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const fireChange = (val) => {
+    onChange?.({ target: { value: val, name } });
+  };
+
+  const pick = (opt) => {
+    if (!opt || opt.disabled) return;
+    fireChange(opt.value);
+    setOpen(false);
+    setQuery('');
+    setCursor(-1);
+    setFocused(false);
+  };
+
+  const openList = () => {
+    if (locked) return;
+    setOpen(true);
+    setQuery(selected?.label ?? '');
+    setCursor(-1);
+  };
+
+  const handleFocus = (e) => {
+    if (locked) return;
+    setFocused(true);
+    openList();
+    onFocus?.(e);
+    e.target.style.borderColor = 'var(--blue)';
+    e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)';
+  };
+
+  const handleBlur = (e) => {
+    onBlur?.(e);
+    e.target.style.borderColor = error ? 'var(--red-bd)' : 'var(--border)';
+    e.target.style.boxShadow = 'none';
+  };
+
+  const handleKeyDown = (e) => {
+    if (locked) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) openList();
+      setCursor((c) => Math.min(c + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCursor((c) => Math.max(c - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && cursor >= 0 && filtered[cursor]) pick(filtered[cursor]);
+      else if (open && filtered.length === 1) pick(filtered[0]);
+      else if (!open) openList();
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setQuery('');
+      setCursor(-1);
+      inputRef.current?.blur();
+    }
+  };
+
+  const hasValue = stringValue !== '' && selected;
+  const inputValue = open || focused ? query : (selected?.label ?? '');
+  const showMuted = !open && !focused && !hasValue;
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', ...style }}>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        value={inputValue}
+        readOnly={locked}
+        disabled={disabled}
+        placeholder={showMuted ? placeholder : undefined}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+          setCursor(-1);
+        }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        onClick={() => { if (!locked) openList(); }}
+        style={{
+          ...inputBase(error),
+          paddingRight: 30,
+          color: showMuted ? 'var(--t4)' : 'var(--t1)',
+          cursor: locked ? 'not-allowed' : 'text',
+          opacity: disabled ? 0.6 : 1,
+        }}
+      />
+      <svg
+        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t4)"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+        aria-hidden="true"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+
+      {open && !locked && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
+            background: '#fff', border: '1px solid var(--border)', borderRadius: 6,
+            boxShadow: '0 6px 20px rgba(15,23,42,0.12)',
+            maxHeight: 220, overflowY: 'auto',
+          }}
+        >
+          {!filtered.length ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>No matches</div>
+          ) : filtered.map((opt, i) => {
+            const active = i === cursor;
+            const isSelected = opt.value === stringValue;
+            return (
+              <button
+                key={`${opt.value}-${i}`}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                disabled={opt.disabled}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setCursor(i)}
+                onClick={() => pick(opt)}
+                style={{
+                  width: '100%', textAlign: 'left', border: 'none',
+                  padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                  cursor: opt.disabled ? 'not-allowed' : 'pointer',
+                  background: active ? 'var(--bg)' : isSelected ? 'var(--blue-bg, #eff6ff)' : '#fff',
+                  color: opt.disabled ? 'var(--t4)' : opt.value === '' ? 'var(--t4)' : 'var(--t1)',
+                  fontWeight: isSelected ? 600 : 400,
+                  borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+                  opacity: opt.disabled ? 0.5 : 1,
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 export function Textarea({ label, error, hint, ...props }) {

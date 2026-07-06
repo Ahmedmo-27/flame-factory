@@ -59,11 +59,22 @@ const applyApprovedException = async (request, reviewerId) => {
     const member = await Member.findById(request.member);
     if (!member) throw new Error("Member not found");
 
-    const exceptionPkg = await buildExceptionPackage(
-        request,
-        member._id,
-        request.proposedBy
-    );
+    let packageId;
+    let packageName;
+
+    if (request.hasException) {
+        const exceptionPkg = await buildExceptionPackage(
+            request,
+            member._id,
+            request.proposedBy
+        );
+        packageId = exceptionPkg._id;
+        packageName = exceptionPkg.name;
+    } else {
+        packageId = request.basePackage;
+        const basePkg = await Package.findById(request.basePackage);
+        packageName = basePkg?.name ?? request.name;
+    }
 
     const startDate = request.startDate ? new Date(request.startDate) : new Date();
     const endDate = calcEndDate(startDate, request.duration);
@@ -72,7 +83,7 @@ const applyApprovedException = async (request, reviewerId) => {
 
     const subscription = {
         subscriptionId,
-        package: exceptionPkg._id,
+        package: packageId,
         startDate,
         endDate,
         pricePaid: request.pricePaid,
@@ -92,7 +103,9 @@ const applyApprovedException = async (request, reviewerId) => {
     member.invitationsUsed = 0;
     member.userlog.push({
         type: hadSubscription ? "renewal" : "other",
-        text: `Package exception approved by accountant (${exceptionPkg.name})`,
+        text: request.hasException
+            ? `Package exception approved by accountant (${packageName})`
+            : `Package request approved by accountant (${packageName})`,
         createdBy: reviewerId,
     });
 
@@ -144,13 +157,16 @@ const createException = async (req, res) => {
 
         const proposer = await User.findById(req.user.id).select("name");
         const packageName = name ?? basePkg.name;
-        const notificationMessage = `${proposer?.name || "Sales Manager"} added package ${packageName} with exception to member ${member.name}`;
+        const isException = Boolean(req.body.hasException);
+        const notificationMessage = isException
+            ? `${proposer?.name || "Sales Manager"} added package ${packageName} with exception to member ${member.name}`
+            : `${proposer?.name || "Sales Manager"} requested package ${packageName} for member ${member.name}`;
 
         const request = await PackageExceptionRequest.create({
             member: member._id,
             basePackage: basePkg._id,
             proposedBy: req.user.id,
-            hasException: true,
+            hasException: isException,
             name: name ?? basePkg.name,
             activityType: activityType ?? basePkg.activityType,
             duration: duration ?? basePkg.duration,

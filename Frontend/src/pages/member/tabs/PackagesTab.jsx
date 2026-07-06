@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, fmtDateTime, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
-import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage } from '../../../api/endpoints';
+import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage } from '../../../api/endpoints';
+import CatalogPackageForm, { EMPTY_PACKAGE_FORM, validatePackageForm, packageFormToPayload } from '../../../components/PackageForm';
 
 const ACTIVITY_TYPES = ['gym', 'crossfit', 'box', 'mma', 'kickboxing', 'calisthenics'];
 const DURATIONS = ['1 month', '3 months', '6 months', '1 year'];
@@ -19,8 +20,9 @@ export default function PackagesTab({ member, user, onRefresh }) {
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const isSalesManager = ['Sales Manager', 'Owner'].includes(user?.role);
+  const isSalesManager = user?.role === 'Sales Manager';
   const isAccountant = ['Accountant', 'Owner'].includes(user?.role);
+  const canAddPackage = isSalesManager || isAccountant;
   const memberKey = member.systemId ?? member._id;
 
   const fetchPending = useCallback(async () => {
@@ -75,8 +77,6 @@ export default function PackagesTab({ member, user, onRefresh }) {
     { label: 'Status',           value: <Badge status={member.status} /> },
   ] : [];
 
-  const canAddPackage = isSalesManager || isAccountant;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {!loadingPending && pending && (
@@ -110,11 +110,11 @@ export default function PackagesTab({ member, user, onRefresh }) {
       <Card>
         <CardHeader title="Active Package">
           {canAddPackage && !loadingPending && (
-            <Btn size="xs" onClick={() => setShowAddPackage(true)}>+ Add Package</Btn>
+            <Btn size="xs" onClick={() => setShowAddPackage(true)}>{isSalesManager ? '+ Request Package' : '+ Add Package'}</Btn>
           )}
         </CardHeader>
         {!pkg || member.status === 'guest'
-          ? <EmptyState message="No active package" sub={isSalesManager && !pending ? 'Click Add Package to assign a package to this member.' : 'No package assigned yet.'} />
+          ? <EmptyState message="No active package" sub={isSalesManager && !pending ? 'Submit a package request — the accountant must approve before it is assigned.' : isAccountant && !pending ? 'Click Add Package to assign a package to this member.' : 'No package assigned yet.'} />
           : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
               {details.map(d => (
                 <div key={d.label} style={{ background: 'var(--card)', padding: '10px 14px' }}>
@@ -227,15 +227,26 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
   const [loading, setLoading] = useState(false);
   const [makeException, setMakeException] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [showCreatePackage, setShowCreatePackage] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_PACKAGE_FORM);
+  const [createErrors, setCreateErrors] = useState({});
+  const [creatingPackage, setCreatingPackage] = useState(false);
+
+  const loadPackages = useCallback(() => {
+    return getPackages()
+      .then(res => setPackages(res.data?.packages ?? []))
+      .catch(() => toast.error('Failed to load packages.'));
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     setMakeException(false);
     setForm({ ...EMPTY_FORM });
-    if (isSalesManager) {
-      getPackages().then(res => setPackages(res.data?.packages ?? [])).catch(() => toast.error('Failed to load packages.'));
-    }
-  }, [open, isSalesManager]);
+    setShowCreatePackage(false);
+    setCreateForm(EMPTY_PACKAGE_FORM);
+    setCreateErrors({});
+    loadPackages();
+  }, [open, loadPackages]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -257,39 +268,64 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleCreateCatalogPackage = async () => {
+    const errs = validatePackageForm(createForm);
+    if (Object.keys(errs).length) { setCreateErrors(errs); return; }
+
+    setCreatingPackage(true);
+    try {
+      const res = await createPackage(packageFormToPayload(createForm));
+      const pkg = res.data?.package;
+      toast.success('Package added to catalog.');
+      setShowCreatePackage(false);
+      setCreateForm(EMPTY_PACKAGE_FORM);
+      setCreateErrors({});
+      await loadPackages();
+      if (pkg?._id) {
+        setForm(f => ({
+          ...f,
+          basePackageId: pkg._id,
+          name: pkg.name,
+          activityType: pkg.activityType,
+          duration: pkg.duration,
+          price: String(pkg.price),
+          freezeLimitDays: String(pkg.freezeLimitDays ?? 0),
+          invitationLimit: String(pkg.invitationLimit ?? 0),
+          renewalDiscountPercent: String(pkg.renewalDiscountPercent ?? 0),
+          description: pkg.description ?? '',
+          pricePaid: String(pkg.price),
+        }));
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Failed to create package.');
+    } finally {
+      setCreatingPackage(false);
+    }
+  };
+
+  const handleSalesManagerSubmit = async () => {
     if (!form.basePackageId) { toast.error('Select a package.'); return; }
 
     setLoading(true);
     try {
-      if (makeException) {
-        await createPackageException({
-          memberId: member.systemId ?? member._id,
-          basePackageId: form.basePackageId,
-          hasException: true,
-          name: form.name,
-          activityType: form.activityType,
-          duration: form.duration,
-          price: Number(form.price),
-          freezeLimitDays: Number(form.freezeLimitDays) || 0,
-          invitationLimit: Number(form.invitationLimit) || 0,
-          renewalDiscountPercent: Number(form.renewalDiscountPercent) || 0,
-          description: form.description || null,
-          pricePaid: Number(form.pricePaid),
-          discountPercent: Number(form.discountPercent) || 0,
-          startDate: form.startDate || undefined,
-          reason: form.reason || null,
-        });
-        toast.success('Package submitted with exception — accountant notified.');
-      } else {
-        await assignPackage(member.systemId ?? member._id, {
-          packageId: form.basePackageId,
-          pricePaid: Number(form.pricePaid),
-          discountPercent: Number(form.discountPercent) || 0,
-          startDate: form.startDate || undefined,
-        });
-        toast.success('Package assigned.');
-      }
+      await createPackageException({
+        memberId: member.systemId ?? member._id,
+        basePackageId: form.basePackageId,
+        hasException: makeException,
+        name: form.name,
+        activityType: form.activityType,
+        duration: form.duration,
+        price: Number(form.price),
+        freezeLimitDays: Number(form.freezeLimitDays) || 0,
+        invitationLimit: Number(form.invitationLimit) || 0,
+        renewalDiscountPercent: Number(form.renewalDiscountPercent) || 0,
+        description: form.description || null,
+        pricePaid: Number(form.pricePaid),
+        discountPercent: Number(form.discountPercent) || 0,
+        startDate: form.startDate || undefined,
+        reason: form.reason || null,
+      });
+      toast.success('Package request sent to accountant for approval.');
       onSuccess();
     } catch (e) {
       toast.error(e.response?.data?.message ?? 'Failed.');
@@ -298,67 +334,118 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
     }
   };
 
-  // Accountant: review pending package
+  const handleAccountantSubmit = async () => {
+    if (!form.basePackageId) { toast.error('Select a package.'); return; }
+
+    setLoading(true);
+    try {
+      await assignPackage(member.systemId ?? member._id, {
+        packageId: form.basePackageId,
+        pricePaid: Number(form.pricePaid),
+        discountPercent: Number(form.discountPercent) || 0,
+        startDate: form.startDate || undefined,
+      });
+      toast.success('Package assigned.');
+      onSuccess();
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Accountant: review pending request or assign directly
   if (isAccountant) {
+    if (pending) {
+      return (
+        <Modal open={open} onClose={onClose} title="Add Package — Review Request" size="lg"
+          footer={<Btn variant="ghost" size="sm" onClick={onClose}>Close</Btn>}>
+          <Alert type="warning">
+            {pending.notificationMessage ||
+              `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`}
+          </Alert>
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
+            Proposed by <strong>{pending.proposedBy?.name}</strong> · Based on <strong>{pending.basePackage?.name}</strong>
+          </div>
+          <PackageFormFields form={requestToForm(pending)} readOnly makeException />
+          {pending.reason && (
+            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t2)' }}>
+              <strong>Reason:</strong> {pending.reason}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+            <Btn variant="success" size="sm" onClick={() => { onClose(); onReview(pending._id, 'accepted'); }}>Confirm</Btn>
+            <Btn variant="danger" size="sm" onClick={() => { onClose(); onReview(pending._id, 'declined'); }}>Decline</Btn>
+          </div>
+        </Modal>
+      );
+    }
+
     return (
-      <Modal open={open} onClose={onClose} title="Add Package — Review" size="lg"
-        footer={<Btn variant="ghost" size="sm" onClick={onClose}>Close</Btn>}>
-        {!pending ? (
-          <EmptyState message="No pending package" sub="There is no package awaiting approval for this member." />
-        ) : (
+      <Modal open={open} onClose={onClose} title="Add Package" size="lg"
+        footer={
           <>
-            <Alert type="warning">
-              {pending.notificationMessage ||
-                `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`}
-            </Alert>
-            <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
-              Proposed by <strong>{pending.proposedBy?.name}</strong> · Based on <strong>{pending.basePackage?.name}</strong>
-            </div>
-            <PackageFormFields form={requestToForm(pending)} readOnly makeException />
-            {pending.reason && (
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t2)' }}>
-                <strong>Reason:</strong> {pending.reason}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-              <Btn variant="success" size="sm" onClick={() => { onClose(); onReview(pending._id, 'accepted'); }}>Confirm</Btn>
-              <Btn variant="danger" size="sm" onClick={() => { onClose(); onReview(pending._id, 'declined'); }}>Decline</Btn>
-            </div>
+            <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
+            <Btn size="sm" onClick={handleAccountantSubmit} disabled={loading || !form.basePackageId}>
+              {loading ? <Spinner size="sm" /> : 'Assign Package'}
+            </Btn>
           </>
+        }>
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16, lineHeight: 1.6 }}>
+          Assign a package to <strong>{member.name}</strong> immediately.
+        </p>
+        <Select label="Package *" value={form.basePackageId} onChange={e => handlePackageChange(e.target.value)}>
+          <option value="">Select package…</option>
+          {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
+        </Select>
+        {form.basePackageId && (
+          <div style={{ marginTop: 16 }}>
+            <PackageFormFields form={form} set={set} readOnly={false} makeException />
+          </div>
         )}
       </Modal>
     );
   }
 
-  // Sales Manager: add package with optional exception
+  // Sales Manager: request only — never assigns directly
   return (
-    <Modal open={open} onClose={onClose} title="Add Package" size="lg"
+    <>
+    <Modal open={open} onClose={onClose} title="Request Package" size="lg"
       footer={
         <>
           <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
-          <Btn size="sm" onClick={handleSubmit} disabled={loading || !form.basePackageId || pending}>
-            {loading ? <Spinner size="sm" /> : (makeException ? 'Submit for Approval' : 'Add Package')}
+          <Btn size="sm" onClick={handleSalesManagerSubmit} disabled={loading || !form.basePackageId || pending}>
+            {loading ? <Spinner size="sm" /> : 'Submit for Approval'}
           </Btn>
         </>
       }>
       {pending && (
-        <Alert type="warning">This member already has a pending package awaiting accountant approval.</Alert>
+        <Alert type="warning">This member already has a pending package request awaiting accountant approval.</Alert>
       )}
       <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16, lineHeight: 1.6 }}>
-        Select a package for <strong>{member.name}</strong>. Turn on <strong>Make Exception</strong> to customize terms — an accountant must approve before it is assigned.
+        Request a package for <strong>{member.name}</strong>. The accountant must approve before it is assigned. Turn on <strong>Make Exception</strong> to customize terms.
       </p>
 
-      <Select label="Package *" value={form.basePackageId} onChange={e => handlePackageChange(e.target.value)} disabled={!!pending}>
-        <option value="">Select package…</option>
-        {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
-      </Select>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, marginBottom: form.basePackageId ? 0 : 16 }}>
+        <div style={{ flex: 1 }}>
+          <Select label="Package *" value={form.basePackageId} onChange={e => handlePackageChange(e.target.value)} disabled={!!pending}>
+            <option value="">Select package…</option>
+            {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
+          </Select>
+        </div>
+        {!pending && (
+          <Btn variant="outline" size="sm" onClick={() => setShowCreatePackage(true)} style={{ marginBottom: 1 }}>
+            + New Package
+          </Btn>
+        )}
+      </div>
 
       {form.basePackageId && (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8 }}>
             <Switch
               label="Make Exception"
-              hint={makeException ? 'Fields are editable. hasException will be enabled and the accountant will be notified.' : 'Using standard package terms. Package is assigned immediately.'}
+              hint={makeException ? 'Fields are editable. Custom terms will be flagged as an exception.' : 'Standard package terms — still requires accountant approval.'}
               checked={makeException}
               onChange={setMakeException}
               disabled={!!pending}
@@ -367,6 +454,35 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
           <PackageFormFields form={form} set={set} readOnly={false} makeException={makeException} />
         </div>
       )}
+    </Modal>
+    <CreateCatalogPackageModal
+      open={showCreatePackage}
+      onClose={() => setShowCreatePackage(false)}
+      form={createForm}
+      onChange={setCreateForm}
+      errors={createErrors}
+      onSubmit={handleCreateCatalogPackage}
+      loading={creatingPackage}
+    />
+    </>
+  );
+}
+
+function CreateCatalogPackageModal({ open, onClose, form, onChange, errors, onSubmit, loading }) {
+  return (
+    <Modal open={open} onClose={onClose} title="New Package" size="md"
+      footer={
+        <>
+          <Btn variant="ghost" size="sm" onClick={onClose} disabled={loading}>Cancel</Btn>
+          <Btn size="sm" onClick={onSubmit} disabled={loading}>
+            {loading ? <Spinner size="sm" /> : 'Save to Catalog'}
+          </Btn>
+        </>
+      }>
+      <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14 }}>
+        Create a new package in the catalog. It will be available for all members after saving.
+      </p>
+      <CatalogPackageForm form={form} onChange={onChange} errors={errors} />
     </Modal>
   );
 }

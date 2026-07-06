@@ -1,11 +1,35 @@
 const Package = require("../models/Package");
 
-// Create package
+// Create catalog package (Sales Manager / Owner)
 const createPackage = async (req, res) => {
     try {
+        const {
+            name,
+            activityType,
+            duration,
+            price,
+            freezeLimitDays,
+            invitationLimit,
+            renewalDiscountPercent,
+            description,
+        } = req.body;
+
+        if (!name?.trim() || price == null) {
+            return res.status(400).json({ message: "Name and price are required" });
+        }
+
         const pkg = await Package.create({
-            ...req.body,
-            createdBy: req.user.id
+            name: name.trim(),
+            activityType: activityType || "gym",
+            duration,
+            price: Number(price),
+            freezeLimitDays: Number(freezeLimitDays) || 0,
+            invitationLimit: Number(invitationLimit) || 0,
+            renewalDiscountPercent: Number(renewalDiscountPercent) || 0,
+            description: description?.trim() || null,
+            isActive: true,
+            hasException: false,
+            createdBy: req.user.id,
         });
         res.status(201).json({ message: "Package created", package: pkg });
     } catch (error) {

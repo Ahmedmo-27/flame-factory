@@ -56,6 +56,12 @@ body {
 
 input, select, textarea, button { font-family: inherit; }
 
+input::placeholder,
+textarea::placeholder {
+  color: var(--t4);
+  opacity: 1;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

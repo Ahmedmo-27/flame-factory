@@ -17,7 +17,7 @@ import TargetDashboard    from './pages/sales/TargetDashboard';
 import SalesSubscriptions from './pages/sales/SalesSubscriptions';
 import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
-import PackageExceptions  from './pages/accounting/PackageExceptions';
+import PackageRequests    from './pages/accounting/PackageRequests';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
 
@@ -34,7 +34,7 @@ function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
-  if (user.role === 'Accountant') return <Navigate to="/accounting/exceptions" replace />;
+  if (user.role === 'Accountant') return <Navigate to="/accounting/package-requests" replace />;
   return <Navigate to="/members" replace />;
 }
 
@@ -83,12 +83,12 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/sales/team" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <SalesTeam />
         </PrivateRoute>
       } />
       <Route path="/sales/team/:id" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <SalesPersonProfile />
         </PrivateRoute>
       } />
@@ -108,7 +108,7 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/sales/targets" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <TargetDashboard />
         </PrivateRoute>
       } />
@@ -124,11 +124,12 @@ function AppRoutes() {
       } />
 
       {/* Accountant routes */}
-      <Route path="/accounting/exceptions" element={
+      <Route path="/accounting/package-requests" element={
         <PrivateRoute roles={['Accountant', 'Owner', 'Sales Manager']}>
-          <PackageExceptions />
+          <PackageRequests />
         </PrivateRoute>
       } />
+      <Route path="/accounting/exceptions" element={<Navigate to="/accounting/package-requests" replace />} />
 
       {/* 404 */}
       <Route path="*" element={<NotFound />} />

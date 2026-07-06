@@ -12,6 +12,8 @@ const {
     getCurrentSubscription,
 } = require("../utils/revenueUtils");
 
+const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
+
 const registerUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -221,7 +223,7 @@ const getSalesRevenue = async (req, res) => {
 
 const getSalesManagerRevenue = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+        if (!FINANCE_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: "Not authorized" });
         }
 
@@ -539,7 +541,7 @@ const updateSalesRepAbilities = async (req, res) => {
 // Defaults: dateFrom = today, dateTo = today
 const getSubscriptionsByDate = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+        if (!FINANCE_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: "Not authorized" });
         }
 

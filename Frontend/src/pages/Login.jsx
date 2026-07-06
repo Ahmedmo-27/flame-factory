@@ -9,18 +9,17 @@ export default function Login() {
   usePageTitle('Sign In');
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
-
-  // Already logged in — redirect to dashboard
-  if (user) {
-    if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
-    return <Navigate to="/members" replace />;
-  }
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd]   = useState(false);
   const [loading, setLoading]   = useState(false);
   const [errors, setErrors]     = useState({});
 
+  if (user) {
+    if (user.role === 'Accountant') return <Navigate to="/accounting/package-requests" replace />;
+    if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+    return <Navigate to="/members" replace />;
+  }
   const validate = () => {
     const e = {};
     if (!email.trim())                     e.email    = 'Email is required';
@@ -37,7 +36,9 @@ export default function Login() {
     try {
       const user = await signIn(email.trim(), password);
       toast.success(`Welcome back, ${user.name}!`);
-      if (['Sales', 'Sales Manager'].includes(user.role)) {
+      if (user.role === 'Accountant') {
+        navigate('/accounting/package-requests', { replace: true });
+      } else if (['Sales', 'Sales Manager'].includes(user.role)) {
         navigate('/sales/dashboard', { replace: true });
       } else {
         navigate('/members', { replace: true });

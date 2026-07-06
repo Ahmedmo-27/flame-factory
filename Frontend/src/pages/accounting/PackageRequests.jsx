@@ -31,7 +31,7 @@ function DetailRow({ label, value }) {
 }
 
 function RequestDetailModal({ request, open, onClose, isReviewer, onApprove, onReject }) {
-  if (!request) return null;
+  if (!open || !request) return null;
 
   const isPending = request.status === 'pending';
   const memberId = request.member?.systemId ?? request.member?._id;

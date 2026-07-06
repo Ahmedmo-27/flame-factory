@@ -817,12 +817,47 @@ const getAllNotes = async (req, res) => {
     }
 };
 
-// ─── Assign catalog package directly (no exception / no approval) ─────────────
+const packageTermsDiffer = (basePkg, terms) => {
+    const num = (v, def = 0) => (v != null && v !== "" ? Number(v) : def);
+    return (
+        terms.name !== basePkg.name ||
+        terms.activityType !== basePkg.activityType ||
+        terms.duration !== basePkg.duration ||
+        num(terms.price) !== basePkg.price ||
+        num(terms.freezeLimitDays) !== (basePkg.freezeLimitDays ?? 0) ||
+        num(terms.invitationLimit) !== (basePkg.invitationLimit ?? 0) ||
+        num(terms.renewalDiscountPercent) !== (basePkg.renewalDiscountPercent ?? 0)
+    );
+};
+
+// ─── Assign package directly (Accountant / Owner — no approval) ───────────────
 const assignPackage = async (req, res) => {
     try {
-        const { packageId, pricePaid, discountPercent, startDate } = req.body;
+        const {
+            packageId,
+            name,
+            activityType,
+            duration,
+            price,
+            freezeLimitDays,
+            invitationLimit,
+            renewalDiscountPercent,
+            pricePaid,
+            discountPercent,
+            startDate,
+        } = req.body;
+
         if (!packageId) {
             return res.status(400).json({ message: "Package ID is required" });
+        }
+        if (!name?.trim()) {
+            return res.status(400).json({ message: "Package name is required" });
+        }
+        if (!duration) {
+            return res.status(400).json({ message: "Duration is required" });
+        }
+        if (pricePaid == null || pricePaid === "") {
+            return res.status(400).json({ message: "Price paid is required" });
         }
 
         const member = await findMember(req.params.memberId);
@@ -836,13 +871,45 @@ const assignPackage = async (req, res) => {
             return res.status(400).json({ message: "This member has a pending package exception awaiting approval" });
         }
 
-        const pkg = await Package.findById(packageId);
-        if (!pkg || !pkg.isActive || pkg.hasException) {
+        const basePkg = await Package.findById(packageId);
+        if (!basePkg || !basePkg.isActive || basePkg.hasException) {
             return res.status(400).json({ message: "Package not found or unavailable" });
         }
 
+        const terms = {
+            name: name.trim(),
+            activityType: activityType ?? basePkg.activityType,
+            duration,
+            price: price != null && price !== "" ? Number(price) : basePkg.price,
+            freezeLimitDays: Number(freezeLimitDays) || 0,
+            invitationLimit: Number(invitationLimit) || 0,
+            renewalDiscountPercent: Number(renewalDiscountPercent) || 0,
+        };
+
+        let packageToAssign = basePkg._id;
+        let packageName = basePkg.name;
+
+        if (packageTermsDiffer(basePkg, terms)) {
+            const exceptionPkg = await Package.create({
+                name: terms.name,
+                activityType: terms.activityType,
+                duration: terms.duration,
+                price: terms.price,
+                freezeLimitDays: terms.freezeLimitDays,
+                invitationLimit: terms.invitationLimit,
+                renewalDiscountPercent: terms.renewalDiscountPercent,
+                isActive: true,
+                hasException: true,
+                basedOn: basePkg._id,
+                forMember: member._id,
+                createdBy: req.user.id,
+            });
+            packageToAssign = exceptionPkg._id;
+            packageName = exceptionPkg.name;
+        }
+
         const start = startDate ? new Date(startDate) : new Date();
-        const endDate = calcEndDate(start, pkg.duration);
+        const endDate = calcEndDate(start, terms.duration);
         const subscriptionId = await generateSubscriptionId();
         const hadSubscription = member.subscriptions?.length > 0;
 
@@ -854,11 +921,11 @@ const assignPackage = async (req, res) => {
         member.status = "active";
         member.subscriptions.push({
             subscriptionId,
-            package: pkg._id,
+            package: packageToAssign,
             startDate: start,
             endDate,
-            pricePaid: pricePaid ?? pkg.price,
-            discountPercent: discountPercent ?? 0,
+            pricePaid: Number(pricePaid),
+            discountPercent: Number(discountPercent) || 0,
             isRenewal: hadSubscription,
             createdBy: req.user.id,
         });
@@ -866,7 +933,9 @@ const assignPackage = async (req, res) => {
         member.invitationsUsed = 0;
         member.userlog.push({
             type: hadSubscription ? "renewal" : "other",
-            text: `Package assigned: ${pkg.name}`,
+            text: packageTermsDiffer(basePkg, terms)
+                ? `Package assigned (exception): ${packageName}`
+                : `Package assigned: ${packageName}`,
             createdBy: req.user.id,
         });
 

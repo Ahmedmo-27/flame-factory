@@ -193,56 +193,36 @@ function requestToForm(request) {
   };
 }
 
-function packageToPlaceholders(pkg) {
-  if (!pkg) return null;
-  return {
-    name: pkg.name,
-    activityType: pkg.activityType,
-    duration: pkg.duration,
-    price: String(pkg.price),
-    freezeLimitDays: String(pkg.freezeLimitDays ?? 0),
-    invitationLimit: String(pkg.invitationLimit ?? 0),
-    renewalDiscountPercent: String(pkg.renewalDiscountPercent ?? 0),
-    pricePaid: String(pkg.price),
-    discountPercent: '0',
-  };
-}
-
-const CATALOG_FIELD_KEYS = new Set([
+const PACKAGE_TERM_KEYS = new Set([
   'name', 'activityType', 'duration', 'price',
   'freezeLimitDays', 'invitationLimit', 'renewalDiscountPercent',
 ]);
 
-function PackageFormFields({ form, set, readOnly, makeException, catalogPlaceholders }) {
-  const catalogMode = !!catalogPlaceholders;
-
+function PackageFormFields({ form, set, readOnly, makeException, allEditable }) {
   const fieldDisabled = (key) => {
     if (readOnly) return true;
-    if (catalogMode && CATALOG_FIELD_KEYS.has(key)) return true;
-    if (!catalogMode && !makeException) return true;
+    if (allEditable) return false;
+    if (PACKAGE_TERM_KEYS.has(key)) return !makeException;
     return false;
   };
 
-  const fieldValue = (key) => (catalogMode && CATALOG_FIELD_KEYS.has(key) ? '' : form[key]);
-  const fieldPlaceholder = (key, fallback) => catalogPlaceholders?.[key] ?? fallback;
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-      <Input label="Package Name" value={fieldValue('name')} onChange={e => set?.('name', e.target.value)} placeholder={fieldPlaceholder('name')} disabled={fieldDisabled('name')} readOnly={readOnly} />
-      <Select label="Activity" value={fieldValue('activityType')} onChange={e => set?.('activityType', e.target.value)} placeholder={fieldPlaceholder('activityType')} disabled={fieldDisabled('activityType')} readOnly={readOnly}>
+      <Input label="Package Name" value={form.name} onChange={e => set?.('name', e.target.value)} disabled={fieldDisabled('name')} readOnly={readOnly} />
+      <Select label="Activity" value={form.activityType} onChange={e => set?.('activityType', e.target.value)} disabled={fieldDisabled('activityType')} readOnly={readOnly}>
         {ACTIVITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
       </Select>
-      <Select label="Duration" value={fieldValue('duration')} onChange={e => set?.('duration', e.target.value)} placeholder={fieldPlaceholder('duration')} disabled={fieldDisabled('duration')} readOnly={readOnly}>
+      <Select label="Duration" value={form.duration} onChange={e => set?.('duration', e.target.value)} disabled={fieldDisabled('duration')} readOnly={readOnly}>
         {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
       </Select>
-      <Input label="Price (EGP)" type="number" value={fieldValue('price')} onChange={e => set?.('price', e.target.value)} placeholder={fieldPlaceholder('price')} disabled={fieldDisabled('price')} readOnly={readOnly} />
-      <Input label="Price Paid (EGP)" type="number" value={form.pricePaid} onChange={e => set?.('pricePaid', e.target.value)} placeholder={fieldPlaceholder('pricePaid')} disabled={fieldDisabled('pricePaid')} readOnly={readOnly} />
-      <Input label="Discount %" type="number" min="0" max="100" value={form.discountPercent} onChange={e => set?.('discountPercent', e.target.value)} placeholder={fieldPlaceholder('discountPercent', '0')} disabled={fieldDisabled('discountPercent')} readOnly={readOnly} />
-      <Input label="Freeze Limit (days)" type="number" value={fieldValue('freezeLimitDays')} onChange={e => set?.('freezeLimitDays', e.target.value)} placeholder={fieldPlaceholder('freezeLimitDays')} disabled={fieldDisabled('freezeLimitDays')} readOnly={readOnly} />
-      <Input label="Invitation Slots" type="number" value={fieldValue('invitationLimit')} onChange={e => set?.('invitationLimit', e.target.value)} placeholder={fieldPlaceholder('invitationLimit')} disabled={fieldDisabled('invitationLimit')} readOnly={readOnly} />
-      <Input label="Renewal Discount %" type="number" min="0" max="100" value={fieldValue('renewalDiscountPercent')} onChange={e => set?.('renewalDiscountPercent', e.target.value)} placeholder={fieldPlaceholder('renewalDiscountPercent')} disabled={fieldDisabled('renewalDiscountPercent')} readOnly={readOnly} />
-      <Input label="Start Date" type="date" value={form.startDate} onChange={e => set?.('startDate', e.target.value)} hint={catalogMode ? 'Defaults to today if left empty' : undefined} disabled={fieldDisabled('startDate')} readOnly={readOnly} />
-      {!readOnly && !catalogMode && (
+      <Input label="Price (EGP)" type="number" value={form.price} onChange={e => set?.('price', e.target.value)} disabled={fieldDisabled('price')} readOnly={readOnly} />
+      <Input label="Price Paid (EGP)" type="number" value={form.pricePaid} onChange={e => set?.('pricePaid', e.target.value)} disabled={fieldDisabled('pricePaid')} readOnly={readOnly} />
+      <Input label="Discount %" type="number" min="0" max="100" value={form.discountPercent} onChange={e => set?.('discountPercent', e.target.value)} disabled={fieldDisabled('discountPercent')} readOnly={readOnly} />
+      <Input label="Freeze Limit (days)" type="number" value={form.freezeLimitDays} onChange={e => set?.('freezeLimitDays', e.target.value)} disabled={fieldDisabled('freezeLimitDays')} readOnly={readOnly} />
+      <Input label="Invitation Slots" type="number" value={form.invitationLimit} onChange={e => set?.('invitationLimit', e.target.value)} disabled={fieldDisabled('invitationLimit')} readOnly={readOnly} />
+      <Input label="Renewal Discount %" type="number" min="0" max="100" value={form.renewalDiscountPercent} onChange={e => set?.('renewalDiscountPercent', e.target.value)} disabled={fieldDisabled('renewalDiscountPercent')} readOnly={readOnly} />
+      <Input label="Start Date" type="date" value={form.startDate} onChange={e => set?.('startDate', e.target.value)} hint={allEditable ? 'Defaults to today if left empty' : undefined} disabled={fieldDisabled('startDate')} readOnly={readOnly} />
+      {!readOnly && !allEditable && (
         <div style={{ gridColumn: '1 / -1' }}>
           <Input label="Reason" value={form.reason} onChange={e => set?.('reason', e.target.value)} placeholder="Why is this exception needed?" disabled={fieldDisabled('reason')} />
         </div>
@@ -256,7 +236,6 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
   const [loading, setLoading] = useState(false);
   const [makeException, setMakeException] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [catalogPlaceholders, setCatalogPlaceholders] = useState(null);
   const [showCreatePackage, setShowCreatePackage] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_PACKAGE_FORM);
   const [createErrors, setCreateErrors] = useState({});
@@ -272,7 +251,6 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
     if (!open) return;
     setMakeException(false);
     setForm({ ...EMPTY_FORM });
-    setCatalogPlaceholders(null);
     setShowCreatePackage(false);
     setCreateForm(EMPTY_PACKAGE_FORM);
     setCreateErrors({});
@@ -297,17 +275,6 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
       description: pkg.description ?? '',
       pricePaid: String(pkg.price),
     }));
-  };
-
-  const handleAccountantPackageChange = (id) => {
-    const pkg = packages.find(p => p._id === id);
-    if (!pkg) {
-      setCatalogPlaceholders(null);
-      setForm({ ...EMPTY_FORM, basePackageId: id });
-      return;
-    }
-    setCatalogPlaceholders(packageToPlaceholders(pkg));
-    setForm({ ...EMPTY_FORM, basePackageId: id });
   };
 
   const handleCreateCatalogPackage = async () => {
@@ -378,11 +345,21 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
 
   const handleAccountantSubmit = async () => {
     if (!form.basePackageId) { toast.error('Select a package.'); return; }
+    if (!form.name?.trim()) { toast.error('Package name is required.'); return; }
+    if (!form.duration) { toast.error('Duration is required.'); return; }
+    if (form.pricePaid === '' || form.pricePaid == null) { toast.error('Price paid is required.'); return; }
 
     setLoading(true);
     try {
       await assignPackage(member.systemId ?? member._id, {
         packageId: form.basePackageId,
+        name: form.name.trim(),
+        activityType: form.activityType,
+        duration: form.duration,
+        price: Number(form.price),
+        freezeLimitDays: Number(form.freezeLimitDays) || 0,
+        invitationLimit: Number(form.invitationLimit) || 0,
+        renewalDiscountPercent: Number(form.renewalDiscountPercent) || 0,
         pricePaid: Number(form.pricePaid),
         discountPercent: Number(form.discountPercent) || 0,
         startDate: form.startDate || undefined,
@@ -428,29 +405,26 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
         footer={
           <>
             <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
-            <Btn size="sm" onClick={handleAccountantSubmit} disabled={loading || !form.basePackageId}>
+            <Btn size="sm" onClick={handleAccountantSubmit} disabled={loading || !form.basePackageId || !form.name?.trim() || !form.duration || form.pricePaid === ''}>
               {loading ? <Spinner size="sm" /> : 'Assign Package'}
             </Btn>
           </>
         }>
         <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16, lineHeight: 1.6 }}>
-          Assign a package to <strong>{member.name}</strong> immediately.
+          Assign a package to <strong>{member.name}</strong>. Select a base package to pre-fill, then enter or adjust all terms before assigning.
         </p>
         <Select
-          label="Package *"
+          label="Base Package *"
           value={form.basePackageId}
-          onChange={e => handleAccountantPackageChange(e.target.value)}
+          onChange={e => handlePackageChange(e.target.value)}
           placeholder="Search packages…"
           initialLimit={5}
         >
           {packages.map(p => <option key={p._id} value={p._id}>{p.name} — EGP {p.price} ({p.duration})</option>)}
         </Select>
-        {form.basePackageId && catalogPlaceholders && (
+        {form.basePackageId && (
           <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 11, color: 'var(--t4)', marginBottom: 10 }}>
-              Grey text shows the catalog package defaults. Fill in price paid, discount, and start date to assign.
-            </p>
-            <PackageFormFields form={form} set={set} catalogPlaceholders={catalogPlaceholders} />
+            <PackageFormFields form={form} set={set} allEditable />
           </div>
         )}
       </Modal>

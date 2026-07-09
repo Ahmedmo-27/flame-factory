@@ -5,6 +5,7 @@ const membersRoutes = require("./routes/membersRoutes");
 const salesRequestRoutes = require("./routes/salesRequestRoutes");
 const packageRoutes = require("./routes/packageRoutes");
 const packageExceptionRoutes = require("./routes/packageExceptionRoutes");
+const contractRoutes = require("./routes/contractRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const requestId = require("./middleware/requestId");
 const requestLogger = require("./middleware/requestLogger");
@@ -31,6 +32,7 @@ app.use("/api/members", membersRoutes);
 app.use("/api/sales-requests", salesRequestRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/package-exceptions", packageExceptionRoutes);
+app.use("/api/accounting", contractRoutes);
 app.use("/api/requests", salesRequestRoutes);
 app.use("/api/notifications", notificationRoutes);
 

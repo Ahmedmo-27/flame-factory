@@ -189,8 +189,10 @@ const getMemberProfile = async (req, res) => {
         }
 
         const member = await Member.findOne(query)
-            .populate("subscriptions.package", "name duration activityType price freezeLimitDays invitationLimit renewalDiscountPercent")
+            .populate("subscriptions.package", "name duration activityType price freezeLimitDays invitationLimit renewalDiscountPercent hasException")
             .populate("subscriptions.createdBy", "name")
+            .populate("subscriptions.approvedBy", "name email role")
+            .populate("subscriptions.salesManager", "name email role")
             .populate("createdBy", "name role")
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
@@ -928,6 +930,8 @@ const assignPackage = async (req, res) => {
             discountPercent: Number(discountPercent) || 0,
             isRenewal: hadSubscription,
             createdBy: req.user.id,
+            approvedBy: req.user.id,
+            salesManager: null,
         });
         member.freezeDaysUsed = 0;
         member.invitationsUsed = 0;

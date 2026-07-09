@@ -6,6 +6,8 @@ import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
 import { PageHeader, Card, Table, Badge, Btn, ConfirmDialog, EmptyState, Modal, fmtDate, fmtDateTime, Pagination } from '../../components/ui';
 import { getPackageExceptions, updatePackageExceptionStatus } from '../../api/endpoints';
+import SalesManagerSection from '../../components/accounting/SalesManagerSection';
+import PackageAcceptModal from '../../components/accounting/PackageAcceptModal';
 
 const PAGE_SIZE = 10;
 
@@ -74,11 +76,14 @@ function RequestDetailModal({ request, open, onClose, isReviewer, onApprove, onR
             ? <Link to={`/members/${memberId}`} style={{ color: 'var(--blue)', textDecoration: 'none' }}>{request.member?.name ?? '—'}</Link>
             : (request.member?.name ?? '—')
         } />
-        <DetailRow label="Proposed By" value={request.proposedBy?.name} />
         <DetailRow label="Submitted" value={fmtDateTime(request.createdAt)} />
         <DetailRow label="Based On" value={request.basePackage?.name} />
         {request.reviewedBy && <DetailRow label="Reviewed By" value={request.reviewedBy.name} />}
       </div>
+
+      {isPending && request.proposedBy && (
+        <SalesManagerSection salesManager={request.proposedBy} />
+      )}
 
       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
         {request.hasException ? 'Proposed Terms (Exception)' : 'Package Terms'}
@@ -131,6 +136,7 @@ export default function PackageRequests() {
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingResolved, setLoadingResolved] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [acceptRequest, setAcceptRequest] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -177,6 +183,23 @@ export default function PackageRequests() {
       await updatePackageExceptionStatus(confirm.id, confirm.status);
       toast.success(`Request ${confirm.status}.`);
       setConfirm(null);
+      setSelected(null);
+      setAcceptRequest(null);
+      fetchRequests();
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Action failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAccept = async () => {
+    if (!acceptRequest) return;
+    setActionLoading(true);
+    try {
+      await updatePackageExceptionStatus(acceptRequest._id, 'accepted');
+      toast.success('Request accepted.');
+      setAcceptRequest(null);
       setSelected(null);
       fetchRequests();
     } catch (e) {
@@ -295,18 +318,26 @@ export default function PackageRequests() {
         open={!!selected}
         onClose={() => setSelected(null)}
         isReviewer={isReviewer}
-        onApprove={(r) => setConfirm({ id: r._id, status: 'accepted' })}
+        onApprove={(r) => { setSelected(null); setAcceptRequest(r); }}
         onReject={(r) => setConfirm({ id: r._id, status: 'rejected' })}
+      />
+
+      <PackageAcceptModal
+        request={acceptRequest}
+        open={!!acceptRequest}
+        onClose={() => setAcceptRequest(null)}
+        onConfirm={handleAccept}
+        loading={actionLoading}
       />
 
       <ConfirmDialog
         open={!!confirm}
         onClose={() => setConfirm(null)}
         onConfirm={handleAction}
-        title={confirm?.status === 'accepted' ? 'Approve Package Request' : 'Reject Package Request'}
-        message={`Are you sure you want to ${confirm?.status} this package request?`}
-        confirmLabel={confirm?.status === 'accepted' ? 'Approve' : 'Reject'}
-        danger={confirm?.status === 'rejected'}
+        title="Reject Package Request"
+        message="Are you sure you want to reject this package request?"
+        confirmLabel="Reject"
+        danger
         loading={actionLoading}
       />
     </Layout>

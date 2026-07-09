@@ -63,6 +63,9 @@ export const createPackageException       = (data) => api.post('/package-excepti
 export const updatePackageExceptionStatus = (id, status, reviewNote) =>
   api.put(`/package-exceptions/${id}/status`, { status, reviewNote });
 
+// ── Accounting / Contracts ────────────────────────────────────────────────────
+export const getContracts = (params) => api.get('/accounting/contracts', { params });
+
 // ── Sales Requests ────────────────────────────────────────────────────────────
 export const getRequests         = (params) => api.get('/requests', { params });
 export const createRequest       = (memberId)   =>

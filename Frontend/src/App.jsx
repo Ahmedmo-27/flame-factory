@@ -18,6 +18,7 @@ import SalesSubscriptions from './pages/sales/SalesSubscriptions';
 import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
 import PackageRequests    from './pages/accounting/PackageRequests';
+import ContractHistory    from './pages/accounting/ContractHistory';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
 
@@ -127,6 +128,11 @@ function AppRoutes() {
       <Route path="/accounting/package-requests" element={
         <PrivateRoute roles={['Accountant', 'Owner', 'Sales Manager']}>
           <PackageRequests />
+        </PrivateRoute>
+      } />
+      <Route path="/accounting/contract-history" element={
+        <PrivateRoute roles={['Accountant', 'Owner']}>
+          <ContractHistory />
         </PrivateRoute>
       } />
       <Route path="/accounting/exceptions" element={<Navigate to="/accounting/package-requests" replace />} />

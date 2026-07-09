@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, fmtDateTime, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
 import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage } from '../../../api/endpoints';
 import CatalogPackageForm, { EMPTY_PACKAGE_FORM, validatePackageForm, packageFormToPayload } from '../../../components/PackageForm';
+import PackageAcceptModal from '../../../components/accounting/PackageAcceptModal';
 
 const ACTIVITY_TYPES = ['gym', 'crossfit', 'box', 'mma', 'kickboxing', 'calisthenics'];
 const DURATIONS = ['1 month', '3 months', '6 months', '1 year'];
@@ -17,6 +18,7 @@ export default function PackagesTab({ member, user, onRefresh }) {
   const [pending, setPending] = useState(null);
   const [loadingPending, setLoadingPending] = useState(true);
   const [showAddPackage, setShowAddPackage] = useState(false);
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -46,6 +48,22 @@ export default function PackagesTab({ member, user, onRefresh }) {
       await updatePackageExceptionStatus(confirm.id, confirm.status, confirm.reviewNote);
       toast.success(`Package ${confirm.status === 'accepted' ? 'confirmed' : 'declined'}.`);
       setConfirm(null);
+      fetchPending();
+      onRefresh?.();
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Action failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAccept = async () => {
+    if (!pending) return;
+    setActionLoading(true);
+    try {
+      await updatePackageExceptionStatus(pending._id, 'accepted');
+      toast.success('Package confirmed.');
+      setShowAcceptModal(false);
       fetchPending();
       onRefresh?.();
     } catch (e) {
@@ -100,7 +118,7 @@ export default function PackagesTab({ member, user, onRefresh }) {
           )}
           {isAccountant && (
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <Btn variant="success" size="sm" onClick={() => setConfirm({ id: pending._id, status: 'accepted' })}>Confirm</Btn>
+              <Btn variant="success" size="sm" onClick={() => setShowAcceptModal(true)}>Confirm</Btn>
               <Btn variant="danger" size="sm" onClick={() => setConfirm({ id: pending._id, status: 'rejected' })}>Decline</Btn>
             </div>
           )}
@@ -164,13 +182,19 @@ export default function PackagesTab({ member, user, onRefresh }) {
         />
       )}
 
+      <PackageAcceptModal
+        request={pending}
+        open={showAcceptModal && !!pending}
+        onClose={() => setShowAcceptModal(false)}
+        onConfirm={handleAccept}
+        loading={actionLoading}
+      />
+
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} onConfirm={handleReview}
-        title={confirm?.status === 'accepted' ? 'Confirm Package' : 'Decline Package'}
-        message={confirm?.status === 'accepted'
-          ? 'Confirm this package assignment? It will be added to the member\'s profile.'
-          : 'Decline this package assignment? The sales manager will be notified.'}
-        confirmLabel={confirm?.status === 'accepted' ? 'Confirm' : 'Decline'}
-        danger={confirm?.status === 'rejected'} loading={actionLoading} />
+        title="Decline Package"
+        message="Decline this package assignment? The sales manager will be notified."
+        confirmLabel="Decline"
+        danger loading={actionLoading} />
     </div>
   );
 }

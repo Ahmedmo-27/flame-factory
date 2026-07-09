@@ -91,6 +91,8 @@ const applyApprovedException = async (request, reviewerId) => {
         discountPercent: request.discountPercent ?? 0,
         isRenewal: hadSubscription,
         createdBy: request.proposedBy,
+        approvedBy: reviewerId,
+        salesManager: request.proposedBy,
     };
 
     if (!member.memberId) {
@@ -300,7 +302,7 @@ const getMemberPendingException = async (req, res) => {
             status: "pending",
         })
             .populate("basePackage", "name duration price activityType freezeLimitDays invitationLimit renewalDiscountPercent")
-            .populate("proposedBy", "name");
+            .populate("proposedBy", "name email role");
 
         res.json({ request: request ?? null });
     } catch (error) {

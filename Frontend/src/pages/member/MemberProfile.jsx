@@ -82,7 +82,7 @@ export default function MemberProfile() {
           <span>{loading ? 'Loading…' : (member?.name ?? 'Profile')}</span>
         </div>
       }>
-        {member && (
+        {member && user?.role !== 'Accountant' && (
           <Btn variant={member.status === 'active' || member.status === 'frozen' ? 'success' : 'outline'} size="sm"
             onClick={handleCheckIn} disabled={checkingIn || member.status === 'expired' || member.status === 'guest'}>
             {checkingIn ? <Spinner size="sm" /> : 'Check In'}

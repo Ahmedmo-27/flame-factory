@@ -60,9 +60,9 @@ function AppRoutes() {
         </PrivateRoute>
       } />
 
-      {/* Everyone authenticated can check in */}
+      {/* Check-in — not available to Accountant */}
       <Route path="/checkin" element={
-        <PrivateRoute>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach']}>
           <CheckIn />
         </PrivateRoute>
       } />

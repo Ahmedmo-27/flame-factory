@@ -19,6 +19,7 @@ import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
 import PackageRequests    from './pages/accounting/PackageRequests';
 import ContractHistory    from './pages/accounting/ContractHistory';
+import AccountantDashboard from './pages/accounting/AccountantDashboard';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
 
@@ -35,7 +36,7 @@ function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
-  if (user.role === 'Accountant') return <Navigate to="/accounting/package-requests" replace />;
+  if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
   return <Navigate to="/members" replace />;
 }
 
@@ -125,6 +126,11 @@ function AppRoutes() {
       } />
 
       {/* Accountant routes */}
+      <Route path="/accounting/dashboard" element={
+        <PrivateRoute roles={['Accountant', 'Owner']}>
+          <AccountantDashboard />
+        </PrivateRoute>
+      } />
       <Route path="/accounting/package-requests" element={
         <PrivateRoute roles={['Accountant', 'Owner', 'Sales Manager']}>
           <PackageRequests />

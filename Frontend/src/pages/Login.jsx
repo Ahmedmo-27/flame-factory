@@ -16,7 +16,7 @@ export default function Login() {
   const [errors, setErrors]     = useState({});
 
   if (user) {
-    if (user.role === 'Accountant') return <Navigate to="/accounting/package-requests" replace />;
+    if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
     if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
     return <Navigate to="/members" replace />;
   }
@@ -37,7 +37,7 @@ export default function Login() {
       const user = await signIn(email.trim(), password);
       toast.success(`Welcome back, ${user.name}!`);
       if (user.role === 'Accountant') {
-        navigate('/accounting/package-requests', { replace: true });
+        navigate('/accounting/dashboard', { replace: true });
       } else if (['Sales', 'Sales Manager'].includes(user.role)) {
         navigate('/sales/dashboard', { replace: true });
       } else {

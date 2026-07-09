@@ -197,9 +197,11 @@ function SearchableSelect({
   const stringValue = String(value ?? '');
 
   const selected = useMemo(
-    () => options.find((o) => o.value === stringValue),
+    () => (stringValue !== '' ? options.find((o) => o.value === stringValue) : null),
     [options, stringValue],
   );
+
+  const hasSelection = stringValue !== '' && !!selected;
 
   const selectableOptions = useMemo(
     () => options.filter((o) => o.value !== ''),
@@ -274,14 +276,16 @@ function SearchableSelect({
   const openList = () => {
     if (locked) return;
     setOpen(true);
-    setQuery(selected ? selected.label : '');
+    setQuery(hasSelection && selected ? selected.label : '');
     setCursor(-1);
   };
 
   const handleFocus = (e) => {
     if (locked) return;
     setFocused(true);
-    openList();
+    setOpen(true);
+    setQuery(hasSelection && selected ? selected.label : '');
+    setCursor(-1);
     onFocus?.(e);
     e.target.style.borderColor = 'var(--blue)';
     e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)';
@@ -315,9 +319,8 @@ function SearchableSelect({
     }
   };
 
-  const hasValue = stringValue !== '' && selected;
-  const inputValue = open || focused ? query : (selected?.label ?? '');
-  const showMuted = !open && !focused && !hasValue;
+  const inputValue = open || focused ? query : (hasSelection ? selected.label : '');
+  const showMuted = !open && !focused && !hasSelection;
 
   const dropdown = open && !locked && dropdownRect ? (
     <div

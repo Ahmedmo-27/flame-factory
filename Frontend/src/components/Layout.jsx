@@ -10,6 +10,7 @@ const NAV = {
   'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/package-requests', label: 'Package Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
   Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/package-requests', label: 'Package Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
   Accountant:    [
+    { to: '/accounting/dashboard', label: 'Dashboard' },
     { to: '/accounting/package-requests', label: 'Package Requests' },
     { to: '/accounting/contract-history', label: 'Contract History' },
     { to: '/sales/targets', label: 'Revenue' },

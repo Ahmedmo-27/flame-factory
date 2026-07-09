@@ -72,7 +72,7 @@ router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Own
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
-router.post("/:memberId/package", protect, authorize("Accountant", "Owner"), assignPackage);
+router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);
 
 
 module.exports = router;

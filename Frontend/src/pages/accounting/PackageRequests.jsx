@@ -140,7 +140,7 @@ export default function PackageRequests() {
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const isReviewer = ['Accountant', 'Owner'].includes(user?.role);
+  const isReviewer = user?.role === 'Accountant';
 
   const fetchPending = useCallback(async () => {
     setLoadingPending(true);

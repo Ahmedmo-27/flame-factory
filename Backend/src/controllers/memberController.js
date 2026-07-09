@@ -832,7 +832,7 @@ const packageTermsDiffer = (basePkg, terms) => {
     );
 };
 
-// ─── Assign package directly (Accountant / Owner — no approval) ───────────────
+// ─── Assign package directly (Accountant only — no approval) ───────────────
 const assignPackage = async (req, res) => {
     try {
         const {

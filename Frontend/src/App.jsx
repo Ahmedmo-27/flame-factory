@@ -132,7 +132,7 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/accounting/package-requests" element={
-        <PrivateRoute roles={['Accountant', 'Owner', 'Sales Manager']}>
+        <PrivateRoute roles={['Accountant']}>
           <PackageRequests />
         </PrivateRoute>
       } />

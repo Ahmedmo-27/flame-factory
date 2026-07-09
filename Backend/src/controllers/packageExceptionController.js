@@ -251,15 +251,11 @@ const updateExceptionStatus = async (req, res) => {
     }
 };
 
-// List exceptions — Sales Manager sees own; Accountant/Owner see all pending
+// List exceptions — Accountant only
 const getExceptions = async (req, res) => {
     try {
         const { page, limit, skip } = parsePagination(req.query);
-        let filter = {};
-        if (req.user.role === "Sales Manager") {
-            filter.proposedBy = req.user.id;
-        }
-
+        const filter = {};
         if (req.query.status && req.query.status !== "all") {
             if (req.query.status === "resolved") {
                 filter.status = { $ne: "pending" };

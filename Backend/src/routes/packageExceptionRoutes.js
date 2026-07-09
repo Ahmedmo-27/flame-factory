@@ -11,9 +11,9 @@ const {
 
 router.use(protect);
 
-router.get("/", authorize("Sales Manager", "Owner", "Accountant"), getExceptions);
+router.get("/", authorize("Accountant"), getExceptions);
 router.get("/member/:memberId", authorize("Sales Manager", "Owner", "Accountant", "Receptionist"), getMemberPendingException);
 router.post("/", authorize("Sales Manager"), createException);
-router.put("/:id/status", authorize("Accountant", "Owner"), updateExceptionStatus);
+router.put("/:id/status", authorize("Accountant"), updateExceptionStatus);
 
 module.exports = router;

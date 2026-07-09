@@ -23,7 +23,7 @@ export default function PackagesTab({ member, user, onRefresh }) {
   const [actionLoading, setActionLoading] = useState(false);
 
   const isSalesManager = user?.role === 'Sales Manager';
-  const isAccountant = ['Accountant', 'Owner'].includes(user?.role);
+  const isAccountant = user?.role === 'Accountant';
   const canAddPackage = isSalesManager || isAccountant;
   const memberKey = member.systemId ?? member._id;
 

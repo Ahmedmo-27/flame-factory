@@ -74,8 +74,15 @@ export default function PackagesTab({ member, user, onRefresh }) {
   };
 
   const subs    = member.subscriptions ?? [];
-  const lastSub = subs.at(-1);
+  // Show the currently active subscription (startDate <= now <= endDate), fallback to last one
+  const now = new Date();
+  const activeSub = subs.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || subs.at(-1);
+  const lastSub = activeSub;
   const pkg     = lastSub?.package;
+
+  // Find upcoming/scheduled package (start date is in the future)
+  const upcomingSub = subs.find(s => new Date(s.startDate) > now);
+  const upcomingPkg = upcomingSub?.package;
 
   const details = pkg ? [
     { label: 'Package',          value: pkg.name },
@@ -163,6 +170,38 @@ export default function PackagesTab({ member, user, onRefresh }) {
             </div>
         }
       </Card>
+
+      {/* Upcoming/Scheduled package */}
+      {upcomingSub && upcomingPkg && (
+        <Card style={{ borderLeft: '4px solid var(--amber)' }}>
+          <CardHeader title="Next Package (Scheduled)" />
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+            padding: '8px 12px', background: 'var(--amber-bg)', border: '1px solid var(--amber-bd)',
+            borderRadius: 6,
+          }}>
+            <span style={{ fontSize: 18 }}>📅</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--amber)' }}>
+              Starts on {fmtDate(upcomingSub.startDate)}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            {[
+              { label: 'Package',  value: upcomingPkg.name },
+              { label: 'Activity', value: upcomingPkg.activityType },
+              { label: 'Duration', value: upcomingPkg.duration },
+              { label: 'Starts',   value: fmtDate(upcomingSub.startDate) },
+              { label: 'Expires',  value: fmtDate(upcomingSub.endDate) },
+              { label: 'Price',    value: `EGP ${upcomingSub.pricePaid}` },
+            ].map(d => (
+              <div key={d.label} style={{ background: 'var(--card)', padding: '10px 14px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{d.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{d.value ?? '—'}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card noPad>
         <div style={{ padding: '14px 18px 0' }}>
@@ -265,7 +304,7 @@ function PackageFormFields({ form, set, readOnly, makeException, allEditable }) 
       <Input label="Freeze Limit (days)" type="number" value={form.freezeLimitDays} onChange={e => set?.('freezeLimitDays', e.target.value)} disabled={fieldDisabled('freezeLimitDays')} readOnly={readOnly} />
       <Input label="Invitation Slots" type="number" value={form.invitationLimit} onChange={e => set?.('invitationLimit', e.target.value)} disabled={fieldDisabled('invitationLimit')} readOnly={readOnly} />
       <Input label="Renewal Discount %" type="number" min="0" max="100" value={form.renewalDiscountPercent} onChange={e => set?.('renewalDiscountPercent', e.target.value)} disabled={fieldDisabled('renewalDiscountPercent')} readOnly={readOnly} />
-      <Input label="Start Date" type="date" value={form.startDate} onChange={e => set?.('startDate', e.target.value)} hint={allEditable ? 'Defaults to today if left empty' : undefined} disabled={fieldDisabled('startDate')} readOnly={readOnly} />
+      <Input label="Start Date" type="date" value={form.startDate} onChange={e => set?.('startDate', e.target.value)} hint={allEditable ? 'Defaults to current package end date if active, otherwise today' : undefined} disabled={fieldDisabled('startDate')} readOnly={readOnly} />
       {!readOnly && !allEditable && (
         <div style={{ gridColumn: '1 / -1' }}>
           <Input label="Reason" value={form.reason} onChange={e => set?.('reason', e.target.value)} placeholder="Why is this exception needed?" disabled={fieldDisabled('reason')} />
@@ -294,7 +333,11 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
   useEffect(() => {
     if (!open) return;
     setMakeException(false);
-    setForm({ ...EMPTY_FORM });
+    // Pre-fill start date with current package end date if active
+    const currentSub = member.subscriptions?.at(-1);
+    const currentEnd = currentSub?.endDate ? new Date(currentSub.endDate) : null;
+    const defaultStart = (currentEnd && currentEnd > new Date()) ? currentEnd.toISOString().slice(0, 10) : '';
+    setForm({ ...EMPTY_FORM, startDate: defaultStart });
     setShowCreatePackage(false);
     setCreateForm(EMPTY_PACKAGE_FORM);
     setCreateErrors({});

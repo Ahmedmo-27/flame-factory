@@ -241,7 +241,7 @@ function ProfileHeader({ member, stats }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 6 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>{member.name}</h2>
-          <Badge status={member.status} />
+          <Badge status={member.isBlocked ? 'blocked' : member.status} />
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--t3)', marginBottom: 12 }}>
           <span>{member.phones}</span>

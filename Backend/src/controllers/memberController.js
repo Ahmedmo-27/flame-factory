@@ -389,6 +389,10 @@ const freezeMember = async (req, res) => {
             });
         }
 
+        if (member.isBlocked) {
+            return res.status(403).json({ message: "Cannot freeze — member is blocked" });
+        }
+
         const currentPkg    = getCurrentPackage(member);
         const allowedDays   = currentPkg?.freezeLimitDays || 0;
         const requestedDays = Math.ceil((end - start) / 86400000);
@@ -1019,7 +1023,28 @@ const assignPackage = async (req, res) => {
             packageName = exceptionPkg.name;
         }
 
-        const start = startDate ? new Date(startDate) : new Date();
+        const currentSub = member.subscriptions?.at(-1);
+        const currentEndDate = currentSub?.endDate ? new Date(currentSub.endDate) : null;
+        const now = new Date();
+
+        // Start date logic:
+        let start;
+        if (startDate) {
+            start = new Date(startDate);
+            // Compare dates only (ignore time) — start date must be on or after end date
+            if (currentEndDate && currentEndDate > now) {
+                const startDay = new Date(start); startDay.setHours(0,0,0,0);
+                const endDay = new Date(currentEndDate); endDay.setHours(0,0,0,0);
+                if (startDay < endDay) {
+                    return res.status(400).json({
+                        message: `Start date must be on or after the current package end date (${currentEndDate.toISOString().slice(0, 10)})`
+                    });
+                }
+            }
+        } else {
+            start = (currentEndDate && currentEndDate > now) ? currentEndDate : now;
+        }
+
         const endDate = calcEndDate(start, terms.duration);
         const subscriptionId = await generateSubscriptionId();
         const hadSubscription = member.subscriptions?.length > 0;
@@ -1029,7 +1054,10 @@ const assignPackage = async (req, res) => {
         }
 
         member.isMember = true;
-        member.status = "active";
+        // Only set status to active if the new package starts today or in the past
+        if (start <= new Date()) {
+            member.status = "active";
+        }
         member.subscriptions.push({
             subscriptionId,
             package: packageToAssign,
@@ -1042,8 +1070,11 @@ const assignPackage = async (req, res) => {
             approvedBy: req.user.id,
             salesManager: null,
         });
-        member.freezeDaysUsed = 0;
-        member.invitationsUsed = 0;
+        // Only reset counters if new package starts now (not for future-scheduled packages)
+        if (start <= new Date()) {
+            member.freezeDaysUsed = 0;
+            member.invitationsUsed = 0;
+        }
         member.userlog.push({
             type: hadSubscription ? "renewal" : "other",
             text: packageTermsDiffer(basePkg, terms)

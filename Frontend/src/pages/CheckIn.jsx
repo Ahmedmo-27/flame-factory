@@ -73,7 +73,7 @@ export default function CheckIn() {
     } finally { setChecking(false); }
   };
 
-  const canCheckIn = member && member.status !== 'expired' && member.status !== 'guest';
+  const canCheckIn = member && member.status !== 'expired' && member.status !== 'guest' && !member.isBlocked;
   const sub = member?.subscriptions?.at(-1);
   const pkg = sub?.package;
 
@@ -152,6 +152,24 @@ export default function CheckIn() {
                 )}
 
                 {/* Result */}
+                {/* Blocked banner */}
+                {member.isBlocked && (
+                  <div style={{
+                    padding: '12px 14px', borderRadius: 6, marginBottom: 16,
+                    background: 'var(--red-bg)', border: '1px solid var(--red-bd)',
+                    borderLeft: '4px solid var(--red)',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <span style={{ fontSize: 20 }}>🚫</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>Member is Blocked</div>
+                      {member.blockedReason && (
+                        <div style={{ fontSize: 12, color: 'var(--red)', opacity: 0.8, marginTop: 2 }}>Reason: {member.blockedReason}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {result && (
                   <div style={{
                     padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 13, fontWeight: 600,
@@ -174,6 +192,12 @@ export default function CheckIn() {
                     size="lg"
                   >
                     {checking ? <><Spinner size="sm" /> Processing…</> : '✓ Check In'}
+                  </Btn>
+                  <Btn variant="outline" size="lg" onClick={() => navigate(`/members/${member.systemId}?tab=freeze`)}>
+                    Freeze
+                  </Btn>
+                  <Btn variant="outline" size="lg" onClick={() => navigate(`/members/${member.systemId}?tab=invitations`)}>
+                    Invitations
                   </Btn>
                   <Btn variant="outline" size="lg" onClick={() => navigate(`/members/${member.systemId}`)}>
                     Profile

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -14,11 +14,13 @@ import InvitationsTab from './tabs/InvitationsTab';
 import CheckInsTab    from './tabs/CheckInsTab';
 import OthersTab      from './tabs/OthersTab';
 import FilesTab       from './tabs/FilesTab';
+import AlertsTab      from './tabs/AlertsTab';
 
 const TABS = [
   { id: 'personal',    label: 'Personal Info' },
   { id: 'packages',    label: 'Packages' },
   { id: 'files',       label: 'Files' },
+  { id: 'alerts',      label: 'Alerts' },
   { id: 'callcenter',  label: 'Call Center' },
   { id: 'freeze',      label: 'Freeze' },
   { id: 'invitations', label: 'Invitations' },
@@ -35,6 +37,8 @@ export default function MemberProfile() {
   const [loading, setLoading]   = useState(true);
   const [activeTab, setTab]     = useState(() => searchParams.get('tab') || 'personal');
   const [checkingIn, setChecking] = useState(false);
+  const [alertPopup, setAlertPopup] = useState(null); // array of alert texts or null
+  const alertShownRef = useRef(false);
 
   usePageTitle(data?.member?.name ?? 'Profile');
 
@@ -53,6 +57,14 @@ export default function MemberProfile() {
         return;
       }
       setData(res.data);
+
+      // Show active alerts as a big centered popup (5 sec auto-dismiss) — only on first load
+      const activeAlerts = (res.data.member?.alert || []).filter(a => a?.active);
+      if (activeAlerts.length > 0 && !alertShownRef.current) {
+        alertShownRef.current = true;
+        setAlertPopup(activeAlerts.map(a => a.text));
+        setTimeout(() => setAlertPopup(null), 5000);
+      }
     } catch (e) {
       const msg = e.response?.data?.message;
       toast.error(msg === 'Access denied' ? 'You do not have permission to view this profile.' : (msg ?? 'Member not found.'));
@@ -101,6 +113,7 @@ export default function MemberProfile() {
               {activeTab === 'personal'    && <PersonalTab    member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'packages'    && <PackagesTab    member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'files'       && <FilesTab       member={member} user={user} onRefresh={fetchProfile} />}
+              {activeTab === 'alerts'      && <AlertsTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'callcenter'  && <CallCenterTab  member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'freeze'      && <FreezeTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'invitations' && <InvitationsTab member={member} user={user} onRefresh={fetchProfile} />}
@@ -110,6 +123,38 @@ export default function MemberProfile() {
           </>
         )}
       </div>
+
+      {/* ── Alert Popup (big centered, auto-dismiss 5s) ──────────── */}
+      {alertPopup && (
+        <div
+          onClick={() => setAlertPopup(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24, cursor: 'pointer',
+          }}
+        >
+          <div style={{
+            background: '#fffbeb', border: '2px solid #f59e0b',
+            borderRadius: 16, padding: '32px 40px', maxWidth: 500, width: '100%',
+            textAlign: 'center', boxShadow: '0 20px 60px rgba(245,158,11,0.3)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#92400e', marginBottom: 16 }}>
+              Member Alert
+            </h2>
+            {alertPopup.map((text, i) => (
+              <p key={i} style={{ fontSize: 18, fontWeight: 600, color: '#78350f', lineHeight: 1.6, marginBottom: 8 }}>
+                {text}
+              </p>
+            ))}
+            <p style={{ fontSize: 12, color: '#b45309', marginTop: 16 }}>
+              Click anywhere to dismiss · Auto-closes in 5 seconds
+            </p>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

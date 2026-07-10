@@ -195,6 +195,7 @@ const getMemberProfile = async (req, res) => {
             .populate("createdBy", "name role")
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
+            .populate("alert.createdBy", "name role")
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
@@ -250,6 +251,8 @@ const checkInMember = async (req, res) => {
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
         }
+
+        const activeAlerts = (member.alert || []).filter(a => a.active);
 
         if (member.status === "expired") {
             return res.status(400).json({ message: "Cannot check in — membership expired" });
@@ -507,6 +510,7 @@ const getMemberById = async (req, res) => {
     }
 };
 
+////////////// add note /////////////////////////
 const addNote = async (req, res) => {
     try {
         const { text } = req.body;
@@ -535,6 +539,61 @@ const addNote = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+///////////////// add alert ///////////////
+
+const addAlert = async (req, res) => {
+    try {
+        const { text } = req.body;
+
+        if (!text) {
+            return res.status(400).json({
+                message: "Alert text is required"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+
+        const member = await findMemberByIdentifier(identifier);
+
+        if (!member) {
+            return res.status(404).json({
+                message: "Member not found"
+            });
+        }
+
+        member.alert.push({
+            text,
+            createdBy: req.user.id
+        });
+
+        await member.save();
+
+        res.status(201).json({
+            message: "Alert added successfully",
+            member
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const switchSalesRep = async (req, res) => {
     try {
@@ -1029,6 +1088,31 @@ const uploadNationalId = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+////////////////// deactivate alert////////////////////
+const deactivateAlert = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const alertId = req.params.alertId;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        const alert = member.alert.id(alertId);
+        if (!alert) {
+            return res.status(404).json({ message: "Alert not found" });
+        }
+
+        alert.active = false;
+        await member.save();
+
+        res.json({ message: "Alert deactivated", alert });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 
 module.exports = {
     createMember,
@@ -1040,6 +1124,8 @@ module.exports = {
     getMembers,
     getMemberById,
     addNote,
+    addAlert,
+    deactivateAlert,
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,

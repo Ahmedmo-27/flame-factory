@@ -12,6 +12,22 @@ const noteSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+const alertSchema = new mongoose.Schema({
+    text: {
+        type: String,
+        required: true
+    },
+    active: {
+        type: Boolean,
+        default: true
+    },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    }
+}, { timestamps: true });
+
 const logSchema = new mongoose.Schema({
     type: {
         type: String,
@@ -222,6 +238,7 @@ const memberSchema = new mongoose.Schema({
     },
 
     notes:       [noteSchema],
+    alert:       [alertSchema],
     freeze:      [freezeSchema],
     invitations: [invitationSchema],
     userlog:     [logSchema]

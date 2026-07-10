@@ -20,6 +20,7 @@ export default function CheckIn() {
   // Today's history
   const [history,      setHistory]      = useState([]);
   const [historyLoad,  setHistoryLoad]  = useState(true);
+  const [alertPopup,   setAlertPopup]   = useState(null);
 
   // ── Load today's check-ins ────────────────────────────────────────────────
   const loadHistory = useCallback(async () => {
@@ -41,6 +42,13 @@ export default function CheckIn() {
     try {
       const res = await getMemberProfile(query.trim());
       setMember(res.data.member);
+
+      // Show active alerts as big centered popup (5 sec auto-dismiss)
+      const activeAlerts = (res.data.member?.alert || []).filter(a => a?.active);
+      if (activeAlerts.length > 0) {
+        setAlertPopup(activeAlerts.map(a => a.text));
+        setTimeout(() => setAlertPopup(null), 5000);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Member not found.');
     } finally { setSearching(false); }
@@ -251,6 +259,38 @@ export default function CheckIn() {
           .page-wrap > div { grid-template-columns: 1fr !important; }
         }
       `}</style>
+
+      {/* ── Alert Popup (big centered, auto-dismiss 5s) ──────────── */}
+      {alertPopup && (
+        <div
+          onClick={() => setAlertPopup(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24, cursor: 'pointer',
+          }}
+        >
+          <div style={{
+            background: '#fffbeb', border: '2px solid #f59e0b',
+            borderRadius: 16, padding: '32px 40px', maxWidth: 500, width: '100%',
+            textAlign: 'center', boxShadow: '0 20px 60px rgba(245,158,11,0.3)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#92400e', marginBottom: 16 }}>
+              Member Alert
+            </h2>
+            {alertPopup.map((text, i) => (
+              <p key={i} style={{ fontSize: 18, fontWeight: 600, color: '#78350f', lineHeight: 1.6, marginBottom: 8 }}>
+                {text}
+              </p>
+            ))}
+            <p style={{ fontSize: 12, color: '#b45309', marginTop: 16 }}>
+              Click anywhere to dismiss · Auto-closes in 5 seconds
+            </p>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

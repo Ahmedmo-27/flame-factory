@@ -46,6 +46,10 @@ export const uploadNationalId = (id, formData) =>
   });
 export const addNote           = (id, text) =>
   api.post(`/members/${id}/notes`, { text });
+export const addAlert          = (id, text) =>
+  api.post(`/members/${id}/alerts`, { text });
+export const deactivateAlert   = (id, alertId) =>
+  api.patch(`/members/${id}/alerts/${alertId}/deactivate`);
 export const addInvitation     = (id, formData) =>
   api.post(`/members/${id}/invitations`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

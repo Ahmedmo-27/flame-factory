@@ -20,6 +20,8 @@ const {
     assignPackage,
     getTodayCheckIns,
     uploadNationalId,
+    addAlert,
+    deactivateAlert,
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -71,8 +73,9 @@ router.get("/:memberId", protect, (req, res, next) => {
 router.post("/:memberId/notes", ...notesAccess, addNote);
 router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
-
+router.post("/:memberId/alerts",protect,authorize("Receptionist", "Sales", "Sales Manager"),addAlert);
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
+router.patch("/:memberId/alerts/:alertId/deactivate", protect, authorize("Receptionist", "Sales", "Sales Manager", "Owner"), deactivateAlert);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);

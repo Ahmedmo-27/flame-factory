@@ -36,6 +36,11 @@ const USERS = [
       canRequestTakeover: false,
     },
   },
+  {
+    name: "FlamFactory Accountant",
+    email: "accountant@test.com",
+    role: "Accountant",
+  },
 ];
 
 const SEED_USER_EMAILS = USERS.map((u) => u.email);
@@ -249,6 +254,7 @@ async function seed() {
   console.log("Sales Rep 1   : sales1@test.com  (Ahmed - has Karim assigned)");
   console.log("Sales Rep 2   : sales2@test.com  (Sara - has Mona & Nour assigned)");
   console.log("Sales Rep 3   : sales3@test.com  (Omar - request abilities disabled)");
+  console.log("Accountant    : accountant@test.com");
   console.log("\nSample data:");
   console.log("- Youssef Ibrahim is unassigned (request assignment as any sales rep)");
   console.log("- Nour Mahmoud has a pending takeover request from sales1");

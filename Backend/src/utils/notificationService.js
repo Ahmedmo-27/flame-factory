@@ -17,4 +17,43 @@ async function notifyMemberAssigned({ recipientId, member, actorId }) {
     });
 }
 
-module.exports = { notifyMemberAssigned };
+async function notifyPackageExceptionPending({ recipientId, member, actorId, requestId, salesManagerName, packageName }) {
+    if (!recipientId || !member) return null;
+
+    const memberName = member.name || "a member";
+    const managerName = salesManagerName || "A sales manager";
+    const pkgName = packageName || "a package";
+    const message = `${managerName} added package ${pkgName} with exception to member ${memberName}`;
+
+    return Notification.create({
+        recipient: recipientId,
+        type: "package_exception_pending",
+        title: "Package exception pending approval",
+        message,
+        member: member._id,
+        createdBy: actorId || null,
+        metadata: { requestId: requestId?.toString() },
+    });
+}
+
+async function notifyPackageExceptionResolved({ recipientId, member, actorId, status, requestId }) {
+    if (!recipientId || !member) return null;
+
+    const memberName = member.name || "A member";
+    const label = status === "accepted" ? "approved" : "rejected";
+    return Notification.create({
+        recipient: recipientId,
+        type: "package_exception_resolved",
+        title: `Package exception ${label}`,
+        message: `Your package exception for ${memberName} was ${label}`,
+        member: member._id,
+        createdBy: actorId || null,
+        metadata: { requestId: requestId?.toString(), status },
+    });
+}
+
+module.exports = {
+    notifyMemberAssigned,
+    notifyPackageExceptionPending,
+    notifyPackageExceptionResolved,
+};

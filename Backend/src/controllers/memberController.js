@@ -6,6 +6,8 @@ const { resolveAbilities } = require("../utils/userAbilities");
 const { attachCurrentPackage } = require("../utils/revenueUtils");
 const { findMemberByIdentifier, buildMemberFilter } = require("../utils/memberLookup");
 const { notifyMemberAssigned } = require("../utils/notificationService");
+const { parsePagination, buildPagination } = require("../utils/pagination");
+const { buildMemberListFilter, getMemberStatusStats } = require("../utils/memberFilters");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -80,7 +82,7 @@ const findMember = async (id) => {
 const createMember = async (req, res) => {
     try {
         const {
-            name, phones, nationalId, photo,
+            name, phones, photo,
             gender, birthdate, source,
             packageId, assignedSales
         } = req.body;
@@ -91,7 +93,6 @@ const createMember = async (req, res) => {
             systemId,
             name,
             phones,
-            nationalId:    nationalId    || null,
             photo:         photo         || null,
             gender:        gender        || null,
             birthdate:     birthdate     || null,
@@ -150,13 +151,36 @@ const createMember = async (req, res) => {
 // ─── 2. Get All Members ───────────────────────────────────────────────────────
 const getAllMembers = async (req, res) => {
     try {
-        const members = await Member.find()
-            .populate("subscriptions.package", "name duration activityType")
-            .populate("createdBy", "name")
-            .populate("assignedSales", "name role")
-            .sort({ systemId: 1 });
+        const { page, limit, skip } = parsePagination(req.query);
+        const filter = buildMemberListFilter({
+            status: req.query.status,
+            search: req.query.search,
+            assignedSales: req.query.assignedSales,
+            unassigned: req.query.unassigned,
+            subscribedToday: req.query.subscribedToday,
+        });
 
-        res.status(200).json({ count: members.length, members });
+        const statsFilter = { ...filter };
+        delete statsFilter["subscriptions.createdAt"];
+
+        const [total, members, stats] = await Promise.all([
+            Member.countDocuments(filter),
+            Member.find(filter)
+                .populate("subscriptions.package", "name duration activityType")
+                .populate("createdBy", "name")
+                .populate("assignedSales", "name role")
+                .sort({ systemId: 1 })
+                .skip(skip)
+                .limit(limit),
+            getMemberStatusStats(Member, statsFilter),
+        ]);
+
+        res.status(200).json({
+            count: total,
+            members,
+            pagination: buildPagination(page, limit, total),
+            stats,
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -172,11 +196,14 @@ const getMemberProfile = async (req, res) => {
         }
 
         const member = await Member.findOne(query)
-            .populate("subscriptions.package", "name duration activityType price freezeLimitDays invitationLimit renewalDiscountPercent")
+            .populate("subscriptions.package", "name duration activityType price freezeLimitDays invitationLimit renewalDiscountPercent hasException")
             .populate("subscriptions.createdBy", "name")
+            .populate("subscriptions.approvedBy", "name email role")
+            .populate("subscriptions.salesManager", "name email role")
             .populate("createdBy", "name role")
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
+            .populate("alert.createdBy", "name role")
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
@@ -241,9 +268,17 @@ const checkInMember = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
+        const activeAlerts = (member.alert || []).filter(a => a.active);
+
+        // __________ check member is blocked or not___________//
+        if (member.isBlocked) {
+        return res.status(403).json({ message: "Cannot check in — member is blocked" });
+        }
+
         if (member.status === "expired") {
             return res.status(400).json({ message: "Cannot check in — membership expired" });
         }
+
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -370,6 +405,10 @@ const freezeMember = async (req, res) => {
             });
         }
 
+        if (member.isBlocked) {
+            return res.status(403).json({ message: "Cannot freeze — member is blocked" });
+        }
+
         const currentPkg    = getCurrentPackage(member);
         const allowedDays   = currentPkg?.freezeLimitDays || 0;
         const requestedDays = Math.ceil((end - start) / 86400000);
@@ -444,24 +483,43 @@ function formatCoachMember(memberObj, userId, role) {
     return memberObj;
 }
 
-const salesMemberQuery = () =>
-    Member.find()
-        .populate("assignedSales", "name email")
-        .populate("subscriptions.package", "name price duration activityType");
-
 const getMembers = async (req, res) => {
     try {
-        // all members with this sales
         if (req.user.role === "Sales") {
-            const members = await Member.find({ assignedSales: req.user.id })
-                .populate("assignedSales", "name email")
-                .populate("subscriptions.package", "name price duration activityType");
+            const { page, limit, skip } = parsePagination(req.query);
+            const filter = buildMemberListFilter({
+                status: req.query.status,
+                search: req.query.search,
+                assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
+                unassigned: req.query.unassigned,
+                subscribedToday: req.query.subscribedToday,
+            });
+
+            const statsFilter = { ...filter };
+            delete statsFilter["subscriptions.createdAt"];
+
+            const [total, members] = await Promise.all([
+                Member.countDocuments(filter),
+                Member.find(filter)
+                    .populate("assignedSales", "name email")
+                    .populate("subscriptions.package", "name price duration activityType")
+                    .sort({ systemId: 1 })
+                    .skip(skip)
+                    .limit(limit),
+            ]);
 
             const formatted = members.map((member) =>
                 formatSalesMember(member.toObject(), req.user.id, req.user.role)
             );
-            return res.status(200).json({ count: formatted.length, members: formatted });
 
+            const stats = await getMemberStatusStats(Member, statsFilter);
+
+            res.status(200).json({
+                count: total,
+                members: formatted,
+                pagination: buildPagination(page, limit, total),
+                stats,
+            });
             //all members with this coach 
         }else if(req.user.role=== "Coach"){
             const members = await Member.find({ current_couch: req.user.id })
@@ -512,6 +570,7 @@ const getMemberById = async (req, res) => {
     }
 };
 
+////////////// add note /////////////////////////
 const addNote = async (req, res) => {
     try {
         const { text } = req.body;
@@ -540,6 +599,51 @@ const addNote = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+///////////////// add alert ///////////////
+
+const addAlert = async (req, res) => {
+    try {
+        const { text } = req.body;
+
+        if (!text) {
+            return res.status(400).json({
+                message: "Alert text is required"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+
+        const member = await findMemberByIdentifier(identifier);
+
+        if (!member) {
+            return res.status(404).json({
+                message: "Member not found"
+            });
+        }
+
+        member.alert.push({
+            text,
+            createdBy: req.user.id
+        });
+
+        await member.save();
+
+        res.status(201).json({
+            message: "Alert added successfully",
+            member
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
+
 
 const switchSalesRep = async (req, res) => {
     try {
@@ -728,305 +832,431 @@ const addInvitation = async (req, res) => {
     }
 };
 
-// ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
-const getAllNotes = async (req, res) => {
-    // a3ml el law al owner 7b ye4of al notes, hal ab3tlo al 2 fel 2 variables ?
-    if(req.user.role==="Sales Manager"){
-        try {
-            const members = await Member.find({ "notes.0": { $exists: true } })
-                .populate("notes.createdBy", "name role")
-                .select("name systemId memberId phones status notes assignedSales")
-                .populate("assignedSales", "name role");
+// ─── 10. Get today's check-ins ────────────────────────────────────────────────
+const getTodayCheckIns = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
-            // Flatten all notes into a single array with member context
-            const notes = [];
-            members.forEach(member => {
-                member.notes.forEach(note => {
-                    notes.push({
-                        _id:        note._id,
-                        text:       note.text,
-                        createdAt:  note.createdAt,
-                        createdBy:  note.createdBy,
+        // Find members who have a check-in userlog entry today
+        const members = await Member.find({
+            "userlog": {
+                $elemMatch: {
+                    type: "check-in",
+                    createdAt: { $gte: today, $lt: tomorrow }
+                }
+            }
+        })
+            .populate("subscriptions.package", "name activityType duration")
+            .populate("assignedSales", "name")
+            .populate("userlog.createdBy", "name role")
+            .select("name systemId memberId phones status subscriptions assignedSales userlog");
+
+        // Extract today's check-in entries with member info
+        const checkIns = [];
+        members.forEach(member => {
+            member.userlog.forEach(log => {
+                if (log.type === "check-in" && new Date(log.createdAt) >= today && new Date(log.createdAt) < tomorrow) {
+                    checkIns.push({
+                        _id:       log._id,
+                        time:      log.createdAt,
+                        checkedInBy: log.createdBy,
                         member: {
-                            _id:      member._id,
-                            name:     member.name,
-                            systemId: member.systemId,
-                            memberId: member.memberId,
-                            phones:   member.phones,
-                            status:   member.status,
+                            _id:       member._id,
+                            name:      member.name,
+                            systemId:  member.systemId,
+                            memberId:  member.memberId,
+                            phones:    member.phones,
+                            status:    member.status,
+                            package:   member.subscriptions?.at(-1)?.package ?? null,
                             assignedSales: member.assignedSales,
                         }
                     });
-                });
+                }
             });
-
-            // Sort newest first
-            notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-            res.status(200).json({ count: notes.length, notes });
-        } catch (error) {
-            res.status(500).json({ message: error.message });
-        }        
-    }else if(req.user.role==="Coach Manager"){
-        try {
-            const members = await Member.find({ "couch_notes.0": { $exists: true } })
-                .populate("couch_notes.createdBy", "name role")
-                .select("name systemId memberId phones couch_subscription_status couch_notes current_couch")
-                .populate("current_couch", "name role");
-    
-            // Flatten all notes into a single array with member context
-            const notes = [];
-            members.forEach(member => {
-                member.couch_notes.forEach(note => {
-                    notes.push({
-                        _id:        note._id,
-                        text:       note.text,
-                        createdAt:  note.createdAt,
-                        createdBy:  note.createdBy,
-                        member: {
-                            _id:      member._id,
-                            name:     member.name,
-                            systemId: member.systemId,
-                            memberId: member.memberId,
-                            phones:   member.phones,
-                            couch_subscription_status:   member.couch_subscription_status,
-                            current_couch: member.current_couch,
-                        }
-                    });
-                });
-            });
-    
-            // Sort newest first
-            notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-            res.status(200).json({ count: notes.length, notes });
-        } catch (error) {
-            res.status(500).json({ message: error.message });
-        }
-    }else if(req.user.role==="Owner"){
-        try {
-            const members = await Member.find({ "couch_notes.0": { $exists: true } })
-                .populate("couch_notes.createdBy", "name role")
-                .select("name systemId memberId phones couch_subscription_status couch_notes current_couch")
-                .populate("current_couch", "name role");
-
-            const members_2 = await Member.find({ "notes.0": { $exists: true } })
-                .populate("notes.createdBy", "name role")
-                .select("name systemId memberId phones status notes assignedSales")
-                .populate("assignedSales", "name role");
-
-            
-            // Flatten all notes into a single array with member context
-            const couch_notes = [];
-            members.forEach(member => {
-                member.couch_notes.forEach(note => {
-                    couch_notes.push({
-                        _id:        note._id,
-                        text:       note.text,
-                        createdAt:  note.createdAt,
-                        createdBy:  note.createdBy,
-                        member: {
-                            _id:      member._id,
-                            name:     member.name,
-                            systemId: member.systemId,
-                            memberId: member.memberId,
-                            phones:   member.phones,
-                            couch_subscription_status:   member.couch_subscription_status,
-                            current_couch: member.current_couch,
-                        }
-                    });
-                });
-            });
-
-            const notes = [];
-            members_2.forEach(member => {
-                member.notes.forEach(note => {
-                    notes.push({
-                        _id:        note._id,
-                        text:       note.text,
-                        createdAt:  note.createdAt,
-                        createdBy:  note.createdBy,
-                        member: {
-                            _id:      member._id,
-                            name:     member.name,
-                            systemId: member.systemId,
-                            memberId: member.memberId,
-                            phones:   member.phones,
-                            status:   member.status,
-                            assignedSales: member.assignedSales,
-                        }
-                    });
-                });
-            });
-
-            // Sort newest first
-            couch_notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-            res.status(200).json({ count_couch_notes: couch_notes.length, couch_notes, count:notes.length,notes });
-        } catch (error) {
-            res.status(500).json({ message: error.message });
-        }
-
-    }
-
-};
-
-
-const sessionCheckIn_for_couch = async (req, res) => {
-    try {
-        if(req.user.role==="Coach"){
-            const { memberId } = req.body;
-            const member = await findMemberByIdentifier(memberId);
-            if (!member) {
-                return res.status(404).json({ message: "Member not found" });
-            }
-            if (member.couch_subscription_status !== "active") {
-                return res.status(400).json({ message: "Member is not active" });
-            }
-
-            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
-            if(member.PT_sessions > member.used_PT_sessions) {
-                member.used_PT_sessions++;
-                await member.save();
-                return res.status(200).json({ message: "Session checked in" });
-            } else {
-                return res.status(400).json({ message: "Member has no free PT sessions" });
-            }
-
-        }else if (req.user.role==="Coach Manager"){
-            const { memberId ,numberOfSessions} = req.body;
-            const member = await findMemberByIdentifier(memberId);
-            if (!member) {
-                return res.status(404).json({ message: "Member not found" });
-            }
-            if (member.couch_subscription_status !== "active") {
-                return res.status(400).json({ message: "Member is not active" });
-            }
-            if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
-
-                member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
-
-                await member.save();
-                return res.status(200).json({ message: "Session checked in" });
-            } else {
-                return res.status(400).json({ message: "Member doesn't have enough PT sessions" });
-            }
-        }else{
-            return res.status(400).json({ message: "You have to be a Coach or Coach manager to check in PT session" });
-        }
-    } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-};
-
-
-const assignCoach = async (req, res) => {
-    try {
-        const { memberId } = req.params;
-        const { coachId } = req.body;
-
-        const coachUser = await User.findById(coachId);
-        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
-            return res.status(404).json({ message: "Invalid Coach — user not found or not a Coach role" });
-        }
-
-        const member = await findMember(memberId);
-        if (!member) {
-            return res.status(404).json({ message: "Member not found" });
-        }
-
-        member.current_couch = coachId;
-        member.userlog.push({
-            type: "assign",
-            text: `Assigned to ${coachUser.name}`,
-            createdBy: req.user.id,
         });
 
-        member.couch_subscription_status="active";
+        // Sort newest first
+        checkIns.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        await member.save();
-        await member.populate("current_couch", "name role");
-
-        await notifyMemberAssigned({
-            recipientId: coachId,
-            member,
-            actorId: req.user.id,
-        });
-
-        res.status(200).json({ message: "Coach assigned", member });
+        res.json({ count: checkIns.length, checkIns });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-const addCouch_notes = async (req, res) => {
+// ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
+const getAllNotes = async (req, res) => {
     try {
-        const { text } = req.body;
-        if (!text) {
-            return res.status(400).json({ message: "Note text is required" });
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 25 });
+        const match = { "notes.0": { $exists: true } };
+
+        if (req.query.createdBy) {
+            match["notes.createdBy"] = req.query.createdBy;
         }
 
-        if (req.user.role === "Coach") {
-            const coachUser = await User.findById(req.user.id);
-            const abilities = resolveAbilities(coachUser);
-            if (!abilities.canCommentOnMembers) {
-                return res.status(403).json({ message: "You are not allowed to comment on members" });
+        const search = req.query.search?.trim();
+        const searchMatch = search
+            ? {
+                $or: [
+                    { name: { $regex: search, $options: "i" } },
+                    { phones: { $regex: search, $options: "i" } },
+                    { "notes.text": { $regex: search, $options: "i" } },
+                ],
             }
-        }
+            : null;
 
-        const identifier = req.params.memberId || req.params.id;
-        const member = await findMemberByIdentifier(identifier);
-        if (!member) {
-            return res.status(404).json({ message: "Member not found" });
-        }
+        const pipeline = [
+            { $match: match },
+            { $unwind: "$notes" },
+            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": req.query.createdBy } }] : []),
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "notes.createdBy",
+                    foreignField: "_id",
+                    as: "noteAuthor",
+                },
+            },
+            { $unwind: { path: "$noteAuthor", preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "assignedSales",
+                    foreignField: "_id",
+                    as: "salesRep",
+                },
+            },
+            { $unwind: { path: "$salesRep", preserveNullAndEmptyArrays: true } },
+            ...(searchMatch ? [{ $match: searchMatch }] : []),
+            { $sort: { "notes.createdAt": -1 } },
+            {
+                $facet: {
+                    data: [
+                        { $skip: skip },
+                        { $limit: limit },
+                        {
+                            $project: {
+                                _id: "$notes._id",
+                                text: "$notes.text",
+                                createdAt: "$notes.createdAt",
+                                createdBy: {
+                                    _id: "$noteAuthor._id",
+                                    name: "$noteAuthor.name",
+                                    role: "$noteAuthor.role",
+                                },
+                                member: {
+                                    _id: "$_id",
+                                    name: "$name",
+                                    systemId: "$systemId",
+                                    memberId: "$memberId",
+                                    phones: "$phones",
+                                    status: "$status",
+                                    assignedSales: {
+                                        _id: "$salesRep._id",
+                                        name: "$salesRep.name",
+                                        role: "$salesRep.role",
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                    total: [{ $count: "count" }],
+                },
+            },
+        ];
 
-        member.couch_notes.push({ text, createdBy: req.user.id });
-        await member.save();
-        res.status(201).json({ message: "Note added successfully", member });
+        const result = await Member.aggregate(pipeline);
+        const notes = result[0]?.data ?? [];
+        const total = result[0]?.total[0]?.count ?? 0;
+
+        res.status(200).json({
+            count: total,
+            notes,
+            pagination: buildPagination(page, limit, total),
+        });
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
-const switchCoach = async (req, res) => {
+const packageTermsDiffer = (basePkg, terms) => {
+    const num = (v, def = 0) => (v != null && v !== "" ? Number(v) : def);
+    return (
+        terms.name !== basePkg.name ||
+        terms.activityType !== basePkg.activityType ||
+        terms.duration !== basePkg.duration ||
+        num(terms.price) !== basePkg.price ||
+        num(terms.freezeLimitDays) !== (basePkg.freezeLimitDays ?? 0) ||
+        num(terms.invitationLimit) !== (basePkg.invitationLimit ?? 0) ||
+        num(terms.renewalDiscountPercent) !== (basePkg.renewalDiscountPercent ?? 0)
+    );
+};
+
+// ─── Assign package directly (Accountant only — no approval) ───────────────
+const assignPackage = async (req, res) => {
     try {
-        const { newCoachId } = req.body;
-        if (!newCoachId) {
-            return res.status(400).json({ message: "New Coach Rep ID is required" });
+        const {
+            packageId,
+            name,
+            activityType,
+            duration,
+            price,
+            freezeLimitDays,
+            invitationLimit,
+            renewalDiscountPercent,
+            pricePaid,
+            discountPercent,
+            startDate,
+        } = req.body;
+
+        if (!packageId) {
+            return res.status(400).json({ message: "Package ID is required" });
+        }
+        if (!name?.trim()) {
+            return res.status(400).json({ message: "Package name is required" });
+        }
+        if (!duration) {
+            return res.status(400).json({ message: "Duration is required" });
+        }
+        if (pricePaid == null || pricePaid === "") {
+            return res.status(400).json({ message: "Price paid is required" });
         }
 
-        const coachUser = await validateCoachAssignee(newCoachId);
-        if (!coachUser) {
-            return res.status(400).json({
-                message: "Invalid coach — user not found or not a coach role"
-            });
-        }
-
-        const identifier = req.params.memberId || req.params.id;
-        const member = await findMemberByIdentifier(identifier);
+        const member = await findMember(req.params.memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        member.current_couch = newCoachId;
+        const PackageExceptionRequest = require("../models/PackageExceptionRequest");
+        const pending = await PackageExceptionRequest.findOne({ member: member._id, status: "pending" });
+        if (pending) {
+            return res.status(400).json({ message: "This member has a pending package exception awaiting approval" });
+        }
+
+        const basePkg = await Package.findById(packageId);
+        if (!basePkg || !basePkg.isActive || basePkg.hasException) {
+            return res.status(400).json({ message: "Package not found or unavailable" });
+        }
+
+        const terms = {
+            name: name.trim(),
+            activityType: activityType ?? basePkg.activityType,
+            duration,
+            price: price != null && price !== "" ? Number(price) : basePkg.price,
+            freezeLimitDays: Number(freezeLimitDays) || 0,
+            invitationLimit: Number(invitationLimit) || 0,
+            renewalDiscountPercent: Number(renewalDiscountPercent) || 0,
+        };
+
+        let packageToAssign = basePkg._id;
+        let packageName = basePkg.name;
+
+        if (packageTermsDiffer(basePkg, terms)) {
+            const exceptionPkg = await Package.create({
+                name: terms.name,
+                activityType: terms.activityType,
+                duration: terms.duration,
+                price: terms.price,
+                freezeLimitDays: terms.freezeLimitDays,
+                invitationLimit: terms.invitationLimit,
+                renewalDiscountPercent: terms.renewalDiscountPercent,
+                isActive: true,
+                hasException: true,
+                basedOn: basePkg._id,
+                forMember: member._id,
+                createdBy: req.user.id,
+            });
+            packageToAssign = exceptionPkg._id;
+            packageName = exceptionPkg.name;
+        }
+
+        const currentSub = member.subscriptions?.at(-1);
+        const currentEndDate = currentSub?.endDate ? new Date(currentSub.endDate) : null;
+        const now = new Date();
+
+        // Start date logic:
+        let start;
+        if (startDate) {
+            start = new Date(startDate);
+            // Compare dates only (ignore time) — start date must be on or after end date
+            if (currentEndDate && currentEndDate > now) {
+                const startDay = new Date(start); startDay.setHours(0,0,0,0);
+                const endDay = new Date(currentEndDate); endDay.setHours(0,0,0,0);
+                if (startDay < endDay) {
+                    return res.status(400).json({
+                        message: `Start date must be on or after the current package end date (${currentEndDate.toISOString().slice(0, 10)})`
+                    });
+                }
+            }
+        } else {
+            start = (currentEndDate && currentEndDate > now) ? currentEndDate : now;
+        }
+
+        const endDate = calcEndDate(start, terms.duration);
+        const subscriptionId = await generateSubscriptionId();
+        const hadSubscription = member.subscriptions?.length > 0;
+
+        if (!member.memberId) {
+            member.memberId = await generateMemberId();
+        }
+
+        member.isMember = true;
+        // Only set status to active if the new package starts today or in the past
+        if (start <= new Date()) {
+            member.status = "active";
+        }
+        member.subscriptions.push({
+            subscriptionId,
+            package: packageToAssign,
+            startDate: start,
+            endDate,
+            pricePaid: Number(pricePaid),
+            discountPercent: Number(discountPercent) || 0,
+            isRenewal: hadSubscription,
+            createdBy: req.user.id,
+            approvedBy: req.user.id,
+            salesManager: null,
+        });
+        // Only reset counters if new package starts now (not for future-scheduled packages)
+        if (start <= new Date()) {
+            member.freezeDaysUsed = 0;
+            member.invitationsUsed = 0;
+        }
         member.userlog.push({
-            type: "assign",
-            text: `Transferred to ${coachUser.name}`,
+            type: hadSubscription ? "renewal" : "other",
+            text: packageTermsDiffer(basePkg, terms)
+                ? `Package assigned (exception): ${packageName}`
+                : `Package assigned: ${packageName}`,
             createdBy: req.user.id,
         });
+
+        await member.save();
+        res.status(200).json({ message: "Package assigned successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Upload National ID (Accountant only) ─────────────────────────────────────
+const uploadNationalId = async (req, res) => {
+    try {
+        if (req.user.role !== "Accountant") {
+            return res.status(403).json({ message: "Only accountants can upload national IDs" });
+        }
+
+        const identifier = req.params.memberId;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: "National ID file is required" });
+        }
+
+        member.nationalId = req.file.path;
         await member.save();
 
-        await notifyMemberAssigned({
-            recipientId: newCoachId,
-            member,
-            actorId: req.user.id,
-        });
+        res.json({ message: "National ID uploaded", nationalId: member.nationalId });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+////////////////// deactivate alert////////////////////
+const deactivateAlert = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const alertId = req.params.alertId;
 
-        res.json({ message: "Coach updated successfully", member });
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        const alert = member.alert.id(alertId);
+        if (!alert) {
+            return res.status(404).json({ message: "Alert not found" });
+        }
+
+        alert.active = false;
+        await member.save();
+
+        res.json({ message: "Alert deactivated", alert });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+// ─── Block Member (Sales Manager only) ────────────────────────────────────────//
+const blockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const { reason } = req.body;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (member.isBlocked) {
+            return res.status(400).json({ message: "Member is already blocked" });
+        }
+
+        member.isBlocked = true;
+        member.blockedReason = reason || null;
+        member.blockedBy = req.user.id;
+        member.blockedAt = new Date();
+
+        member.userlog.push({
+            type: "other",
+            text: `Member blocked${reason ? `: ${reason}` : ''}`,
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member blocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Unblock Member (Sales Manager only) ──────────────────────────────────────//
+const unblockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!member.isBlocked) {
+            return res.status(400).json({ message: "Member is not blocked" });
+        }
+
+        member.isBlocked = false;
+        member.blockedReason = null;
+        member.blockedBy = null;
+        member.blockedAt = null;
+
+        member.userlog.push({
+            type: "other",
+            text: "Member unblocked",
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member unblocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1037,10 +1267,17 @@ module.exports = {
     getMembers,
     getMemberById,
     addNote,
+    addAlert,
+    deactivateAlert,
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,
     getAllNotes,
+    assignPackage,
+    getTodayCheckIns,
+    uploadNationalId,
+    blockMember,
+    unblockMember,
 
     sessionCheckIn_for_couch,
     assignCoach,

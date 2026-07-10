@@ -12,6 +12,22 @@ const noteSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+const alertSchema = new mongoose.Schema({
+    text: {
+        type: String,
+        required: true
+    },
+    active: {
+        type: Boolean,
+        default: true
+    },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    }
+}, { timestamps: true });
+
 const logSchema = new mongoose.Schema({
     type: {
         type: String,
@@ -112,6 +128,16 @@ const subscriptionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
+    },
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
+    },
+    salesManager: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
     }
 }, { timestamps: true });
 
@@ -135,7 +161,6 @@ const memberSchema = new mongoose.Schema({
         type: Number,
         unique: true,
         sparse: true,
-        default: null
     },
 
     // true = has an active or past subscription, false = guest only
@@ -150,7 +175,7 @@ const memberSchema = new mongoose.Schema({
     },
 
     nationalId: {
-        type: String,
+        type: String,   
         default: null
     },
 
@@ -212,6 +237,25 @@ const memberSchema = new mongoose.Schema({
         default: 0
     },
 
+    isBlocked: {
+    type: Boolean,
+    default: false
+},
+blockedReason: {
+    type: String,
+    default: null
+},
+blockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+},
+blockedAt: {
+    type: Date,
+    default: null
+},
+
+
     // Current couch assigned to the member
     current_couch:{
         type: mongoose.Schema.Types.ObjectId,
@@ -237,6 +281,7 @@ const memberSchema = new mongoose.Schema({
     },
 
     notes:       [noteSchema],
+    alert:       [alertSchema],
     couch_notes: [noteSchema],
     freeze:      [freezeSchema],
     invitations: [invitationSchema],

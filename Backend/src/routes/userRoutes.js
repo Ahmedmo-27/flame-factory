@@ -32,13 +32,13 @@ router.get("/profile", protect, (req, res) => {
 
 router.get("/me", protect, getMyProfile);
 router.get("/sales-revenue", protect, getSalesRevenue);
-router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner"), getSalesManagerRevenue);
-router.get("/sales-manager/subscriptions", protect, authorizeRoles("Sales Manager", "Owner"), getSubscriptionsByDate);
+router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesManagerRevenue);
+router.get("/sales-manager/subscriptions", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSubscriptionsByDate);
 router.get("/my-subscriptions", protect, authorizeRoles("Sales"), getSalesMySubscriptions);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/sales", protect, getSalesUsers);
-router.get("/team", protect, authorizeRoles("Sales Manager", "Owner"), getSalesTeam);
-router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner"), getSalesProfile);
+router.get("/team", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesTeam);
+router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesProfile);
 router.get("/coach-team", protect, authorizeRoles("Coach Manager", "Owner"), getCoachTeam);
 router.get("/coach-team/:id", protect, authorizeRoles("Coach Manager", "Owner"), getCoachProfile);
 router.post("/staff", protect, authorizeRoles("Sales Manager", "Owner"), createStaffUser);

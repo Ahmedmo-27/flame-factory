@@ -12,6 +12,8 @@ const {
     getCurrentSubscription,
 } = require("../utils/revenueUtils");
 
+const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
+
 const registerUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -221,7 +223,7 @@ const getSalesRevenue = async (req, res) => {
 
 const getSalesManagerRevenue = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+        if (!FINANCE_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: "Not authorized" });
         }
 
@@ -465,8 +467,8 @@ const createStaffUser = async (req, res) => {
             return res.status(400).json({ message: "name, email, password, and role are required" });
         }
 
-        if (!["Sales", "Receptionist","Coach"].includes(role)) {
-            return res.status(400).json({ message: "Role must be Sales, Receptionist or Coach" });
+        if (!["Sales", "Receptionist", "Accountant","Coach"].includes(role)) {
+            return res.status(400).json({ message: "Role must be Sales, Receptionist, Coach, or Accountant" });
         }
 
         const userExists = await User.findOne({ email: normalizeEmail(email) });
@@ -535,7 +537,7 @@ const updateSalesRepAbilities = async (req, res) => {
 // Defaults: dateFrom = today, dateTo = today
 const getSubscriptionsByDate = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+        if (!FINANCE_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: "Not authorized" });
         }
 

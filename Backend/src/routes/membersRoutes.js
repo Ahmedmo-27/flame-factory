@@ -20,7 +20,14 @@ const {
     sessionCheckIn_for_couch,
     assignCoach,
     addCouch_notes,
-    switchCoach,
+    switchCoach,,
+    assignPackage,
+    getTodayCheckIns,
+    uploadNationalId,
+    addAlert,
+    deactivateAlert,
+    blockMember,
+    unblockMember
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -29,7 +36,7 @@ const {
 const readAccess  = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant")];
 
 // Write members: Receptionist + Owner + Sales Manager create
-const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager")];
+const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager","Sales")];
 
 // Notes: Receptionist, Owner, Sales, Sales Manager
 const notesAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager","Coach","Coach Manager")];
@@ -52,13 +59,17 @@ router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager","Coach", "Coach Manager"].includes(req.user.role)) {
         return getMembers(req, res, next);
     }
-    if (["Receptionist", "Owner"].includes(req.user.role)) {
+    if (["Receptionist", "Owner", "Accountant"].includes(req.user.role)) {
         return getAllMembers(req, res, next);
     }
     return res.status(403).json({ message: "Access denied" });
 });
 
+// All members (for global search — all authenticated staff)
+router.get("/all", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Accountant"), getAllMembers);
+
 router.get("/all-notes", protect, authorize("Sales Manager", "Owner","Coach Manager"), getAllNotes);
+router.get("/today-checkins", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager"), getTodayCheckIns);
 
 router.get("/:memberId", protect, (req, res, next) => {
     const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant"];
@@ -71,10 +82,15 @@ router.get("/:memberId", protect, (req, res, next) => {
 router.post("/:memberId/notes", ...notesAccess, addNote);
 router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
-
-
+router.post("/:memberId/alerts",protect,authorize("Receptionist", "Sales", "Sales Manager"),addAlert);
+router.post("/:memberId/checkin", ...writeAccess, checkInMember);
+router.patch("/:memberId/alerts/:alertId/deactivate", protect, authorize("Receptionist", "Sales", "Sales Manager", "Owner"), deactivateAlert);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
+router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
+router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
+router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);
+router.patch("/:memberId/national-id", protect, authorize("Accountant"), upload.single("nationalIdFile"), uploadNationalId);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);

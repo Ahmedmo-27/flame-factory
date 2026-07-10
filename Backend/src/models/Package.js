@@ -55,6 +55,26 @@ const packageSchema = new mongoose.Schema({
         default: true
     },
 
+    // Member-specific package created when a sales manager proposes custom terms
+    hasException: {
+        type: Boolean,
+        default: false
+    },
+
+    // Catalog package this exception was based on
+    basedOn: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Package",
+        default: null
+    },
+
+    // Member this exception package applies to (set on approval)
+    forMember: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Member",
+        default: null
+    },
+
     createdBy:{
         type: mongoose.Schema.Types.ObjectId,
         ref:"User",

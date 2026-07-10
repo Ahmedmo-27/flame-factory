@@ -4,6 +4,7 @@ const User = require("../models/User");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
 const { notifyMemberAssigned } = require("../utils/notificationService");
+const { parsePagination, buildPagination } = require("../utils/pagination");
 
 // Submit a request to assign a member to the logged-in sales rep
 const createRequest = async (req, res) => {
@@ -106,18 +107,39 @@ const updateRequestStatus = async (req, res) => {
 // Get requests
 const getRequests = async (req, res) => {
     try {
+        const { page, limit, skip } = parsePagination(req.query);
         let filter = {};
-        
-        // If the user is a sales rep, only show their own requests
+
         if (req.user.role === "Sales") {
             filter.requestedBy = req.user.id;
         }
 
-        const requests = await SalesRepRequest.find(filter)
-            .populate("member", "name")
-            .populate("requestedBy", "name email");
+        if (req.query.status && req.query.status !== "all") {
+            if (req.query.status === "resolved") {
+                filter.status = { $ne: "pending" };
+            } else {
+                filter.status = req.query.status;
+            }
+        }
 
-        res.json(requests);
+        if (req.query.requestedBy) {
+            filter.requestedBy = req.query.requestedBy;
+        }
+
+        const [total, requests] = await Promise.all([
+            SalesRepRequest.countDocuments(filter),
+            SalesRepRequest.find(filter)
+                .populate("member", "name systemId")
+                .populate("requestedBy", "name email")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+        ]);
+
+        res.json({
+            requests,
+            pagination: buildPagination(page, limit, total),
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }

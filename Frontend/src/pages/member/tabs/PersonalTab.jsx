@@ -37,7 +37,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
         <InfoRow label="Birthdate"         value={fmtDate(member.birthdate)} />
         <InfoRow label="Source"            value={member.source} />
         <InfoRow label="System ID"         value={`#${member.systemId}`} />
-        <InfoRow label="Member ID"         value={member.memberId ? `${member.memberId}` : '—'} />
+        <InfoRow label="Member ID"         value={member.memberId ? `M${member.memberId}` : '—'} />
         <InfoRow label="Status"            value={<Badge status={member.status} />} />
         <InfoRow label="Added By"          value={member.createdBy?.name} />
         <InfoRow label="Added On"          value={fmtDate(member.createdAt)} />

@@ -22,6 +22,14 @@ const validateSalesAssignee = async (salesId) => {
     return salesUser;
 };
 
+const validateCoachAssignee = async (CoachId) => {
+    const CoachUser = await User.findById(CoachId);
+    if (!CoachUser || !["Coach", "Coach Manager"].includes(CoachUser.role)) {
+        return null;
+    }
+    return CoachUser;
+};
+
 // ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
 const generateSystemId = async () => {
     const last = await Member.findOne({}, { systemId: 1 }).sort({ systemId: -1 });
@@ -194,6 +202,14 @@ const getMemberProfile = async (req, res) => {
         const memberPayload = member.toObject();
         if (req.user.role === "Sales" && !isAssignedToRep(memberPayload, req.user.id)) {
             memberPayload.phones = null;
+        }
+        if (req.user.role === "Coach") {
+            const coachId = memberPayload.current_couch?._id
+                ? memberPayload.current_couch._id.toString()
+                : memberPayload.current_couch?.toString();
+            if (!coachId || coachId !== req.user.id.toString()) {
+                memberPayload.phones = null;
+            }
         }
 
         res.status(200).json({
@@ -415,6 +431,19 @@ function formatSalesMember(memberObj, userId, role) {
     return memberObj;
 }
 
+function formatCoachMember(memberObj, userId, role) {
+    attachCurrentPackage(memberObj);
+    memberObj.Type = memberObj.source;
+    const coachId = memberObj.current_couch?._id
+        ? memberObj.current_couch._id.toString()
+        : memberObj.current_couch?.toString();
+    memberObj.isAssignedToMe = Boolean(coachId && coachId === userId.toString());
+    if (role === "Coach" && !memberObj.isAssignedToMe) {
+        memberObj.phones = null;
+    }
+    return memberObj;
+}
+
 const salesMemberQuery = () =>
     Member.find()
         .populate("assignedSales", "name email")
@@ -422,6 +451,7 @@ const salesMemberQuery = () =>
 
 const getMembers = async (req, res) => {
     try {
+        // all members with this sales
         if (req.user.role === "Sales") {
             const members = await Member.find({ assignedSales: req.user.id })
                 .populate("assignedSales", "name email")
@@ -431,8 +461,22 @@ const getMembers = async (req, res) => {
                 formatSalesMember(member.toObject(), req.user.id, req.user.role)
             );
             return res.status(200).json({ count: formatted.length, members: formatted });
+
+            //all members with this coach 
+        }else if(req.user.role=== "Coach"){
+            const members = await Member.find({ current_couch: req.user.id })
+            .populate("current_couch", "name email")
+            .populate("subscriptions.package", "name price duration activityType");
+
+            // ana m4 fahm al function di
+            const formatted = members.map((member) =>
+                formatCoachMember(member.toObject(), req.user.id, req.user.role)
+            );
+            // l7d hena
+            return res.status(200).json({ count: formatted.length, members: formatted });
         }
 
+        // gets all the members for coach manager, sales manager and owner
         const members = await salesMemberQuery();
         const formatted = members.map((member) =>
             formatSalesMember(member.toObject(), req.user.id, req.user.role)
@@ -686,43 +730,303 @@ const addInvitation = async (req, res) => {
 
 // ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
 const getAllNotes = async (req, res) => {
-    try {
-        const members = await Member.find({ "notes.0": { $exists: true } })
-            .populate("notes.createdBy", "name role")
-            .select("name systemId memberId phones status notes assignedSales")
-            .populate("assignedSales", "name role");
+    // a3ml el law al owner 7b ye4of al notes, hal ab3tlo al 2 fel 2 variables ?
+    if(req.user.role==="Sales Manager"){
+        try {
+            const members = await Member.find({ "notes.0": { $exists: true } })
+                .populate("notes.createdBy", "name role")
+                .select("name systemId memberId phones status notes assignedSales")
+                .populate("assignedSales", "name role");
 
-        // Flatten all notes into a single array with member context
-        const notes = [];
-        members.forEach(member => {
-            member.notes.forEach(note => {
-                notes.push({
-                    _id:        note._id,
-                    text:       note.text,
-                    createdAt:  note.createdAt,
-                    createdBy:  note.createdBy,
-                    member: {
-                        _id:      member._id,
-                        name:     member.name,
-                        systemId: member.systemId,
-                        memberId: member.memberId,
-                        phones:   member.phones,
-                        status:   member.status,
-                        assignedSales: member.assignedSales,
-                    }
+            // Flatten all notes into a single array with member context
+            const notes = [];
+            members.forEach(member => {
+                member.notes.forEach(note => {
+                    notes.push({
+                        _id:        note._id,
+                        text:       note.text,
+                        createdAt:  note.createdAt,
+                        createdBy:  note.createdBy,
+                        member: {
+                            _id:      member._id,
+                            name:     member.name,
+                            systemId: member.systemId,
+                            memberId: member.memberId,
+                            phones:   member.phones,
+                            status:   member.status,
+                            assignedSales: member.assignedSales,
+                        }
+                    });
                 });
             });
+
+            // Sort newest first
+            notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            res.status(200).json({ count: notes.length, notes });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }        
+    }else if(req.user.role==="Coach Manager"){
+        try {
+            const members = await Member.find({ "couch_notes.0": { $exists: true } })
+                .populate("couch_notes.createdBy", "name role")
+                .select("name systemId memberId phones couch_subscription_status couch_notes current_couch")
+                .populate("current_couch", "name role");
+    
+            // Flatten all notes into a single array with member context
+            const notes = [];
+            members.forEach(member => {
+                member.couch_notes.forEach(note => {
+                    notes.push({
+                        _id:        note._id,
+                        text:       note.text,
+                        createdAt:  note.createdAt,
+                        createdBy:  note.createdBy,
+                        member: {
+                            _id:      member._id,
+                            name:     member.name,
+                            systemId: member.systemId,
+                            memberId: member.memberId,
+                            phones:   member.phones,
+                            couch_subscription_status:   member.couch_subscription_status,
+                            current_couch: member.current_couch,
+                        }
+                    });
+                });
+            });
+    
+            // Sort newest first
+            notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+            res.status(200).json({ count: notes.length, notes });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    }else if(req.user.role==="Owner"){
+        try {
+            const members = await Member.find({ "couch_notes.0": { $exists: true } })
+                .populate("couch_notes.createdBy", "name role")
+                .select("name systemId memberId phones couch_subscription_status couch_notes current_couch")
+                .populate("current_couch", "name role");
+
+            const members_2 = await Member.find({ "notes.0": { $exists: true } })
+                .populate("notes.createdBy", "name role")
+                .select("name systemId memberId phones status notes assignedSales")
+                .populate("assignedSales", "name role");
+
+            
+            // Flatten all notes into a single array with member context
+            const couch_notes = [];
+            members.forEach(member => {
+                member.couch_notes.forEach(note => {
+                    couch_notes.push({
+                        _id:        note._id,
+                        text:       note.text,
+                        createdAt:  note.createdAt,
+                        createdBy:  note.createdBy,
+                        member: {
+                            _id:      member._id,
+                            name:     member.name,
+                            systemId: member.systemId,
+                            memberId: member.memberId,
+                            phones:   member.phones,
+                            couch_subscription_status:   member.couch_subscription_status,
+                            current_couch: member.current_couch,
+                        }
+                    });
+                });
+            });
+
+            const notes = [];
+            members_2.forEach(member => {
+                member.notes.forEach(note => {
+                    notes.push({
+                        _id:        note._id,
+                        text:       note.text,
+                        createdAt:  note.createdAt,
+                        createdBy:  note.createdBy,
+                        member: {
+                            _id:      member._id,
+                            name:     member.name,
+                            systemId: member.systemId,
+                            memberId: member.memberId,
+                            phones:   member.phones,
+                            status:   member.status,
+                            assignedSales: member.assignedSales,
+                        }
+                    });
+                });
+            });
+
+            // Sort newest first
+            couch_notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            res.status(200).json({ count_couch_notes: couch_notes.length, couch_notes, count:notes.length,notes });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+
+    }
+
+};
+
+
+const sessionCheckIn_for_couch = async (req, res) => {
+    try {
+        if(req.user.role==="Coach"){
+            const { memberId } = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+
+            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
+            if(member.PT_sessions > member.used_PT_sessions) {
+                member.used_PT_sessions++;
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member has no free PT sessions" });
+            }
+
+        }else if (req.user.role==="Coach Manager"){
+            const { memberId ,numberOfSessions} = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+            if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
+
+                member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
+
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member doesn't have enough PT sessions" });
+            }
+        }else{
+            return res.status(400).json({ message: "You have to be a Coach or Coach manager to check in PT session" });
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+
+const assignCoach = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { coachId } = req.body;
+
+        const coachUser = await User.findById(coachId);
+        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
+            return res.status(404).json({ message: "Invalid Coach — user not found or not a Coach role" });
+        }
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = coachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Assigned to ${coachUser.name}`,
+            createdBy: req.user.id,
         });
 
-        // Sort newest first
-        notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        member.couch_subscription_status="active";
 
-        res.status(200).json({ count: notes.length, notes });
+        await member.save();
+        await member.populate("current_couch", "name role");
+
+        await notifyMemberAssigned({
+            recipientId: coachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.status(200).json({ message: "Coach assigned", member });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
+const addCouch_notes = async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({ message: "Note text is required" });
+        }
+
+        if (req.user.role === "Coach") {
+            const coachUser = await User.findById(req.user.id);
+            const abilities = resolveAbilities(coachUser);
+            if (!abilities.canCommentOnMembers) {
+                return res.status(403).json({ message: "You are not allowed to comment on members" });
+            }
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.couch_notes.push({ text, createdBy: req.user.id });
+        await member.save();
+        res.status(201).json({ message: "Note added successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const switchCoach = async (req, res) => {
+    try {
+        const { newCoachId } = req.body;
+        if (!newCoachId) {
+            return res.status(400).json({ message: "New Coach Rep ID is required" });
+        }
+
+        const coachUser = await validateCoachAssignee(newCoachId);
+        if (!coachUser) {
+            return res.status(400).json({
+                message: "Invalid coach — user not found or not a coach role"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = newCoachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Transferred to ${coachUser.name}`,
+            createdBy: req.user.id,
+        });
+        await member.save();
+
+        await notifyMemberAssigned({
+            recipientId: newCoachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.json({ message: "Coach updated successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 module.exports = {
     createMember,
     getAllMembers,
@@ -736,5 +1040,10 @@ module.exports = {
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,
-    getAllNotes
+    getAllNotes,
+
+    sessionCheckIn_for_couch,
+    assignCoach,
+    addCouch_notes,
+    switchCoach,
 };

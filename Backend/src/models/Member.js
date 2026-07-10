@@ -212,7 +212,32 @@ const memberSchema = new mongoose.Schema({
         default: 0
     },
 
+    // Current couch assigned to the member
+    current_couch:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
+    },
+
+    // Couch subscription status
+    couch_subscription_status: {
+        type: String,
+        enum: ["active", "transferred", "expired","interested","not interested"],
+        default: null
+    },
+    
+    PT_sessions:{
+        type: Number,
+        default:0
+    },
+
+    used_PT_sessions:{
+        type: Number,
+        default:0
+    },
+
     notes:       [noteSchema],
+    couch_notes: [noteSchema],
     freeze:      [freezeSchema],
     invitations: [invitationSchema],
     userlog:     [logSchema]

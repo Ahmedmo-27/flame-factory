@@ -22,6 +22,8 @@ const {
     uploadNationalId,
     addAlert,
     deactivateAlert,
+    blockMember,
+    unblockMember
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -81,6 +83,8 @@ router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/alerts/:alertId/deactivate", protect, authorize("Receptionist", "Sales", "Sales Manager", "Owner"), deactivateAlert);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
+router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
+router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), upload.single("nationalIdFile"), uploadNationalId);
 

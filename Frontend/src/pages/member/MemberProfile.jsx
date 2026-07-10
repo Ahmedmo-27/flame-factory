@@ -4,8 +4,8 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Tabs, Badge, Btn, Spinner, Avatar, Skeleton } from '../../components/ui';
-import { getMemberProfile, checkInMember } from '../../api/endpoints';
+import { PageHeader, Tabs, Badge, Btn, Spinner, Avatar, Skeleton, Modal, Input } from '../../components/ui';
+import { getMemberProfile, checkInMember, blockMember, unblockMember } from '../../api/endpoints';
 import PersonalTab    from './tabs/PersonalTab';
 import PackagesTab    from './tabs/PackagesTab';
 import CallCenterTab  from './tabs/CallCenterTab';
@@ -39,6 +39,9 @@ export default function MemberProfile() {
   const [checkingIn, setChecking] = useState(false);
   const [alertPopup, setAlertPopup] = useState(null); // array of alert texts or null
   const alertShownRef = useRef(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockReason, setBlockReason]       = useState('');
+  const [blocking, setBlocking]             = useState(false);
 
   usePageTitle(data?.member?.name ?? 'Profile');
 
@@ -82,6 +85,28 @@ export default function MemberProfile() {
     finally { setChecking(false); }
   };
 
+  const handleBlock = async () => {
+    setBlocking(true);
+    try {
+      await blockMember(member.systemId, blockReason.trim());
+      toast.success('Member blocked');
+      setShowBlockModal(false);
+      setBlockReason('');
+      fetchProfile();
+    } catch (e) { toast.error(e.response?.data?.message ?? 'Failed to block member.'); }
+    finally { setBlocking(false); }
+  };
+
+  const handleUnblock = async () => {
+    setBlocking(true);
+    try {
+      await unblockMember(member.systemId);
+      toast.success('Member unblocked');
+      fetchProfile();
+    } catch (e) { toast.error(e.response?.data?.message ?? 'Failed to unblock member.'); }
+    finally { setBlocking(false); }
+  };
+
   const member = data?.member;
   const stats  = data?.stats;
 
@@ -96,17 +121,37 @@ export default function MemberProfile() {
           <span>{loading ? 'Loading…' : (member?.name ?? 'Profile')}</span>
         </div>
       }>
-        {member && user?.role !== 'Accountant' && (
-          <Btn variant={member.status === 'active' || member.status === 'frozen' ? 'success' : 'outline'} size="sm"
-            onClick={handleCheckIn} disabled={checkingIn || member.status === 'expired' || member.status === 'guest'}>
-            {checkingIn ? <Spinner size="sm" /> : 'Check In'}
-          </Btn>
+        {member && user?.role === 'Sales Manager' && (
+          member.isBlocked
+            ? <Btn variant="outline" size="sm" onClick={handleUnblock} disabled={blocking}>
+                {blocking ? <Spinner size="sm" /> : 'Unblock'}
+              </Btn>
+            : <Btn variant="danger" size="sm" onClick={() => setShowBlockModal(true)}>
+                Block
+              </Btn>
         )}
       </PageHeader>
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
         {loading ? <ProfileSkeleton /> : !member ? null : (
           <>
+            {/* Blocked banner */}
+            {member.isBlocked && (
+              <div style={{
+                background: 'var(--red-bg)', border: '1px solid var(--red-bd)',
+                borderLeft: '4px solid var(--red)', borderRadius: 8,
+                padding: '12px 16px', marginBottom: 14,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <span style={{ fontSize: 22 }}>🚫</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--red)', marginBottom: 2 }}>This member is blocked</p>
+                  {member.blockedReason && (
+                    <p style={{ fontSize: 12, color: 'var(--red)', opacity: 0.8 }}>Reason: {member.blockedReason}</p>
+                  )}
+                </div>
+              </div>
+            )}
             <ProfileHeader member={member} stats={stats} />
             <Tabs tabs={TABS} active={activeTab} onChange={setTab} />
             <div className="fade-up">
@@ -123,6 +168,26 @@ export default function MemberProfile() {
           </>
         )}
       </div>
+
+      {/* ── Block Modal ─────────────────────────────────────────── */}
+      <Modal open={showBlockModal} onClose={() => setShowBlockModal(false)} title="Block Member" size="sm"
+        footer={<>
+          <Btn variant="ghost" size="sm" onClick={() => setShowBlockModal(false)} disabled={blocking}>Cancel</Btn>
+          <Btn variant="danger" size="sm" onClick={handleBlock} disabled={blocking}>
+            {blocking ? <Spinner size="sm" /> : 'Block Member'}
+          </Btn>
+        </>}
+      >
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
+          Blocking this member will prevent check-ins and flag their profile. Are you sure?
+        </p>
+        <Input
+          label="Reason (optional)"
+          value={blockReason}
+          onChange={e => setBlockReason(e.target.value)}
+          placeholder="e.g. Outstanding balance, inappropriate behavior"
+        />
+      </Modal>
 
       {/* ── Alert Popup (big centered, auto-dismiss 5s) ──────────── */}
       {alertPopup && (

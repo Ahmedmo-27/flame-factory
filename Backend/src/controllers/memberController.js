@@ -254,9 +254,15 @@ const checkInMember = async (req, res) => {
 
         const activeAlerts = (member.alert || []).filter(a => a.active);
 
+        // __________ check member is blocked or not___________//
+        if (member.isBlocked) {
+        return res.status(403).json({ message: "Cannot check in — member is blocked" });
+        }
+
         if (member.status === "expired") {
             return res.status(400).json({ message: "Cannot check in — membership expired" });
         }
+
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1113,6 +1119,72 @@ const deactivateAlert = async (req, res) => {
     }
 };
 
+// ─── Block Member (Sales Manager only) ────────────────────────────────────────//
+const blockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const { reason } = req.body;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (member.isBlocked) {
+            return res.status(400).json({ message: "Member is already blocked" });
+        }
+
+        member.isBlocked = true;
+        member.blockedReason = reason || null;
+        member.blockedBy = req.user.id;
+        member.blockedAt = new Date();
+
+        member.userlog.push({
+            type: "other",
+            text: `Member blocked${reason ? `: ${reason}` : ''}`,
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member blocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Unblock Member (Sales Manager only) ──────────────────────────────────────//
+const unblockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!member.isBlocked) {
+            return res.status(400).json({ message: "Member is not blocked" });
+        }
+
+        member.isBlocked = false;
+        member.blockedReason = null;
+        member.blockedBy = null;
+        member.blockedAt = null;
+
+        member.userlog.push({
+            type: "other",
+            text: "Member unblocked",
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member unblocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
 
 module.exports = {
     createMember,
@@ -1133,4 +1205,6 @@ module.exports = {
     assignPackage,
     getTodayCheckIns,
     uploadNationalId,
+    blockMember,
+    unblockMember
 };

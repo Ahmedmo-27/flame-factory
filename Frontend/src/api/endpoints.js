@@ -39,6 +39,10 @@ export const switchSalesRep = (id, newSalesRepId) =>
   api.put(`/members/${id}/sales-rep`, { newSalesRepId });
 export const freezeMember      = (id, data) =>
   api.patch(`/members/${id}/freeze`, data);
+export const blockMember       = (id, reason) =>
+  api.patch(`/members/${id}/block`, { reason });
+export const unblockMember     = (id) =>
+  api.patch(`/members/${id}/unblock`);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
 export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
 export const uploadNationalId = (id, formData) =>

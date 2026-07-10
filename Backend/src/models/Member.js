@@ -175,7 +175,7 @@ const memberSchema = new mongoose.Schema({
     },
 
     nationalId: {
-        type: String,   // file path — scanned national ID image, uploaded by Accountant only
+        type: String,   
         default: null
     },
 
@@ -236,6 +236,25 @@ const memberSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+
+    isBlocked: {
+    type: Boolean,
+    default: false
+},
+blockedReason: {
+    type: String,
+    default: null
+},
+blockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+},
+blockedAt: {
+    type: Date,
+    default: null
+},
+
 
     notes:       [noteSchema],
     alert:       [alertSchema],

@@ -1255,8 +1255,159 @@ const unblockMember = async (req, res) => {
     }
 };
 
+const sessionCheckIn_for_couch = async (req, res) => {
+    try {
+        if(req.user.role==="Coach"){
+            const { memberId } = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+
+            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
+            if(member.PT_sessions > member.used_PT_sessions) {
+                member.used_PT_sessions++;
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member has no free PT sessions" });
+            }
+
+        }else if (req.user.role==="Coach Manager"){
+            const { memberId ,numberOfSessions} = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+            if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
+
+                member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
+
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member doesn't have enough PT sessions" });
+            }
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 
 
+const assignCoach = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { coachId } = req.body;
+
+        const coachUser = await User.findById(coachId);
+        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
+            return res.status(404).json({ message: "Invalid Coach — user not found or not a Coach role" });
+        }
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = coachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Assigned to ${coachUser.name}`,
+            createdBy: req.user.id,
+        });
+
+        member.couch_subscription_status="active";
+
+        await member.save();
+        await member.populate("current_couch", "name role");
+
+        await notifyMemberAssigned({
+            recipientId: coachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.status(200).json({ message: "Coach assigned", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const addCouch_notes = async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({ message: "Note text is required" });
+        }
+
+        if (req.user.role === "Coach") {
+            const coachUser = await User.findById(req.user.id);
+            const abilities = resolveAbilities(coachUser);
+            if (!abilities.canCommentOnMembers) {
+                return res.status(403).json({ message: "You are not allowed to comment on members" });
+            }
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.couch_notes.push({ text, createdBy: req.user.id });
+        await member.save();
+        res.status(201).json({ message: "Note added successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const switchCoach = async (req, res) => {
+    try {
+        const { newCoachId } = req.body;
+        if (!newCoachId) {
+            return res.status(400).json({ message: "New Coach Rep ID is required" });
+        }
+
+        const coachUser = await validateCoachAssignee(newCoachId);
+        if (!coachUser) {
+            return res.status(400).json({
+                message: "Invalid coach — user not found or not a coach role"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = newCoachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Transferred to ${coachUser.name}`,
+            createdBy: req.user.id,
+        });
+        await member.save();
+
+        await notifyMemberAssigned({
+            recipientId: newCoachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.json({ message: "Coach updated successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 module.exports = {
     createMember,
     getAllMembers,

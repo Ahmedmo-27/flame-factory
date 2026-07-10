@@ -26,7 +26,7 @@ const {
 const readAccess  = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant")];
 
 // Write members: Receptionist + Owner + Sales Manager create
-const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager")];
+const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager","Sales")];
 
 // Notes: Receptionist, Owner, Sales, Sales Manager
 const notesAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];

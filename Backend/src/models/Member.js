@@ -145,7 +145,6 @@ const memberSchema = new mongoose.Schema({
         type: Number,
         unique: true,
         sparse: true,
-        default: null
     },
 
     // true = has an active or past subscription, false = guest only

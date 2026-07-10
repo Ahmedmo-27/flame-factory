@@ -127,13 +127,33 @@ export default function PackagesTab({ member, user, onRefresh }) {
 
       <Card>
         <CardHeader title="Active Package">
-          {canAddPackage && !loadingPending && (
+          {canAddPackage && !loadingPending && !member.isBlocked && (
             <Btn size="xs" onClick={() => setShowAddPackage(true)}>{isSalesManager ? '+ Request Package' : '+ Add Package'}</Btn>
           )}
         </CardHeader>
+
+        {/* Blocked overlay */}
+        {member.isBlocked && pkg && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 6, marginBottom: 12,
+            background: 'var(--red-bg)', border: '1px solid var(--red-bd)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 16 }}>🚫</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)' }}>
+              Package deactivated — member is blocked
+            </span>
+          </div>
+        )}
+
         {!pkg || member.status === 'guest'
           ? <EmptyState message="No active package" sub={isSalesManager && !pending ? 'Submit a package request — the accountant must approve before it is assigned.' : isAccountant && !pending ? 'Click Add Package to assign a package to this member.' : 'No package assigned yet.'} />
-          : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+          : <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1,
+              background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
+              opacity: member.isBlocked ? 0.5 : 1,
+              pointerEvents: member.isBlocked ? 'none' : 'auto',
+            }}>
               {details.map(d => (
                 <div key={d.label} style={{ background: 'var(--card)', padding: '10px 14px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{d.label}</div>

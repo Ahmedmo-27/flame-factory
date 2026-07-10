@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllMembers, getPackages, getSalesUsers, createMember } from '../api/endpoints';
+import { getAllMembers, getPackages, getSalesUsers, createMember, searchAllMembers } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
 import useDebounce from '../hooks/useDebounce';
 import { Input, Select, Btn, Spinner } from './ui';
@@ -32,15 +32,23 @@ export default function GlobalSearch() {
     if (!q) { setResults([]); setOpen(false); setCursor(-1); return; }
 
     let cancelled = false;
-    getAllMembers({ search: q, limit: 8, page: 1 })
+    searchAllMembers()
       .then(res => {
         if (cancelled) return;
-        const matched = res.data.members ?? [];
+        const all = res.data.members ?? [];
+        const lower = q.toLowerCase();
+        const matched = all.filter(m =>
+          m.name?.toLowerCase().includes(lower) ||
+          m.phones?.includes(q) ||
+          String(m.systemId) === q ||
+          String(m.memberId) === q
+        ).slice(0, 8);
         setResults(matched);
-        setOpen(true);
+        setOpen(matched.length > 0 || canAdd);
         setCursor(-1);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[GlobalSearch] fetch error:', err.message);
         if (!cancelled) setResults([]);
       });
 
@@ -284,7 +292,7 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
   const [sales,     setSales]     = useState([]);
   const [form, setForm] = useState({
     name: initialName || '', phones: '',
-    gender: '', birthdate: '', source: '', packageId: '', assignedSales: '',
+    gender: '', birthdate: '', source: '', assignedSales: '',
   });
   const [errors,  setErrors]  = useState({});
   const [loading, setLoading] = useState(false);
@@ -316,7 +324,6 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
         gender:        form.gender        || null,
         birthdate:     form.birthdate     || null,
         source:        form.source        || null,
-        packageId:     form.packageId     || null,
         assignedSales: form.assignedSales || null,
       });
       onSuccess(res.data.member.systemId);
@@ -368,17 +375,6 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
               {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
             </Select>
           </div>
-
-          <Select
-            label="Package (leave empty for guest)"
-            value={form.packageId}
-            onChange={e => set('packageId', e.target.value)}
-          >
-            <option value="">— Guest (no package) —</option>
-            {packages.map(p => (
-              <option key={p._id} value={p._id}>{p.name} – {p.duration} ({p.activityType}) — EGP {p.price}</option>
-            ))}
-          </Select>
 
           <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
             <option value="">— None —</option>

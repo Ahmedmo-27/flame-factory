@@ -59,6 +59,9 @@ router.get("/", protect, (req, res, next) => {
     return res.status(403).json({ message: "Access denied" });
 });
 
+// All members (for global search — all authenticated staff)
+router.get("/all", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Accountant"), getAllMembers);
+
 router.get("/all-notes", protect, authorize("Sales Manager", "Owner"), getAllNotes);
 router.get("/today-checkins", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager"), getTodayCheckIns);
 

@@ -27,6 +27,7 @@ export const markAllNotificationsRead = () => api.patch('/notifications/read-all
 
 // ── Members ───────────────────────────────────────────────────────────────────
 export const getAllMembers     = (params) => api.get('/members', { params });
+export const searchAllMembers  = ()       => api.get('/members/all');
 export const getAllNotes       = (params) => api.get('/members/all-notes', { params });
 export const getMemberProfile  = (id)       => api.get(`/members/${id}`);
 export const createMember      = (data)     => api.post('/members', data);

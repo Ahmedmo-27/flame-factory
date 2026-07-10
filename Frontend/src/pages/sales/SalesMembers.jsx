@@ -130,7 +130,7 @@ export default function SalesMembers() {
 }
 
 function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
-  const init = { name: '', phones: '', gender: '', source: '', packageId: '', assignedSales: '' };
+  const init = { name: '', phones: '', gender: '', source: '', assignedSales: '' };
   const [form, setForm] = useState(init);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -141,8 +141,8 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
     if (!validate()) return;
     setLoading(true);
     try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
-      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, assignedSales: form.assignedSales || currentUser?._id || null });
+      toast.success('Guest added!');
       setForm(init); setErrors({}); onSuccess();
     } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
     finally { setLoading(false); }
@@ -160,10 +160,6 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
         <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
           <option value="">— Select —</option>
           {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-        <Select label="Package" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
-          <option value="">— Guest —</option>
-          {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} – EGP {p.price}</option>)}
         </Select>
       </div>
       <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>

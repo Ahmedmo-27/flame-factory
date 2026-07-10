@@ -233,7 +233,8 @@ export default function Transfer() {
               <input
                 type="number" min="1" max={paginated.length}
                 placeholder="N"
-                style={{ width: 60, padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'inherit' }}
+                className="no-spinners"
+                style={{ width: 60, padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'inherit', MozAppearance: 'textfield' }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault();

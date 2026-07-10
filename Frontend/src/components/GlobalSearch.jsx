@@ -283,7 +283,7 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
   const [packages,  setPackages]  = useState([]);
   const [sales,     setSales]     = useState([]);
   const [form, setForm] = useState({
-    name: initialName || '', phones: '', nationalId: '',
+    name: initialName || '', phones: '',
     gender: '', birthdate: '', source: '', packageId: '', assignedSales: '',
   });
   const [errors,  setErrors]  = useState({});
@@ -313,7 +313,6 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
     try {
       const res = await createMember({
         name: form.name.trim(), phones: form.phones.trim(),
-        nationalId:    form.nationalId    || null,
         gender:        form.gender        || null,
         birthdate:     form.birthdate     || null,
         source:        form.source        || null,
@@ -358,7 +357,6 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
             <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} placeholder="Full name" />
             <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} placeholder="Phone number" />
-            <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} placeholder="Optional" />
             <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
               <option value="">— Select —</option>
               <option value="male">Male</option>

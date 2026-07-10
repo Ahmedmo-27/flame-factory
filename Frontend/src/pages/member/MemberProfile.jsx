@@ -135,7 +135,6 @@ function ProfileHeader({ member, stats }) {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--t3)', marginBottom: 12 }}>
           <span>{member.phones}</span>
-          {member.nationalId && <span>{member.nationalId}</span>}
           {member.gender     && <span style={{ textTransform: 'capitalize' }}>{member.gender}</span>}
           {member.assignedSales && <span>Sales: {member.assignedSales.name}</span>}
           <span style={{ fontFamily: 'monospace', color: 'var(--t4)' }}>#{member.systemId}{member.memberId ? ` / M${member.memberId}` : ''}</span>

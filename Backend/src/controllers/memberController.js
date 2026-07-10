@@ -591,16 +591,6 @@ const addAlert = async (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
-
-
 const switchSalesRep = async (req, res) => {
     try {
         const { newSalesRepId } = req.body;

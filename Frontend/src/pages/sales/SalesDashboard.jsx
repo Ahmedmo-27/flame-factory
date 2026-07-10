@@ -140,7 +140,8 @@ export default function SalesDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
               {isManager && revenue && (
                 <StatCard label="Today's Revenue" value={`${fmt(revenue.todayRevenue)} EGP`} color="brand"
-                  sub={`${checkIns.length} check-in${checkIns.length !== 1 ? 's' : ''} today`} />
+                  sub={`${todaySubscriptions.length} contract${todaySubscriptions.length !== 1 ? 's' : ''} today`}
+                  onClick={() => setShowTodaySubs(true)} />
               )}
               {!isManager && (
                 <StatCard label="Today's Revenue" value={`${fmt(todayRevenue)} EGP`} color="brand"
@@ -465,6 +466,9 @@ export default function SalesDashboard() {
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{entry.member.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--t4)' }}>
                         #{entry.member.systemId} · {entry.subscription.package?.name ?? 'Package'}
+                        {isManager && entry.member.assignedSales?.name && (
+                          <span> · Sales: {entry.member.assignedSales.name}</span>
+                        )}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>

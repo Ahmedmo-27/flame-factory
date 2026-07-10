@@ -8,6 +8,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const requestId = require("./middleware/requestId");
 const requestLogger = require("./middleware/requestLogger");
 const errorHandler = require("./middleware/errorHandler");
+const coachRequestRoutes = require("./routes/coachRequestRoutes");
 const path    = require("path");
 
 
@@ -31,6 +32,7 @@ app.use("/api/sales-requests", salesRequestRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/requests", salesRequestRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/coach-requests", coachRequestRoutes);
 
 app.use(errorHandler);
 

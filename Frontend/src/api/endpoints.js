@@ -39,6 +39,7 @@ export const switchSalesRep = (id, newSalesRepId) =>
 export const freezeMember      = (id, data) =>
   api.patch(`/members/${id}/freeze`, data);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
+export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
 export const addNote           = (id, text) =>
   api.post(`/members/${id}/notes`, { text });
 export const addInvitation     = (id, formData) =>

@@ -18,6 +18,7 @@ const {
     addInvitation,
     getAllNotes,
     assignPackage,
+    getTodayCheckIns,
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ router.get("/", protect, (req, res, next) => {
 });
 
 router.get("/all-notes", protect, authorize("Sales Manager", "Owner"), getAllNotes);
+router.get("/today-checkins", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager"), getTodayCheckIns);
 
 router.get("/:memberId", protect, (req, res, next) => {
     const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant"];

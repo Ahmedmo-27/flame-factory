@@ -724,6 +724,61 @@ const addInvitation = async (req, res) => {
     }
 };
 
+// ─── 10. Get today's check-ins ────────────────────────────────────────────────
+const getTodayCheckIns = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Find members who have a check-in userlog entry today
+        const members = await Member.find({
+            "userlog": {
+                $elemMatch: {
+                    type: "check-in",
+                    createdAt: { $gte: today, $lt: tomorrow }
+                }
+            }
+        })
+            .populate("subscriptions.package", "name activityType duration")
+            .populate("assignedSales", "name")
+            .populate("userlog.createdBy", "name role")
+            .select("name systemId memberId phones status subscriptions assignedSales userlog");
+
+        // Extract today's check-in entries with member info
+        const checkIns = [];
+        members.forEach(member => {
+            member.userlog.forEach(log => {
+                if (log.type === "check-in" && new Date(log.createdAt) >= today && new Date(log.createdAt) < tomorrow) {
+                    checkIns.push({
+                        _id:       log._id,
+                        time:      log.createdAt,
+                        checkedInBy: log.createdBy,
+                        member: {
+                            _id:       member._id,
+                            name:      member.name,
+                            systemId:  member.systemId,
+                            memberId:  member.memberId,
+                            phones:    member.phones,
+                            status:    member.status,
+                            package:   member.subscriptions?.at(-1)?.package ?? null,
+                            assignedSales: member.assignedSales,
+                        }
+                    });
+                }
+            });
+        });
+
+        // Sort newest first
+        checkIns.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        res.json({ count: checkIns.length, checkIns });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
 const getAllNotes = async (req, res) => {
     try {
@@ -965,4 +1020,5 @@ module.exports = {
     addInvitation,
     getAllNotes,
     assignPackage,
+    getTodayCheckIns,
 };

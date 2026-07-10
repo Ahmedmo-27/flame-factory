@@ -6,12 +6,65 @@ import NotificationBell from './NotificationBell';
 
 const NAV = {
   Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
-  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/checkin', label: 'Check In' }],
+  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
   'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Accountant:    [
+    { to: '/accounting/dashboard', label: 'Dashboard' },
+    { to: '/accounting/package-requests', label: 'Requests' },
+    { to: '/accounting/contract-history', label: 'Contracts' },
+    { to: '/sales/targets', label: 'Revenue' },
+    { to: '/members', label: 'Members' },
+    { to: '/sales/team', label: 'Team' },
+  ],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }
+
+function NavItem({ item, compact, variant = 'bar', onNavigate }) {
+  if (variant === 'drawer') {
+    return (
+      <NavLink to={item.to} onClick={onNavigate} style={{ textDecoration: 'none', display: 'block' }}>
+        {({ isActive }) => (
+          <div style={{
+            padding: '10px 12px', borderRadius: 6, margin: '2px 0',
+            background: isActive ? 'rgba(255,255,255,0.10)' : 'transparent',
+            borderLeft: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
+            color: isActive ? '#fff' : 'rgba(255,255,255,0.50)',
+            fontSize: 13, fontWeight: isActive ? 600 : 400,
+          }}>
+            {item.label}
+          </div>
+        )}
+      </NavLink>
+    );
+  }
+
+  return (
+    <NavLink to={item.to} onClick={onNavigate} style={{ textDecoration: 'none', flexShrink: 0 }}>
+      {({ isActive }) => (
+        <span style={{
+          display: 'inline-block',
+          padding: compact ? '5px 9px' : '5px 11px',
+          borderRadius: 5,
+          fontSize: compact ? 12 : 13,
+          fontWeight: isActive ? 600 : 400,
+          color: isActive ? '#fff' : 'rgba(255,255,255,0.50)',
+          background: isActive ? 'rgba(255,255,255,0.10)' : 'transparent',
+          cursor: 'pointer',
+          transition: 'all 0.12s',
+          borderBottom: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
+          whiteSpace: 'nowrap',
+        }}
+          onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
+          onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.50)'; e.currentTarget.style.background = 'transparent'; } }}
+        >
+          {item.label}
+        </span>
+      )}
+    </NavLink>
+  );
+}
 
 export default function Layout({ children }) {
   const { user, signOut } = useAuth();
@@ -20,7 +73,8 @@ export default function Layout({ children }) {
   const [drop, setDrop]       = useState(false);
   const dropRef               = useRef(null);
   const items                 = NAV[user?.role] ?? NAV.Receptionist;
-  const showNotifications     = ['Sales', 'Sales Manager'].includes(user?.role);
+  const compactNav            = items.length > 6;
+  const showNotifications     = ['Sales', 'Sales Manager', 'Accountant'].includes(user?.role);
 
   useEffect(() => {
     const h = e => { if (dropRef.current && !dropRef.current.contains(e.target)) setDrop(false); };
@@ -44,39 +98,27 @@ export default function Layout({ children }) {
         background: 'var(--navy)',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 52, padding: '0 20px', position: 'relative' }}>
+        <div className="nav-bar-inner" style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          height: 52, padding: '0 16px', maxWidth: '100%',
+        }}>
 
           {/* ── LEFT: Logo ───────────────────────────────────────── */}
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>🔥</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.2px' }}>FlamFactory</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>GYM</span>
+            <span className="nav-logo-text" style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.2px' }}>FlamFactory</span>
+            <span className="nav-logo-badge" style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>GYM</span>
           </div>
 
-          {/* ── CENTER: Nav links (desktop only) ─────────────────── */}
-          <nav id="desk-nav" style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-            {items.map(item => (
-              <NavLink key={item.to} to={item.to} style={{ textDecoration: 'none' }}>
-                {({ isActive }) => (
-                  <span style={{
-                    display: 'inline-block', padding: '5px 12px', borderRadius: 5,
-                    fontSize: 13, fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#fff' : 'rgba(255,255,255,0.50)',
-                    background: isActive ? 'rgba(255,255,255,0.10)' : 'transparent',
-                    cursor: 'pointer', transition: 'all 0.12s',
-                    borderBottom: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
-                    whiteSpace: 'nowrap',
-                  }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'rgba(255,255,255,0.50)'; e.currentTarget.style.background = 'transparent'; } }}
-                  >{item.label}</span>
-                )}
-              </NavLink>
+          {/* ── CENTER: Nav links (desktop) ──────────────────────── */}
+          <nav id="desk-nav" className="desk-nav">
+            {items.map((item) => (
+              <NavItem key={item.to} item={item} compact={compactNav} />
             ))}
           </nav>
 
-          {/* ── RIGHT: Search + Notifications + User ─────────────── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {/* ── RIGHT: Search + Notifications + User ───────────── */}
+          <div className="nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
 
             <div id="desk-search">
               <GlobalSearch />
@@ -165,18 +207,8 @@ export default function Layout({ children }) {
           <GlobalSearch />
         </div>
         <nav style={{ flex: 1, padding: '10px 10px', overflowY: 'auto' }}>
-          {items.map(item => (
-            <NavLink key={item.to} to={item.to} onClick={() => setMob(false)} style={{ textDecoration: 'none' }}>
-              {({ isActive }) => (
-                <div style={{
-                  padding: '10px 12px', borderRadius: 6, margin: '2px 0',
-                  background: isActive ? 'rgba(255,255,255,0.10)' : 'transparent',
-                  borderLeft: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
-                  color: isActive ? '#fff' : 'rgba(255,255,255,0.50)',
-                  fontSize: 13, fontWeight: isActive ? 600 : 400,
-                }}>{item.label}</div>
-              )}
-            </NavLink>
+          {items.map((item) => (
+            <NavItem key={item.to} item={item} variant="drawer" onNavigate={() => setMob(false)} />
           ))}
         </nav>
         <div style={{ padding: '12px 14px 18px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
@@ -198,12 +230,45 @@ export default function Layout({ children }) {
       <main style={{ flex: 1 }}>{children}</main>
 
       <style>{`
-        @media (max-width: 767px) {
-          #desk-nav    { display: none !important; }
-          #desk-search { display: none !important; }
-          #mob-btn     { display: flex !important; }
-          #prof-text   { display: none !important; }
-          #prof-arrow  { display: none !important; }
+        .desk-nav {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          flex: 1;
+          min-width: 0;
+          overflow-x: auto;
+          overflow-y: hidden;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+          padding: 0 4px;
+        }
+        .desk-nav::-webkit-scrollbar { display: none; }
+
+        #desk-search {
+          flex: 0 1 240px;
+          min-width: 140px;
+          max-width: 240px;
+        }
+        #desk-search > * {
+          width: 100% !important;
+          max-width: 100% !important;
+          flex: none !important;
+        }
+
+        @media (max-width: 1280px) {
+          #desk-search { flex: 0 1 180px; min-width: 120px; }
+          #prof-text, #prof-arrow { display: none !important; }
+        }
+
+        @media (max-width: 1024px) {
+          .desk-nav, #desk-search { display: none !important; }
+          #mob-btn { display: flex !important; }
+        }
+
+        @media (max-width: 480px) {
+          .nav-logo-text, .nav-logo-badge { display: none !important; }
+          .nav-bar-inner { padding: 0 12px !important; gap: 8px !important; }
         }
       `}</style>
     </div>

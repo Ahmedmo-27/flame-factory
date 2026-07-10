@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, CardHeader, Spinner, EmptyState, Badge, Avatar, fmtDate } from '../../components/ui';
+import { PageHeader, Card, CardHeader, Spinner, EmptyState, Badge, Avatar, fmtDate, Select } from '../../components/ui';
 import { getSalesManagerRevenue, getSubscriptionsByDate, getSalesUsers } from '../../api/endpoints';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -364,16 +364,17 @@ function SubscriptionsTab() {
 
           {/* Sales rep filter */}
           <div style={{ flex: 2, minWidth: 200 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Sales Rep</label>
-            <select value={salesRepId} onChange={e => setSalesRepId(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff' }}
+            <Select
+              label="Sales Rep"
+              value={salesRepId}
+              onChange={e => setSalesRepId(e.target.value)}
             >
               <option value="">All Sales Reps</option>
               {salesReps
                 .filter(r => r.role === 'Sales')
                 .map(r => <option key={r._id} value={r._id}>{r.name}</option>)
               }
-            </select>
+            </Select>
           </div>
 
           {/* Reset */}

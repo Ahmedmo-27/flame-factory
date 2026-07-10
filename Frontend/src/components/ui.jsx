@@ -1,5 +1,8 @@
 // ─── FlamFactory UI — sharp, data-dense design system ────────────────────────
 
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, Children, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+
 // ── Spinner ───────────────────────────────────────────────────────────────────
 export function Spinner({ size = 'md' }) {
   const cls = size === 'sm' ? 'spin spin-sm' : size === 'lg' ? 'spin spin-lg' : 'spin';
@@ -28,6 +31,7 @@ const BADGE_MAP = {
   expired:  { bg: 'var(--red-bg)',    color: 'var(--red)',    border: 'var(--red-bd)',    dot: '#dc2626' },
   frozen:   { bg: 'var(--sky-bg)',    color: 'var(--sky)',    border: 'var(--sky-bd)',    dot: '#0284c7' },
   guest:    { bg: 'var(--slate-bg)',  color: 'var(--slate)',  border: 'var(--slate-bd)', dot: '#94a3b8' },
+  blocked:  { bg: '#1e1e1e',          color: '#fff',          border: '#333',            dot: '#ef4444' },
   pending:  { bg: 'var(--amber-bg)', color: 'var(--amber)',  border: 'var(--amber-bd)', dot: '#d97706' },
   accepted: { bg: 'var(--green-bg)',  color: 'var(--green)',  border: 'var(--green-bd)',  dot: '#16a34a' },
   rejected: { bg: 'var(--red-bg)',    color: 'var(--red)',    border: 'var(--red-bd)',    dot: '#dc2626' },
@@ -124,16 +128,295 @@ export function Input({ label, error, hint, ...props }) {
     </Field>
   );
 }
-export function Select({ label, error, hint, children, ...props }) {
+export function Select({ label, error, hint, children, options: optionsProp, placeholder, initialLimit, ...props }) {
+  const options = useMemo(() => {
+    if (optionsProp?.length) {
+      return optionsProp.map((o) => ({
+        value: String(o.value ?? ''),
+        label: String(o.label ?? o.value ?? ''),
+        disabled: !!o.disabled,
+      }));
+    }
+    const parsed = [];
+    Children.forEach(children, (child) => {
+      if (!child || typeof child === 'string') return;
+      const p = child.props ?? {};
+      if (p.value === undefined && child.type !== 'option') return;
+      const labelText = typeof p.children === 'string'
+        ? p.children
+        : Children.toArray(p.children).join('');
+      parsed.push({
+        value: String(p.value ?? ''),
+        label: labelText || String(p.value ?? ''),
+        disabled: !!p.disabled,
+      });
+    });
+    return parsed;
+  }, [children, optionsProp]);
+
+  const emptyOption = options.find((o) => o.value === '');
+  const resolvedPlaceholder = placeholder ?? (emptyOption?.label || 'Type to search…');
+
   return (
     <Field label={label} error={error} hint={hint}>
-      <select
+      <SearchableSelect
+        options={options}
+        placeholder={resolvedPlaceholder}
+        initialLimit={initialLimit}
+        error={error}
         {...props}
-        style={{ ...inputBase(error), appearance: 'auto' }}
-        onFocus={e => { e.target.style.borderColor = 'var(--blue)'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)'; }}
-        onBlur={e  => { e.target.style.borderColor = error ? 'var(--red-bd)' : 'var(--border)'; e.target.style.boxShadow = 'none'; }}
-      >{children}</select>
+      />
     </Field>
+  );
+}
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  onBlur,
+  onFocus,
+  disabled,
+  readOnly,
+  placeholder = 'Type to search…',
+  initialLimit,
+  error,
+  style,
+  name,
+  id,
+}) {
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [cursor, setCursor] = useState(-1);
+  const [focused, setFocused] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState(null);
+
+  const locked = disabled || readOnly;
+  const stringValue = String(value ?? '');
+
+  const selected = useMemo(
+    () => (stringValue !== '' ? options.find((o) => o.value === stringValue) : null),
+    [options, stringValue],
+  );
+
+  const hasSelection = stringValue !== '' && !!selected;
+
+  const selectableOptions = useMemo(
+    () => options.filter((o) => o.value !== ''),
+    [options],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q) {
+      return selectableOptions.filter(
+        (o) =>
+          o.label.toLowerCase().includes(q) ||
+          o.value.toLowerCase().includes(q),
+      );
+    }
+    if (initialLimit) return selectableOptions.slice(0, initialLimit);
+    return selectableOptions;
+  }, [selectableOptions, query, initialLimit]);
+
+  const updateDropdownRect = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setDropdownRect(null);
+      return;
+    }
+    updateDropdownRect();
+    window.addEventListener('resize', updateDropdownRect);
+    window.addEventListener('scroll', updateDropdownRect, true);
+    return () => {
+      window.removeEventListener('resize', updateDropdownRect);
+      window.removeEventListener('scroll', updateDropdownRect, true);
+    };
+  }, [open, updateDropdownRect, filtered.length]);
+
+  useEffect(() => {
+    const close = (e) => {
+      const inWrap = wrapRef.current?.contains(e.target);
+      const inList = listRef.current?.contains(e.target);
+      if (!inWrap && !inList) {
+        setOpen(false);
+        setQuery('');
+        setCursor(-1);
+        setFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const fireChange = (val) => {
+    onChange?.({ target: { value: val, name } });
+  };
+
+  const pick = (opt) => {
+    if (!opt || opt.disabled) return;
+    fireChange(opt.value);
+    setOpen(false);
+    setQuery('');
+    setCursor(-1);
+    setFocused(false);
+  };
+
+  const openList = () => {
+    if (locked) return;
+    setOpen(true);
+    setQuery(hasSelection && selected ? selected.label : '');
+    setCursor(-1);
+  };
+
+  const handleFocus = (e) => {
+    if (locked) return;
+    setFocused(true);
+    setOpen(true);
+    setQuery(hasSelection && selected ? selected.label : '');
+    setCursor(-1);
+    onFocus?.(e);
+    e.target.style.borderColor = 'var(--blue)';
+    e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.08)';
+  };
+
+  const handleBlur = (e) => {
+    onBlur?.(e);
+    e.target.style.borderColor = error ? 'var(--red-bd)' : 'var(--border)';
+    e.target.style.boxShadow = 'none';
+  };
+
+  const handleKeyDown = (e) => {
+    if (locked) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) openList();
+      setCursor((c) => Math.min(c + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCursor((c) => Math.max(c - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && cursor >= 0 && filtered[cursor]) pick(filtered[cursor]);
+      else if (open && filtered.length === 1) pick(filtered[0]);
+      else if (!open) openList();
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setQuery('');
+      setCursor(-1);
+      inputRef.current?.blur();
+    }
+  };
+
+  const inputValue = open || focused ? query : (hasSelection ? selected.label : '');
+  const showMuted = !open && !focused && !hasSelection;
+
+  const dropdown = open && !locked && dropdownRect ? (
+    <div
+      ref={listRef}
+      role="listbox"
+      style={{
+        position: 'fixed',
+        top: dropdownRect.top,
+        left: dropdownRect.left,
+        width: dropdownRect.width,
+        zIndex: 1000,
+        background: '#fff',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        boxShadow: '0 8px 28px rgba(15,23,42,0.18)',
+        maxHeight: 240,
+        overflowY: 'auto',
+      }}
+    >
+      {!filtered.length ? (
+        <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
+          {query.trim() ? 'No matches' : 'No packages available'}
+        </div>
+      ) : filtered.map((opt, i) => {
+        const active = i === cursor;
+        const isSelected = opt.value === stringValue;
+        return (
+          <button
+            key={`${opt.value}-${i}`}
+            type="button"
+            role="option"
+            aria-selected={isSelected}
+            disabled={opt.disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setCursor(i)}
+            onClick={() => pick(opt)}
+            style={{
+              width: '100%', textAlign: 'left', border: 'none',
+              padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+              cursor: opt.disabled ? 'not-allowed' : 'pointer',
+              background: active ? 'var(--bg)' : isSelected ? 'var(--blue-bg, #eff6ff)' : '#fff',
+              color: opt.disabled ? 'var(--t4)' : 'var(--t1)',
+              fontWeight: isSelected ? 600 : 400,
+              borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+              opacity: opt.disabled ? 0.5 : 1,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', ...style }}>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        value={inputValue}
+        readOnly={locked}
+        disabled={disabled}
+        placeholder={showMuted ? placeholder : undefined}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+          setCursor(-1);
+        }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        onClick={() => { if (!locked) openList(); }}
+        style={{
+          ...inputBase(error),
+          paddingRight: 30,
+          color: showMuted ? 'var(--t4)' : 'var(--t1)',
+          cursor: locked ? 'not-allowed' : 'text',
+          opacity: disabled ? 0.6 : 1,
+        }}
+      />
+      <svg
+        width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--t4)"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+        aria-hidden="true"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+
+      {dropdown && createPortal(dropdown, document.body)}
+    </div>
   );
 }
 export function Textarea({ label, error, hint, ...props }) {
@@ -146,6 +429,35 @@ export function Textarea({ label, error, hint, ...props }) {
         onBlur={e  => { e.target.style.borderColor = error ? 'var(--red-bd)' : 'var(--border)'; e.target.style.boxShadow = 'none'; }}
       />
     </Field>
+  );
+}
+
+export function Switch({ label, hint, checked, onChange, disabled }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 0' }}>
+      <div>
+        {label && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{label}</div>}
+        {hint && <div style={{ fontSize: 11, color: 'var(--t4)', marginTop: 2 }}>{hint}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => !disabled && onChange?.(!checked)}
+        style={{
+          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+          background: checked ? 'var(--blue)' : 'var(--border-md)',
+          position: 'relative', transition: 'background 0.15s', flexShrink: 0, opacity: disabled ? 0.6 : 1,
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 3, left: checked ? 23 : 3, width: 18, height: 18,
+          borderRadius: '50%', background: '#fff', transition: 'left 0.15s',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        }} />
+      </button>
+    </div>
   );
 }
 
@@ -398,6 +710,25 @@ export function Avatar({ name = '', size = 'md' }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: fs, fontWeight: 700, letterSpacing: '0.5px',
     }}>{ini}</div>
+  );
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+export function Pagination({ page, totalPages, total, pageSize, onPageChange }) {
+  if (!totalPages || totalPages <= 1) return null;
+
+  const start = ((page - 1) * pageSize) + 1;
+  const end = Math.min(page * pageSize, total);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+      <span style={{ fontSize: 12, color: 'var(--t4)' }}>{start}–{end} of {total}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Btn variant="outline" size="xs" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>← Prev</Btn>
+        <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page} / {totalPages}</span>
+        <Btn variant="outline" size="xs" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next →</Btn>
+      </div>
+    </div>
   );
 }
 

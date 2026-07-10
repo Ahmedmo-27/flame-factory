@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
 import {
   PageHeader, Card, CardHeader, Table, Badge, Btn, Spinner, EmptyState,
-  SearchInput, Avatar, Select, Input,
+  SearchInput, Avatar, Select, Input, Pagination,
 } from '../../components/ui';
 import { getAllMembers, getSalesUsers, bulkTransferSalesReps, switchSalesRep } from '../../api/endpoints';
 
@@ -22,6 +22,7 @@ export default function Transfer() {
   const [search, setSearch]         = useState('');
   const [repFilter, setRepFilter]   = useState('all');
   const [page, setPage]             = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [transferTo, setTransferTo] = useState('');
 
@@ -31,12 +32,11 @@ export default function Transfer() {
 
   const debouncedSearch = useDebounce(search, 300);
 
-  const fetchData = useCallback(async () => {
+  const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, sRes] = await Promise.all([getAllMembers(), getSalesUsers()]);
-      setMembers(mRes.data.members ?? []);
-      setSalesUsers(sRes.data.salesUsers ?? []);
+      const res = await getAllMembers();
+      setMembers(res.data.members ?? []);
     } catch {
       toast.error('Failed to load members.');
     } finally {
@@ -44,38 +44,41 @@ export default function Transfer() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchSalesUsers = useCallback(async () => {
+    try {
+      const sRes = await getSalesUsers();
+      setSalesUsers(sRes.data.salesUsers ?? []);
+    } catch {
+      toast.error('Failed to load sales users.');
+    }
+  }, []);
+
+  useEffect(() => { fetchSalesUsers(); }, [fetchSalesUsers]);
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
   useEffect(() => { setPage(1); }, [repFilter, debouncedSearch]);
+
+  // Client-side filtering
+  const filtered = members.filter(m => {
+    if (repFilter === 'unassigned') {
+      if (m.assignedSales) return false;
+    } else if (repFilter !== 'all') {
+      const repId = m.assignedSales?._id || m.assignedSales;
+      if (String(repId) !== repFilter) return false;
+    }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      if (!m.name?.toLowerCase().includes(q) && !m.phones?.includes(q) && !String(m.systemId).includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const repName = (rep) => {
     if (!rep) return 'Unassigned';
     return typeof rep === 'object' ? rep.name : salesUsers.find((s) => s._id === rep)?.name ?? '—';
   };
-
-  const filtered = useMemo(() => {
-    let list = members;
-    if (repFilter === 'unassigned') {
-      list = list.filter((m) => !m.assignedSales);
-    } else if (repFilter !== 'all') {
-      list = list.filter((m) => {
-        const id = m.assignedSales?._id ?? m.assignedSales;
-        return id && String(id) === repFilter;
-      });
-    }
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter((m) =>
-        m.name?.toLowerCase().includes(q) ||
-        m.phones?.includes(q) ||
-        String(m.systemId).includes(q) ||
-        String(m.memberId ?? '').includes(q)
-      );
-    }
-    return list;
-  }, [members, repFilter, debouncedSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const toggleSelect = (memberId) => {
     setSelectedIds((prev) => {
@@ -114,7 +117,7 @@ export default function Transfer() {
       });
       toast.success(`Transferred ${res.data.transferredCount} member(s)`);
       setSelectedIds(new Set());
-      fetchData();
+      fetchMembers();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Transfer failed');
     } finally {
@@ -137,7 +140,7 @@ export default function Transfer() {
       await switchSalesRep(quickId.trim(), quickTo);
       toast.success('Member transferred successfully');
       setQuickId('');
-      fetchData();
+      fetchMembers();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Transfer failed');
     } finally {
@@ -210,13 +213,42 @@ export default function Transfer() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '0 16px 12px', alignItems: 'center' }}>
             <SearchInput value={search} onChange={setSearch} placeholder="Name, phone, ID…" width={200} />
-            <Select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} style={{ minWidth: 180 }}>
+
+            {/* Rep filter dropdown */}
+            <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} style={{
+              minWidth: 220, padding: '7px 10px', fontSize: 13,
+              border: '1px solid var(--border)', borderRadius: 6,
+              fontFamily: 'inherit', color: 'var(--t1)', background: '#fff',
+              cursor: 'pointer',
+            }}>
               <option value="all">All members</option>
-              <option value="unassigned">Unassigned</option>
+              <option value="unassigned">Unassigned only</option>
               {salesUsers.map((s) => (
-                <option key={s._id} value={s._id}>Assigned to {s.name}</option>
+                <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
               ))}
-            </Select>
+            </select>
+
+            {/* Select first N */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" min="1" max={paginated.length}
+                placeholder="N"
+                className="no-spinners"
+                style={{ width: 60, padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'inherit', MozAppearance: 'textfield' }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const n = Math.min(Number(e.target.value) || 0, paginated.length);
+                    if (n > 0) {
+                      setSelectedIds(new Set(paginated.slice(0, n).map(m => m._id)));
+                      toast.success(`Selected first ${n} member${n !== 1 ? 's' : ''}`);
+                    }
+                  }
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--t4)' }}>Select first N (press Enter)</span>
+            </div>
+
             {selectedIds.size > 0 && (
               <Btn variant="ghost" size="xs" onClick={() => setSelectedIds(new Set())}>Clear selection</Btn>
             )}
@@ -269,13 +301,13 @@ export default function Transfer() {
                 })}
               </Table>
 
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-                  <Btn variant="outline" size="xs" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Prev</Btn>
-                  <span style={{ fontSize: 12, color: 'var(--t4)' }}>Page {page} of {totalPages}</span>
-                  <Btn variant="outline" size="xs" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Btn>
-                </div>
-              )}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={filtered.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
             </>
           )}
         </Card>

@@ -36,7 +36,7 @@ export default function NotificationBell() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getNotifications();
+      const res = await getNotifications({ limit: 30, page: 1 });
       setNotifications(res.data.notifications ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -75,7 +75,9 @@ export default function NotificationBell() {
     }
     setOpen(false);
     const memberId = n.member?.systemId || n.member?._id;
-    if (memberId) navigate(`/members/${memberId}`);
+    if (!memberId) return;
+    const tab = n.type === 'package_exception_pending' ? '?tab=packages' : '';
+    navigate(`/members/${memberId}${tab}`);
   };
 
   const handleMarkAll = async () => {

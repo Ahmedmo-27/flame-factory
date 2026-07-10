@@ -15,8 +15,12 @@ import ManageStaff        from './pages/sales/ManageStaff';
 import ManagePackages     from './pages/sales/ManagePackages';
 import TargetDashboard    from './pages/sales/TargetDashboard';
 import SalesSubscriptions from './pages/sales/SalesSubscriptions';
+import SalesCallCenter    from './pages/sales/SalesCallCenter';
 import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
+import PackageRequests    from './pages/accounting/PackageRequests';
+import ContractHistory    from './pages/accounting/ContractHistory';
+import AccountantDashboard from './pages/accounting/AccountantDashboard';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
 
@@ -33,6 +37,7 @@ function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+  if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
   return <Navigate to="/members" replace />;
 }
 
@@ -45,7 +50,7 @@ function AppRoutes() {
 
       {/* Receptionist / Owner */}
       <Route path="/members" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Accountant']}>
           <Members />
         </PrivateRoute>
       } />
@@ -57,9 +62,9 @@ function AppRoutes() {
         </PrivateRoute>
       } />
 
-      {/* Everyone authenticated can check in */}
+      {/* Check-in — not available to Accountant */}
       <Route path="/checkin" element={
-        <PrivateRoute>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach']}>
           <CheckIn />
         </PrivateRoute>
       } />
@@ -81,12 +86,12 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/sales/team" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <SalesTeam />
         </PrivateRoute>
       } />
       <Route path="/sales/team/:id" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <SalesPersonProfile />
         </PrivateRoute>
       } />
@@ -106,7 +111,7 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/sales/targets" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <TargetDashboard />
         </PrivateRoute>
       } />
@@ -115,11 +120,34 @@ function AppRoutes() {
           <SalesSubscriptions />
         </PrivateRoute>
       } />
+      <Route path="/sales/my-callcenter" element={
+        <PrivateRoute roles={['Sales']}>
+          <SalesCallCenter />
+        </PrivateRoute>
+      } />
       <Route path="/sales/transfer" element={
         <PrivateRoute roles={['Sales Manager', 'Owner']}>
           <Transfer />
         </PrivateRoute>
       } />
+
+      {/* Accountant routes */}
+      <Route path="/accounting/dashboard" element={
+        <PrivateRoute roles={['Accountant', 'Owner']}>
+          <AccountantDashboard />
+        </PrivateRoute>
+      } />
+      <Route path="/accounting/package-requests" element={
+        <PrivateRoute roles={['Accountant']}>
+          <PackageRequests />
+        </PrivateRoute>
+      } />
+      <Route path="/accounting/contract-history" element={
+        <PrivateRoute roles={['Accountant', 'Owner']}>
+          <ContractHistory />
+        </PrivateRoute>
+      } />
+      <Route path="/accounting/exceptions" element={<Navigate to="/accounting/package-requests" replace />} />
 
       {/* 404 */}
       <Route path="*" element={<NotFound />} />

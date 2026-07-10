@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate } from '../../components/ui';
+import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../../components/ui';
 import { getAllMembers, createMember, getPackages, getSalesUsers } from '../../api/endpoints';
 
 const PAGE_SIZE = 20;
@@ -21,46 +21,56 @@ export default function SalesMembers() {
   const [filter,   setFilter]   = useState('all');
   const [search,   setSearch]   = useState('');
   const [page,     setPage]     = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [stats, setStats] = useState({ total: 0, active: 0, frozen: 0, expired: 0, guest: 0 });
   const [showAdd,  setShowAdd]  = useState(false);
   const debouncedSearch = useDebounce(search, 300);
 
-  const fetchAll = useCallback(async () => {
+  const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, pRes, sRes] = await Promise.all([getAllMembers(), getPackages(), getSalesUsers()]);
-      setMembers(mRes.data.members ?? []); setPackages(pRes.data.packages ?? []); setSales(sRes.data.salesUsers ?? []);
+      const res = await getAllMembers();
+      const allMembers = res.data.members ?? [];
+      setMembers(allMembers);
+      // Calculate stats client-side
+      setStats({
+        total:   allMembers.length,
+        active:  allMembers.filter(m => m.status === 'active').length,
+        frozen:  allMembers.filter(m => m.status === 'frozen').length,
+        expired: allMembers.filter(m => m.status === 'expired').length,
+        guest:   allMembers.filter(m => m.status === 'guest').length,
+      });
     } catch { toast.error('Failed to load data.'); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const fetchMeta = useCallback(async () => {
+    try {
+      const [pRes, sRes] = await Promise.all([
+        getPackages({ limit: 100 }),
+        getSalesUsers(),
+      ]);
+      setPackages(pRes.data.packages ?? []);
+      setSales(sRes.data.salesUsers ?? []);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
-  const myMembers = useMemo(() =>
-    user?.role === 'Sales'
-      ? members.filter(m => { const sid = m.assignedSales?._id ?? m.assignedSales; return sid && String(sid) === String(user._id); })
-      : members,
-    [members, user]);
-
-  const stats = useMemo(() => ({
-    total:   myMembers.length,
-    active:  myMembers.filter(m => m.status === 'active').length,
-    frozen:  myMembers.filter(m => m.status === 'frozen').length,
-    expired: myMembers.filter(m => m.status === 'expired').length,
-    guest:   myMembers.filter(m => m.status === 'guest').length,
-  }), [myMembers]);
-
-  const filtered = useMemo(() => {
-    let list = filter === 'all' ? myMembers : myMembers.filter(m => m.status === filter);
+  // Client-side filtering
+  const filtered = members.filter(m => {
+    if (filter !== 'all' && m.status !== filter) return false;
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
-      list = list.filter(m => m.name?.toLowerCase().includes(q) || m.phones?.includes(q) || String(m.systemId).includes(q));
+      if (!m.name?.toLowerCase().includes(q) && !m.phones?.includes(q) && !String(m.systemId).includes(q)) return false;
     }
-    return list;
-  }, [myMembers, filter, debouncedSearch]);
+    return true;
+  });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <Layout>
@@ -114,27 +124,26 @@ export default function SalesMembers() {
                   );
                 })}
           </Table>
-          {!loading && totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 12, color: 'var(--t4)' }}>{((page-1)*PAGE_SIZE)+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Btn variant="outline" size="xs" disabled={page===1} onClick={() => setPage(p => p-1)}>← Prev</Btn>
-                <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page}/{totalPages}</span>
-                <Btn variant="outline" size="xs" disabled={page===totalPages} onClick={() => setPage(p => p+1)}>Next →</Btn>
-              </div>
-            </div>
+          {!loading && (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
           )}
         </Card>
       </div>
 
       <AddGuestModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales}
-        currentUser={user} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
+        currentUser={user} onSuccess={() => { setShowAdd(false); fetchMembers(); }} />
     </Layout>
   );
 }
 
 function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
-  const init = { name: '', phones: '', nationalId: '', gender: '', source: '', packageId: '', assignedSales: '' };
+  const init = { name: '', phones: '', gender: '', source: '', assignedSales: '' };
   const [form, setForm] = useState(init);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -145,8 +154,8 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
     if (!validate()) return;
     setLoading(true);
     try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
-      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, assignedSales: form.assignedSales || currentUser?._id || null });
+      toast.success('Guest added!');
       setForm(init); setErrors({}); onSuccess();
     } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
     finally { setLoading(false); }
@@ -158,17 +167,12 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
         <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
         <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
         <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
           <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
         </Select>
         <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
           <option value="">— Select —</option>
           {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-        <Select label="Package" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
-          <option value="">— Guest —</option>
-          {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} – EGP {p.price}</option>)}
         </Select>
       </div>
       <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>

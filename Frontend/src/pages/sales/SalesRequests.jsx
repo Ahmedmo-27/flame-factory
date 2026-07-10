@@ -3,29 +3,55 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, Table, Badge, Btn, Modal, Input, Spinner, EmptyState, ConfirmDialog, fmtDateTime } from '../../components/ui';
+import { PageHeader, Card, Table, Badge, Btn, Modal, Input, Spinner, EmptyState, ConfirmDialog, fmtDateTime, Pagination } from '../../components/ui';
 import { getRequests, createRequest, updateRequestStatus, getSalesTeam } from '../../api/endpoints';
+
+const PAGE_SIZE = 10;
 
 export default function SalesRequests() {
   usePageTitle('Requests');
   const { user } = useAuth();
-  const [requests,      setRequests]      = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [showNew,       setShowNew]       = useState(false);
-  const [confirm,       setConfirm]       = useState(null);
+  const [pending, setPending] = useState([]);
+  const [resolved, setResolved] = useState([]);
+  const [pendingPagination, setPendingPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [resolvedPagination, setResolvedPagination] = useState({ page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+  const [pendingPage, setPendingPage] = useState(1);
+  const [resolvedPage, setResolvedPage] = useState(1);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [loadingResolved, setLoadingResolved] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [repFilter,     setRepFilter]     = useState('all');
-  const [salesReps,     setSalesReps]     = useState([]);
+  const [repFilter, setRepFilter] = useState('all');
+  const [salesReps, setSalesReps] = useState([]);
   const isManager = ['Sales Manager', 'Owner'].includes(user?.role);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const repParams = repFilter !== 'all' ? { requestedBy: repFilter } : {};
+
+  const fetchPending = useCallback(async () => {
+    setLoadingPending(true);
     try {
-      const res = await getRequests();
-      setRequests(Array.isArray(res.data) ? res.data : []);
-    } catch { toast.error('Failed to load requests.'); }
-    finally { setLoading(false); }
-  }, []);
+      const res = await getRequests({ status: 'pending', page: pendingPage, limit: PAGE_SIZE, ...repParams });
+      setPending(res.data.requests ?? []);
+      setPendingPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+    } catch { toast.error('Failed to load pending requests.'); }
+    finally { setLoadingPending(false); }
+  }, [pendingPage, repFilter]);
+
+  const fetchResolved = useCallback(async () => {
+    setLoadingResolved(true);
+    try {
+      const res = await getRequests({ status: 'resolved', page: resolvedPage, limit: PAGE_SIZE, ...repParams });
+      setResolved(res.data.requests ?? []);
+      setResolvedPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+    } catch { toast.error('Failed to load request history.'); }
+    finally { setLoadingResolved(false); }
+  }, [resolvedPage, repFilter]);
+
+  const fetchRequests = useCallback(() => {
+    fetchPending();
+    fetchResolved();
+  }, [fetchPending, fetchResolved]);
 
   // Load all sales reps for the filter (manager only)
   useEffect(() => {
@@ -38,7 +64,9 @@ export default function SalesRequests() {
       .catch(() => {});
   }, [isManager]);
 
-  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+  useEffect(() => { fetchPending(); }, [fetchPending]);
+  useEffect(() => { fetchResolved(); }, [fetchResolved]);
+  useEffect(() => { setPendingPage(1); setResolvedPage(1); }, [repFilter]);
 
   const handleAction = async () => {
     if (!confirm) return;
@@ -52,13 +80,7 @@ export default function SalesRequests() {
     finally { setActionLoading(false); }
   };
 
-  // Apply rep filter
-  const filtered = isManager && repFilter !== 'all'
-    ? requests.filter(r => r.requestedBy?._id === repFilter)
-    : requests;
-
-  const pending  = filtered.filter(r => r.status === 'pending');
-  const resolved = filtered.filter(r => r.status !== 'pending');
+  // Apply rep filter handled server-side via repParams
 
   const RowCols = isManager
     ? ['Member', 'Requested By', 'Submitted', 'Status', 'Actions']
@@ -89,11 +111,9 @@ export default function SalesRequests() {
                 cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
               }}
             >
-              All ({requests.length})
+              All
             </button>
-            {/* One button per sales rep */}
             {salesReps.map(rep => {
-              const count = requests.filter(r => r.requestedBy?._id === rep._id).length;
               const active = repFilter === rep._id;
               return (
                 <button key={rep._id} onClick={() => setRepFilter(rep._id)} style={{
@@ -103,7 +123,7 @@ export default function SalesRequests() {
                   color: active ? '#fff' : 'var(--t2)',
                   cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
                 }}>
-                  {rep.name} ({count})
+                  {rep.name}
                 </button>
               );
             })}
@@ -113,16 +133,17 @@ export default function SalesRequests() {
         {/* ── Pending ──────────────────────────────────────────── */}
         <Card noPad style={{ marginBottom: 16 }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Pending ({pending.length})</span>
-            {pending.length > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Pending ({pendingPagination.total})</span>
+            {pendingPagination.total > 0 && (
               <span style={{ fontSize: 11, background: 'var(--amber-bg)', color: 'var(--amber)', border: '1px solid var(--amber-bd)', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
                 Needs Review
               </span>
             )}
           </div>
-          {!pending.length && !loading
+          {!pending.length && !loadingPending
             ? <EmptyState message="No pending requests" />
-            : <Table loading={loading} skeletonRows={3} headers={RowCols}>
+            : <>
+            <Table loading={loadingPending} skeletonRows={3} headers={RowCols}>
                 {pending.map(r => (
                   <tr key={r._id} style={{ borderBottom: '1px solid var(--border)' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
@@ -143,18 +164,27 @@ export default function SalesRequests() {
                   </tr>
                 ))}
               </Table>
+            <Pagination
+              page={pendingPagination.page}
+              totalPages={pendingPagination.totalPages}
+              total={pendingPagination.total}
+              pageSize={pendingPagination.limit ?? PAGE_SIZE}
+              onPageChange={setPendingPage}
+            />
+            </>
           }
         </Card>
 
         {/* ── History ──────────────────────────────────────────── */}
         <Card noPad>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>History ({resolved.length})</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>History ({resolvedPagination.total})</span>
           </div>
-          {!resolved.length
+          {!resolved.length && !loadingResolved
             ? <EmptyState message="No resolved requests" />
-            : <Table headers={['Member', 'Requested By', 'Submitted', 'Status']}>
-                {[...resolved].reverse().map(r => (
+            : <>
+            <Table loading={loadingResolved} headers={['Member', 'Requested By', 'Submitted', 'Status']}>
+                {resolved.map(r => (
                   <tr key={r._id} style={{ borderBottom: '1px solid var(--border)' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -166,6 +196,14 @@ export default function SalesRequests() {
                   </tr>
                 ))}
               </Table>
+            <Pagination
+              page={resolvedPagination.page}
+              totalPages={resolvedPagination.totalPages}
+              total={resolvedPagination.total}
+              pageSize={resolvedPagination.limit ?? PAGE_SIZE}
+              onPageChange={setResolvedPage}
+            />
+            </>
           }
         </Card>
       </div>

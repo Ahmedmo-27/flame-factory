@@ -56,6 +56,12 @@ body {
 
 input, select, textarea, button { font-family: inherit; }
 
+input::placeholder,
+textarea::placeholder {
+  color: var(--t4);
+  opacity: 1;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -122,4 +128,15 @@ input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity
 /* Mobile */
 @media (max-width: 640px) {
   .wrap { padding: 0 16px; }
+}
+
+
+/* Hide number input spinners */
+.no-spinners::-webkit-outer-spin-button,
+.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinners {
+  -moz-appearance: textfield;
 }

@@ -53,6 +53,13 @@ export default function SalesDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Refetch when window regains focus (after navigating back)
+  useEffect(() => {
+    const handleFocus = () => load();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [load]);
+
   // Stats
   const totalMembers = members.length;
   const activeCount  = members.filter(m => m.status === 'active').length;
@@ -99,12 +106,14 @@ export default function SalesDashboard() {
     todayStart.setHours(0, 0, 0, 0);
     members.forEach(m => {
       (m.notes || []).forEach(note => {
-        if (note.createdBy?._id === user?._id && new Date(note.createdAt) >= todayStart) {
+        const noteCreatorId = note.createdBy?._id || note.createdBy;
+        const isMyNote = String(noteCreatorId) === String(user?._id);
+        if (isMyNote && new Date(note.createdAt) >= todayStart) {
           recentNotes.push({
             _id: note._id,
             text: note.text,
             createdAt: note.createdAt,
-            createdByName: note.createdBy?.name || 'Unknown',
+            createdByName: note.createdBy?.name || user?.name || 'Me',
             memberName: m.name,
             memberSystemId: m.systemId,
           });

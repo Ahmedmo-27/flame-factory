@@ -159,7 +159,7 @@ const memberSchema = new mongoose.Schema({
     },
 
     nationalId: {
-        type: String,
+        type: String,   // file path — scanned national ID image, uploaded by Accountant only
         default: null
     },
 

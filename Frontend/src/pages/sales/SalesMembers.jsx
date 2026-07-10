@@ -130,7 +130,7 @@ export default function SalesMembers() {
 }
 
 function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
-  const init = { name: '', phones: '', nationalId: '', gender: '', source: '', packageId: '', assignedSales: '' };
+  const init = { name: '', phones: '', gender: '', source: '', packageId: '', assignedSales: '' };
   const [form, setForm] = useState(init);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -141,7 +141,7 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
     if (!validate()) return;
     setLoading(true);
     try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
       toast.success(form.packageId ? 'Member created!' : 'Guest added!');
       setForm(init); setErrors({}); onSuccess();
     } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
@@ -154,7 +154,6 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
         <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
         <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
         <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
           <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
         </Select>

@@ -8,7 +8,8 @@ export default function PersonalTab({ member, user, onRefresh }) {
   const [salesUsers, setSalesUsers] = useState([]);
   const [selected, setSelected]     = useState(member.assignedSales?._id ?? '');
   const [loading, setLoading]       = useState(false);
-  const canAssign = ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role);
+
+  const canAssign    = ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role);
 
   const openAssign = async () => {
     try { const res = await getSalesUsers(); setSalesUsers(res.data.salesUsers ?? []); setSelected(member.assignedSales?._id ?? ''); }
@@ -32,7 +33,6 @@ export default function PersonalTab({ member, user, onRefresh }) {
         </CardHeader>
         <InfoRow label="Full Name"         value={member.name} />
         <InfoRow label="Phone"             value={member.phones} />
-        <InfoRow label="National ID"       value={member.nationalId} />
         <InfoRow label="Gender"            value={member.gender} />
         <InfoRow label="Birthdate"         value={fmtDate(member.birthdate)} />
         <InfoRow label="Source"            value={member.source} />

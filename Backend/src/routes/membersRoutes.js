@@ -19,6 +19,7 @@ const {
     getAllNotes,
     assignPackage,
     getTodayCheckIns,
+    uploadNationalId,
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);
+router.patch("/:memberId/national-id", protect, authorize("Accountant"), upload.single("nationalIdFile"), uploadNationalId);
 
 
 module.exports = router;

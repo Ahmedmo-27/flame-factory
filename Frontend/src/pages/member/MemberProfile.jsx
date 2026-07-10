@@ -13,10 +13,12 @@ import FreezeTab      from './tabs/FreezeTab';
 import InvitationsTab from './tabs/InvitationsTab';
 import CheckInsTab    from './tabs/CheckInsTab';
 import OthersTab      from './tabs/OthersTab';
+import FilesTab       from './tabs/FilesTab';
 
 const TABS = [
   { id: 'personal',    label: 'Personal Info' },
   { id: 'packages',    label: 'Packages' },
+  { id: 'files',       label: 'Files' },
   { id: 'callcenter',  label: 'Call Center' },
   { id: 'freeze',      label: 'Freeze' },
   { id: 'invitations', label: 'Invitations' },
@@ -98,6 +100,7 @@ export default function MemberProfile() {
             <div className="fade-up">
               {activeTab === 'personal'    && <PersonalTab    member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'packages'    && <PackagesTab    member={member} user={user} onRefresh={fetchProfile} />}
+              {activeTab === 'files'       && <FilesTab       member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'callcenter'  && <CallCenterTab  member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'freeze'      && <FreezeTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'invitations' && <InvitationsTab member={member} user={user} onRefresh={fetchProfile} />}

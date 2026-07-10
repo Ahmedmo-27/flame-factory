@@ -40,6 +40,10 @@ export const freezeMember      = (id, data) =>
   api.patch(`/members/${id}/freeze`, data);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
 export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
+export const uploadNationalId = (id, formData) =>
+  api.patch(`/members/${id}/national-id`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 export const addNote           = (id, text) =>
   api.post(`/members/${id}/notes`, { text });
 export const addInvitation     = (id, formData) =>

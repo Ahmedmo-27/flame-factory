@@ -74,7 +74,7 @@ const findMember = async (id) => {
 const createMember = async (req, res) => {
     try {
         const {
-            name, phones, nationalId, photo,
+            name, phones, photo,
             gender, birthdate, source,
             packageId, assignedSales
         } = req.body;
@@ -85,7 +85,6 @@ const createMember = async (req, res) => {
             systemId,
             name,
             phones,
-            nationalId:    nationalId    || null,
             photo:         photo         || null,
             gender:        gender        || null,
             birthdate:     birthdate     || null,
@@ -1005,6 +1004,32 @@ const assignPackage = async (req, res) => {
     }
 };
 
+// ─── Upload National ID (Accountant only) ─────────────────────────────────────
+const uploadNationalId = async (req, res) => {
+    try {
+        if (req.user.role !== "Accountant") {
+            return res.status(403).json({ message: "Only accountants can upload national IDs" });
+        }
+
+        const identifier = req.params.memberId;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: "National ID file is required" });
+        }
+
+        member.nationalId = req.file.path;
+        await member.save();
+
+        res.json({ message: "National ID uploaded", nationalId: member.nationalId });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1021,4 +1046,5 @@ module.exports = {
     getAllNotes,
     assignPackage,
     getTodayCheckIns,
+    uploadNationalId,
 };

@@ -290,7 +290,7 @@ function PackageFormFields({ form, set, readOnly, makeException, allEditable }) 
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="grid-2">
       <Input label="Package Name" value={form.name} onChange={e => set?.('name', e.target.value)} disabled={fieldDisabled('name')} readOnly={readOnly} />
       <Select label="Activity" value={form.activityType} onChange={e => set?.('activityType', e.target.value)} disabled={fieldDisabled('activityType')} readOnly={readOnly}>
         {ACTIVITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}

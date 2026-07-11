@@ -67,7 +67,7 @@ export default function CoachMembers() {
       </PageHeader>
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div className="grid-stats-5" style={{ marginBottom: 16 }}>
           <StatCard label="Total" value={stats.total} color="brand" />
           <StatCard label="Active" value={stats.active} color="success" />
           <StatCard label="Transferred" value={stats.transferred} color="info" />

@@ -72,7 +72,7 @@ export default function InvitationsTab({ member, user, onRefresh }) {
           : allowed === 0 ? <p style={{ fontSize: 13, color: 'var(--t3)' }}>Package has no invitation slots.</p>
           : remaining <= 0 ? <p style={{ fontSize: 13, color: 'var(--t3)' }}>All {allowed} slot{allowed !== 1 ? 's' : ''} used.</p>
           : <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+              <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
                 <Input label="Invited Name *" value={name}  onChange={e => setName(e.target.value)}  placeholder="Full name" />
                 <Input label="Phone"          value={phone} onChange={e => setPhone(e.target.value)} placeholder="Optional" />
               </div>

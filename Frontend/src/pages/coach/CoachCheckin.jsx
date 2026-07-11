@@ -106,7 +106,7 @@ export default function CoachCheckin() {
       <PageHeader title="Session Check-In" />
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="grid-checkin">
 
           {/* ── Left: Search + Member ──────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -155,7 +155,7 @@ export default function CoachCheckin() {
                 </div>
 
                 {/* Sessions strip */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 18 }}>
+                <div className="grid-stats-3" style={{ background: 'var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 18 }}>
                   <div style={{ background: 'var(--card)', padding: '12px 14px', textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue)' }}>{member.PT_sessions || 0}</div>
                     <div style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px', marginTop: 2 }}>Total</div>
@@ -276,13 +276,6 @@ export default function CoachCheckin() {
 
         </div>
       </div>
-
-      {/* Mobile: stack */}
-      <style>{`
-        @media (max-width: 900px) {
-          .page-wrap > div { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </Layout>
   );
 }

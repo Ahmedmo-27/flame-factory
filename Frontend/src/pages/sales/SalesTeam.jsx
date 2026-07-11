@@ -90,7 +90,7 @@ function TeamCard({ member, onClick }) {
       </div>
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: pct !== null ? 12 : 0 }}>
+      <div className="grid-stats-4" style={{ background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: pct !== null ? 12 : 0 }}>
         {[
           { l: 'Active',  v: stats.active,  c: 'var(--green)' },
           { l: 'Frozen',  v: stats.frozen,  c: 'var(--sky)' },

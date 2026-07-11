@@ -27,6 +27,7 @@ export const markAllNotificationsRead = () => api.patch('/notifications/read-all
 
 // ── Members ───────────────────────────────────────────────────────────────────
 export const getAllMembers     = (params) => api.get('/members', { params });
+export const searchAllMembers  = ()       => api.get('/members/all');
 export const getAllNotes       = (params) => api.get('/members/all-notes', { params });
 export const getMemberProfile  = (id)       => api.get(`/members/${id}`);
 export const createMember      = (data)     => api.post('/members', data);
@@ -38,9 +39,22 @@ export const switchSalesRep = (id, newSalesRepId) =>
   api.put(`/members/${id}/sales-rep`, { newSalesRepId });
 export const freezeMember      = (id, data) =>
   api.patch(`/members/${id}/freeze`, data);
+export const blockMember       = (id, reason) =>
+  api.patch(`/members/${id}/block`, { reason });
+export const unblockMember     = (id) =>
+  api.patch(`/members/${id}/unblock`);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
+export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
+export const uploadNationalId = (id, formData) =>
+  api.patch(`/members/${id}/national-id`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 export const addNote           = (id, text) =>
   api.post(`/members/${id}/notes`, { text });
+export const addAlert          = (id, text) =>
+  api.post(`/members/${id}/alerts`, { text });
+export const deactivateAlert   = (id, alertId) =>
+  api.patch(`/members/${id}/alerts/${alertId}/deactivate`);
 export const addInvitation     = (id, formData) =>
   api.post(`/members/${id}/invitations`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

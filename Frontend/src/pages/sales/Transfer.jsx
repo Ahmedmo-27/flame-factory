@@ -35,23 +35,14 @@ export default function Transfer() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
-        page,
-        limit: PAGE_SIZE,
-        search: debouncedSearch || undefined,
-      };
-      if (repFilter === 'unassigned') params.unassigned = 'true';
-      else if (repFilter !== 'all') params.assignedSales = repFilter;
-
-      const res = await getAllMembers(params);
+      const res = await getAllMembers();
       setMembers(res.data.members ?? []);
-      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
     } catch {
       toast.error('Failed to load members.');
     } finally {
       setLoading(false);
     }
-  }, [page, repFilter, debouncedSearch]);
+  }, []);
 
   const fetchSalesUsers = useCallback(async () => {
     try {
@@ -66,7 +57,23 @@ export default function Transfer() {
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
   useEffect(() => { setPage(1); }, [repFilter, debouncedSearch]);
 
-  const paginated = members;
+  // Client-side filtering
+  const filtered = members.filter(m => {
+    if (repFilter === 'unassigned') {
+      if (m.assignedSales) return false;
+    } else if (repFilter !== 'all') {
+      const repId = m.assignedSales?._id || m.assignedSales;
+      if (String(repId) !== repFilter) return false;
+    }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      if (!m.name?.toLowerCase().includes(q) && !m.phones?.includes(q) && !String(m.systemId).includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const repName = (rep) => {
     if (!rep) return 'Unassigned';
@@ -206,13 +213,42 @@ export default function Transfer() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '0 16px 12px', alignItems: 'center' }}>
             <SearchInput value={search} onChange={setSearch} placeholder="Name, phone, ID…" width={200} />
-            <Select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} style={{ minWidth: 180 }}>
+
+            {/* Rep filter dropdown */}
+            <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} style={{
+              minWidth: 220, padding: '7px 10px', fontSize: 13,
+              border: '1px solid var(--border)', borderRadius: 6,
+              fontFamily: 'inherit', color: 'var(--t1)', background: '#fff',
+              cursor: 'pointer',
+            }}>
               <option value="all">All members</option>
-              <option value="unassigned">Unassigned</option>
+              <option value="unassigned">Unassigned only</option>
               {salesUsers.map((s) => (
-                <option key={s._id} value={s._id}>Assigned to {s.name}</option>
+                <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
               ))}
-            </Select>
+            </select>
+
+            {/* Select first N */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" min="1" max={paginated.length}
+                placeholder="N"
+                className="no-spinners"
+                style={{ width: 60, padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'inherit', MozAppearance: 'textfield' }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const n = Math.min(Number(e.target.value) || 0, paginated.length);
+                    if (n > 0) {
+                      setSelectedIds(new Set(paginated.slice(0, n).map(m => m._id)));
+                      toast.success(`Selected first ${n} member${n !== 1 ? 's' : ''}`);
+                    }
+                  }
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--t4)' }}>Select first N (press Enter)</span>
+            </div>
+
             {selectedIds.size > 0 && (
               <Btn variant="ghost" size="xs" onClick={() => setSelectedIds(new Set())}>Clear selection</Btn>
             )}
@@ -266,10 +302,10 @@ export default function Transfer() {
               </Table>
 
               <Pagination
-                page={pagination.page}
-                totalPages={pagination.totalPages}
-                total={pagination.total}
-                pageSize={pagination.limit ?? PAGE_SIZE}
+                page={page}
+                totalPages={totalPages}
+                total={filtered.length}
+                pageSize={PAGE_SIZE}
                 onPageChange={setPage}
               />
             </>

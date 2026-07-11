@@ -14,16 +14,34 @@ function isAssignedToRep(memberObj, userId) {
     return Boolean(repId && userId && repId === userId.toString());
 }
 
+function getCoachId(memberObj) {
+    const coach = memberObj.current_couch;
+    if (!coach) return null;
+    return coach._id ? coach._id.toString() : coach.toString();
+}
+
 function redactMemberForViewer(memberObj, user) {
     if (!memberObj || !user) return memberObj;
-    if (user.role !== "Sales") return memberObj;
-    if (isAssignedToRep(memberObj, user.id)) return memberObj;
 
-    return {
-        ...memberObj,
-        phones: null,
-        nationalId: null,
-    };
+    if (user.role === "Sales") {
+        if (isAssignedToRep(memberObj, user.id)) return memberObj;
+        return {
+            ...memberObj,
+            phones: null,
+            nationalId: null,
+        };
+    }
+
+    if (user.role === "Coach") {
+        const coachId = getCoachId(memberObj);
+        if (coachId && coachId === user.id.toString()) return memberObj;
+        return {
+            ...memberObj,
+            phones: null,
+        };
+    }
+
+    return memberObj;
 }
 
 module.exports = {

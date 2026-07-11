@@ -146,7 +146,7 @@ export default function Members() {
 }
 
 function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
-  const init = { name: '', phones: '', nationalId: '', gender: '', birthdate: '', source: '', packageId: '', assignedSales: '' };
+  const init = { name: '', phones: '', gender: '', birthdate: '', source: '', assignedSales: '' };
   const [form, setForm] = useState(init);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -163,8 +163,8 @@ function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
     if (!validate()) return;
     setLoading(true);
     try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, birthdate: form.birthdate || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || null });
-      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, birthdate: form.birthdate || null, source: form.source || null, assignedSales: form.assignedSales || null });
+      toast.success('Guest added!');
       setForm(init); setErrors({}); onSuccess();
     } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
     finally { setLoading(false); }
@@ -176,7 +176,6 @@ function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
         <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
         <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
         <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
           <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
         </Select>
@@ -186,10 +185,6 @@ function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
           {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
         </Select>
       </div>
-      <Select label="Package (leave empty for guest)" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
-        <option value="">— Guest —</option>
-        {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} ({p.activityType}) — EGP {p.price}</option>)}
-      </Select>
       <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
         <option value="">— None —</option>
         {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}

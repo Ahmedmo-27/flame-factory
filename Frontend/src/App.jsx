@@ -15,6 +15,7 @@ import ManageStaff        from './pages/sales/ManageStaff';
 import ManagePackages     from './pages/sales/ManagePackages';
 import TargetDashboard    from './pages/sales/TargetDashboard';
 import SalesSubscriptions from './pages/sales/SalesSubscriptions';
+import SalesCallCenter    from './pages/sales/SalesCallCenter';
 import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
 import PackageRequests    from './pages/accounting/PackageRequests';
@@ -117,6 +118,11 @@ function AppRoutes() {
       <Route path="/sales/subscriptions" element={
         <PrivateRoute roles={['Sales']}>
           <SalesSubscriptions />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/my-callcenter" element={
+        <PrivateRoute roles={['Sales']}>
+          <SalesCallCenter />
         </PrivateRoute>
       } />
       <Route path="/sales/transfer" element={

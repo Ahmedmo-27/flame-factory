@@ -29,18 +29,20 @@ export default function SalesMembers() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAllMembers({
-        page,
-        limit: PAGE_SIZE,
-        status: filter,
-        search: debouncedSearch || undefined,
+      const res = await getAllMembers();
+      const allMembers = res.data.members ?? [];
+      setMembers(allMembers);
+      // Calculate stats client-side
+      setStats({
+        total:   allMembers.length,
+        active:  allMembers.filter(m => m.status === 'active').length,
+        frozen:  allMembers.filter(m => m.status === 'frozen').length,
+        expired: allMembers.filter(m => m.status === 'expired').length,
+        guest:   allMembers.filter(m => m.status === 'guest').length,
       });
-      setMembers(res.data.members ?? []);
-      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
-      if (res.data.stats) setStats(res.data.stats);
     } catch { toast.error('Failed to load data.'); }
     finally { setLoading(false); }
-  }, [page, filter, debouncedSearch]);
+  }, []);
 
   const fetchMeta = useCallback(async () => {
     try {
@@ -57,7 +59,18 @@ export default function SalesMembers() {
   useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
-  const paginated = members;
+  // Client-side filtering
+  const filtered = members.filter(m => {
+    if (filter !== 'all' && m.status !== filter) return false;
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      if (!m.name?.toLowerCase().includes(q) && !m.phones?.includes(q) && !String(m.systemId).includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <Layout>
@@ -113,10 +126,10 @@ export default function SalesMembers() {
           </Table>
           {!loading && (
             <Pagination
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              pageSize={pagination.limit ?? PAGE_SIZE}
+              page={page}
+              totalPages={totalPages}
+              total={filtered.length}
+              pageSize={PAGE_SIZE}
               onPageChange={setPage}
             />
           )}
@@ -130,7 +143,7 @@ export default function SalesMembers() {
 }
 
 function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
-  const init = { name: '', phones: '', nationalId: '', gender: '', source: '', packageId: '', assignedSales: '' };
+  const init = { name: '', phones: '', gender: '', source: '', assignedSales: '' };
   const [form, setForm] = useState(init);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -141,8 +154,8 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
     if (!validate()) return;
     setLoading(true);
     try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), nationalId: form.nationalId || null, gender: form.gender || null, source: form.source || null, packageId: form.packageId || null, assignedSales: form.assignedSales || currentUser?._id || null });
-      toast.success(form.packageId ? 'Member created!' : 'Guest added!');
+      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, assignedSales: form.assignedSales || currentUser?._id || null });
+      toast.success('Guest added!');
       setForm(init); setErrors({}); onSuccess();
     } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
     finally { setLoading(false); }
@@ -154,17 +167,12 @@ function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
         <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
         <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Input label="National ID" value={form.nationalId} onChange={e => set('nationalId', e.target.value)} />
         <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
           <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
         </Select>
         <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
           <option value="">— Select —</option>
           {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-        <Select label="Package" value={form.packageId} onChange={e => set('packageId', e.target.value)}>
-          <option value="">— Guest —</option>
-          {packages.map(p => <option key={p._id} value={p._id}>{p.name} – {p.duration} – EGP {p.price}</option>)}
         </Select>
       </div>
       <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>

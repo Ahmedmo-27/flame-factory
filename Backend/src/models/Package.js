@@ -79,6 +79,11 @@ const packageSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref:"User",
         required: true
+    },
+
+    free_pt_sessions: {
+        type: Number,
+        default: 0
     }
 
 },

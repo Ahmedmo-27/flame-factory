@@ -355,14 +355,10 @@ const getUserById = async (req, res) => {
         }
 
         const isSelf = req.user.id === user._id.toString();
-        const isManager = ["Sales Manager", "Owner"].includes(req.user.role);
+        const isManager = ["Sales Manager", "Owner", "Coach Manager"].includes(req.user.role);
 
         if (!isSelf && !isManager) {
             return res.status(403).json({ message: "Not authorized" });
-        }
-
-        if (user.role !== "Sales" && !isSelf) {
-            return res.status(400).json({ message: "Profile is only available for sales representatives" });
         }
 
         res.json(formatUserResponse(user));
@@ -485,7 +481,7 @@ const updateSalesRepTarget = async (req, res) => {
 
 const createStaffUser = async (req, res) => {
     try {
-        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+        if (!["Sales Manager", "Owner","Coach Manager"].includes(req.user.role)) {
             return res.status(403).json({ message: "Not authorized" });
         }
 
@@ -495,8 +491,8 @@ const createStaffUser = async (req, res) => {
             return res.status(400).json({ message: "name, email, password, and role are required" });
         }
 
-        if (!["Sales", "Receptionist", "Accountant"].includes(role)) {
-            return res.status(400).json({ message: "Role must be Sales, Receptionist, or Accountant" });
+        if (!["Sales", "Receptionist", "Accountant","Coach"].includes(role)) {
+            return res.status(400).json({ message: "Role must be Sales, Receptionist, Coach, or Accountant" });
         }
 
         const userExists = await User.findOne({ email: normalizeEmail(email) });
@@ -737,6 +733,145 @@ const getSalesMySubscriptions = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+// ─── Helper: build coach stats from members assigned to a coach ───────────────
+const COACH_STATUS_KEYS = {
+    active:           "active",
+    transferred:      "transferred",
+    expired:          "expired",
+    interested:       "interested",
+    "not interested": "notInterested",
+};
+
+function buildCoachStats(members, coachId) {
+    const stats = {
+        total:          0,
+        active:         0,
+        transferred:    0,
+        expired:        0,
+        interested:     0,
+        notInterested:  0,
+        totalPTSessions: 0,
+        usedPTSessions:  0,
+    };
+    const coachKey = coachId.toString();
+
+    members.forEach((member) => {
+        const assignedId = member.current_couch?._id?.toString() || member.current_couch?.toString();
+        if (assignedId !== coachKey) return;
+
+        stats.total += 1;
+        const statKey = COACH_STATUS_KEYS[member.couch_subscription_status];
+        if (statKey) stats[statKey] += 1;
+
+        stats.totalPTSessions += member.PT_sessions   || 0;
+        stats.usedPTSessions  += member.used_PT_sessions || 0;
+    });
+
+    return stats;
+}
+
+// GET /api/users/coach-team  —  Coach Manager / Owner
+const getCoachTeam = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+
+        const [team, members] = await Promise.all([
+            User.find({ role: { $in: ["Coach", "Coach Manager"] } })
+                .select("name email role abilities createdAt")
+                .sort({ name: 1 }),
+            Member.find({ current_couch: { $ne: null } })
+                .select("current_couch couch_subscription_status PT_sessions used_PT_sessions"),
+        ]);
+
+        const teamWithStats = team.map((user) => ({
+            ...formatUserResponse(user),
+            stats: buildCoachStats(members, user._id),
+        }));
+
+        res.json({ team: teamWithStats });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+// GET /api/users/coach-team/:id  —  Coach Manager / Owner
+const getCoachProfile = async (req, res) => {
+    try {
+        const Member = require("../models/Member");
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (!["Coach", "Coach Manager"].includes(user.role)) {
+            return res.status(400).json({ message: "Profile is only available for coach team members" });
+        }
+
+        const members = await Member.find({ current_couch: user._id })
+            .select("name systemId memberId phones couch_subscription_status PT_sessions used_PT_sessions current_couch");
+
+        res.json({
+            user:    formatUserResponse(user),
+            stats:   buildCoachStats(members, user._id),
+            members: members.map((m) => m.toObject()),
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const change_Role = async (req,res)=>{
+    const {id,new_role}=req.params;
+    const user=await User.findById(id);
+    if(!user){
+        return res.status(400).json({message: "user doesnt"});
+    }
+
+    if(!["Owner", "Receptionist", "Coach","Coach Manager", "Accountant", "Sales", "Sales Manager"].includes(new_role)){
+        return res.status(400).json({message: "invalid type"});
+    }
+
+    user.role = new_role;
+
+    await user.save();
+
+    res.json(user);
+};
+
+const updateCoachRepAbilities = async (req, res) => {
+    try {
+        if (req.user.role !== "Coach Manager") {
+            return res.status(403).json({ message: "Only coach managers can update coach permissions" });
+        }
+ 
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+ 
+        if (user.role !== "Coach") {
+            return res.status(400).json({ message: "Abilities can only be updated for coaches" });
+        }
+ 
+        const { abilities } = req.body;
+        if (!abilities || typeof abilities !== "object") {
+            return res.status(400).json({ message: "Abilities object is required" });
+        }
+ 
+        const allowedKeys = ["canCommentOnMembers", "canRequestAssignment", "canRequestTakeover"];
+        for (const key of allowedKeys) {
+            if (abilities[key] !== undefined) {
+                user.abilities[key] = Boolean(abilities[key]);
+            }
+        }
+ 
+        await user.save();
+        res.json({ message: "Coach abilities updated", user: formatUserResponse(user) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 
 module.exports = {
     registerUser,
@@ -754,4 +889,8 @@ module.exports = {
     getSalesProfile,
     getSubscriptionsByDate,
     getSalesMySubscriptions,
+    change_Role,
+    updateCoachRepAbilities,
+    getCoachTeam,
+    getCoachProfile,
 };

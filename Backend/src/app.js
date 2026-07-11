@@ -19,6 +19,8 @@ const sanitizeRequest = require("./middleware/sanitize");
 const { protect } = require("./middleware/authMiddleware");
 const authorize = require("./middleware/roleMiddleware");
 const { writeAudit } = require("./utils/audit");
+const coachRequestRoutes = require("./routes/coachRequestRoutes");
+
 
 const app = express();
 app.set("trust proxy", 1);
@@ -64,6 +66,7 @@ app.use("/api/package-exceptions", packageExceptionRoutes);
 app.use("/api/accounting", contractRoutes);
 app.use("/api/requests", salesRequestRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/coach-requests", coachRequestRoutes);
 
 const uploadsDir = path.join(__dirname, "../uploads");
 

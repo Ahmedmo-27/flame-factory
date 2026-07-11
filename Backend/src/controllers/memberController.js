@@ -29,6 +29,14 @@ const validateSalesAssignee = async (salesId) => {
     return salesUser;
 };
 
+const validateCoachAssignee = async (CoachId) => {
+    const CoachUser = await User.findById(CoachId);
+    if (!CoachUser || !["Coach", "Coach Manager"].includes(CoachUser.role)) {
+        return null;
+    }
+    return CoachUser;
+};
+
 // ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
 const generateSystemId = async () => {
     const last = await Member.findOne({}, { systemId: 1 }).sort({ systemId: -1 });
@@ -79,7 +87,7 @@ const findMember = async (id) => {
 const createMember = async (req, res) => {
     try {
         const {
-            name, phones, nationalId, photo,
+            name, phones, photo,
             gender, birthdate, source,
             packageId, assignedSales
         } = req.body;
@@ -90,7 +98,6 @@ const createMember = async (req, res) => {
             systemId,
             name,
             phones,
-            nationalId:    nationalId    || null,
             photo:         photo         || null,
             gender:        gender        || null,
             birthdate:     birthdate     || null,
@@ -211,6 +218,7 @@ const getMemberProfile = async (req, res) => {
             .populate("createdBy", "name role")
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
+            .populate("alert.createdBy", "name role")
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
@@ -264,9 +272,17 @@ const checkInMember = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
+        const activeAlerts = (member.alert || []).filter(a => a.active);
+
+        // __________ check member is blocked or not___________//
+        if (member.isBlocked) {
+        return res.status(403).json({ message: "Cannot check in — member is blocked" });
+        }
+
         if (member.status === "expired") {
             return res.status(400).json({ message: "Cannot check in — membership expired" });
         }
+
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -393,6 +409,10 @@ const freezeMember = async (req, res) => {
             });
         }
 
+        if (member.isBlocked) {
+            return res.status(403).json({ message: "Cannot freeze — member is blocked" });
+        }
+
         const currentPkg    = getCurrentPackage(member);
         const allowedDays   = currentPkg?.freezeLimitDays || 0;
         const requestedDays = Math.ceil((end - start) / 86400000);
@@ -450,42 +470,76 @@ function formatSalesMember(memberObj, userId, role) {
     return redactMemberForViewer(memberObj, { id: userId, role });
 }
 
+function formatCoachMember(memberObj, userId, role) {
+    attachCurrentPackage(memberObj);
+    memberObj.Type = memberObj.source;
+    const coachId = memberObj.current_couch?._id
+        ? memberObj.current_couch._id.toString()
+        : memberObj.current_couch?.toString();
+    memberObj.isAssignedToMe = Boolean(coachId && coachId === userId.toString());
+    if (role === "Coach" && !memberObj.isAssignedToMe) {
+        memberObj.phones = null;
+    }
+    return memberObj;
+}
+
 const getMembers = async (req, res) => {
     try {
-        const { page, limit, skip } = parsePagination(req.query);
-        const filter = buildMemberListFilter({
-            status: req.query.status,
-            search: req.query.search,
-            assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
-            unassigned: req.query.unassigned,
-            subscribedToday: req.query.subscribedToday,
-        });
+        if (req.user.role === "Sales") {
+            const { page, limit, skip } = parsePagination(req.query);
+            const filter = buildMemberListFilter({
+                status: req.query.status,
+                search: req.query.search,
+                assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
+                unassigned: req.query.unassigned,
+                subscribedToday: req.query.subscribedToday,
+            });
 
-        const statsFilter = { ...filter };
-        delete statsFilter["subscriptions.createdAt"];
+            const statsFilter = { ...filter };
+            delete statsFilter["subscriptions.createdAt"];
 
-        const [total, members] = await Promise.all([
-            Member.countDocuments(filter),
-            Member.find(filter)
-                .populate("assignedSales", "name email")
-                .populate("subscriptions.package", "name price duration activityType")
-                .sort({ systemId: 1 })
-                .skip(skip)
-                .limit(limit),
-        ]);
+            const [total, members] = await Promise.all([
+                Member.countDocuments(filter),
+                Member.find(filter)
+                    .populate("assignedSales", "name email")
+                    .populate("subscriptions.package", "name price duration activityType")
+                    .sort({ systemId: 1 })
+                    .skip(skip)
+                    .limit(limit),
+            ]);
 
+            const formatted = members.map((member) =>
+                formatSalesMember(member.toObject(), req.user.id, req.user.role)
+            );
+
+            const stats = await getMemberStatusStats(Member, statsFilter);
+
+            res.status(200).json({
+                count: total,
+                members: formatted,
+                pagination: buildPagination(page, limit, total),
+                stats,
+            });
+            //all members with this coach 
+        }else if(req.user.role=== "Coach"){
+            const members = await Member.find({ current_couch: req.user.id })
+            .populate("current_couch", "name email")
+            .populate("subscriptions.package", "name price duration activityType");
+
+            // ana m4 fahm al function di
+            const formatted = members.map((member) =>
+                formatCoachMember(member.toObject(), req.user.id, req.user.role)
+            );
+            // l7d hena
+            return res.status(200).json({ count: formatted.length, members: formatted });
+        }
+
+        // gets all the members for coach manager, sales manager and owner
+        const members = await salesMemberQuery();
         const formatted = members.map((member) =>
             formatSalesMember(member.toObject(), req.user.id, req.user.role)
         );
-
-        const stats = await getMemberStatusStats(Member, statsFilter);
-
-        res.status(200).json({
-            count: total,
-            members: formatted,
-            pagination: buildPagination(page, limit, total),
-            stats,
-        });
+        res.status(200).json({ count: formatted.length, members: formatted });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -516,6 +570,7 @@ const getMemberById = async (req, res) => {
     }
 };
 
+////////////// add note /////////////////////////
 const addNote = async (req, res) => {
     try {
         const { text } = req.body;
@@ -544,6 +599,51 @@ const addNote = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+///////////////// add alert ///////////////
+
+const addAlert = async (req, res) => {
+    try {
+        const { text } = req.body;
+
+        if (!text) {
+            return res.status(400).json({
+                message: "Alert text is required"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+
+        const member = await findMemberByIdentifier(identifier);
+
+        if (!member) {
+            return res.status(404).json({
+                message: "Member not found"
+            });
+        }
+
+        member.alert.push({
+            text,
+            createdBy: req.user.id
+        });
+
+        await member.save();
+
+        res.status(201).json({
+            message: "Alert added successfully",
+            member
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
+
 
 const switchSalesRep = async (req, res) => {
     try {
@@ -746,6 +846,61 @@ const addInvitation = async (req, res) => {
     }
 };
 
+// ─── 10. Get today's check-ins ────────────────────────────────────────────────
+const getTodayCheckIns = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Find members who have a check-in userlog entry today
+        const members = await Member.find({
+            "userlog": {
+                $elemMatch: {
+                    type: "check-in",
+                    createdAt: { $gte: today, $lt: tomorrow }
+                }
+            }
+        })
+            .populate("subscriptions.package", "name activityType duration")
+            .populate("assignedSales", "name")
+            .populate("userlog.createdBy", "name role")
+            .select("name systemId memberId phones status subscriptions assignedSales userlog");
+
+        // Extract today's check-in entries with member info
+        const checkIns = [];
+        members.forEach(member => {
+            member.userlog.forEach(log => {
+                if (log.type === "check-in" && new Date(log.createdAt) >= today && new Date(log.createdAt) < tomorrow) {
+                    checkIns.push({
+                        _id:       log._id,
+                        time:      log.createdAt,
+                        checkedInBy: log.createdBy,
+                        member: {
+                            _id:       member._id,
+                            name:      member.name,
+                            systemId:  member.systemId,
+                            memberId:  member.memberId,
+                            phones:    member.phones,
+                            status:    member.status,
+                            package:   member.subscriptions?.at(-1)?.package ?? null,
+                            assignedSales: member.assignedSales,
+                        }
+                    });
+                }
+            });
+        });
+
+        // Sort newest first
+        checkIns.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        res.json({ count: checkIns.length, checkIns });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─── 9. Get All Notes (for Call Center page — Sales Manager / Owner) ──────────
 const getAllNotes = async (req, res) => {
     try {
@@ -932,7 +1087,28 @@ const assignPackage = async (req, res) => {
             packageName = exceptionPkg.name;
         }
 
-        const start = startDate ? new Date(startDate) : new Date();
+        const currentSub = member.subscriptions?.at(-1);
+        const currentEndDate = currentSub?.endDate ? new Date(currentSub.endDate) : null;
+        const now = new Date();
+
+        // Start date logic:
+        let start;
+        if (startDate) {
+            start = new Date(startDate);
+            // Compare dates only (ignore time) — start date must be on or after end date
+            if (currentEndDate && currentEndDate > now) {
+                const startDay = new Date(start); startDay.setHours(0,0,0,0);
+                const endDay = new Date(currentEndDate); endDay.setHours(0,0,0,0);
+                if (startDay < endDay) {
+                    return res.status(400).json({
+                        message: `Start date must be on or after the current package end date (${currentEndDate.toISOString().slice(0, 10)})`
+                    });
+                }
+            }
+        } else {
+            start = (currentEndDate && currentEndDate > now) ? currentEndDate : now;
+        }
+
         const endDate = calcEndDate(start, terms.duration);
         const subscriptionId = await generateSubscriptionId();
         const hadSubscription = member.subscriptions?.length > 0;
@@ -942,7 +1118,10 @@ const assignPackage = async (req, res) => {
         }
 
         member.isMember = true;
-        member.status = "active";
+        // Only set status to active if the new package starts today or in the past
+        if (start <= new Date()) {
+            member.status = "active";
+        }
         member.subscriptions.push({
             subscriptionId,
             package: packageToAssign,
@@ -955,8 +1134,11 @@ const assignPackage = async (req, res) => {
             approvedBy: req.user.id,
             salesManager: null,
         });
-        member.freezeDaysUsed = 0;
-        member.invitationsUsed = 0;
+        // Only reset counters if new package starts now (not for future-scheduled packages)
+        if (start <= new Date()) {
+            member.freezeDaysUsed = 0;
+            member.invitationsUsed = 0;
+        }
         member.userlog.push({
             type: hadSubscription ? "renewal" : "other",
             text: packageTermsDiffer(basePkg, terms)
@@ -983,6 +1165,274 @@ const assignPackage = async (req, res) => {
     }
 };
 
+// ─── Upload National ID (Accountant only) ─────────────────────────────────────
+const uploadNationalId = async (req, res) => {
+    try {
+        if (req.user.role !== "Accountant") {
+            return res.status(403).json({ message: "Only accountants can upload national IDs" });
+        }
+
+        const identifier = req.params.memberId;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: "National ID file is required" });
+        }
+
+        member.nationalId = req.file.path;
+        await member.save();
+
+        res.json({ message: "National ID uploaded", nationalId: member.nationalId });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+////////////////// deactivate alert////////////////////
+const deactivateAlert = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const alertId = req.params.alertId;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        const alert = member.alert.id(alertId);
+        if (!alert) {
+            return res.status(404).json({ message: "Alert not found" });
+        }
+
+        alert.active = false;
+        await member.save();
+
+        res.json({ message: "Alert deactivated", alert });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+// ─── Block Member (Sales Manager only) ────────────────────────────────────────//
+const blockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+        const { reason } = req.body;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (member.isBlocked) {
+            return res.status(400).json({ message: "Member is already blocked" });
+        }
+
+        member.isBlocked = true;
+        member.blockedReason = reason || null;
+        member.blockedBy = req.user.id;
+        member.blockedAt = new Date();
+
+        member.userlog.push({
+            type: "other",
+            text: `Member blocked${reason ? `: ${reason}` : ''}`,
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member blocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Unblock Member (Sales Manager only) ──────────────────────────────────────//
+const unblockMember = async (req, res) => {
+    try {
+        const identifier = req.params.memberId;
+
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!member.isBlocked) {
+            return res.status(400).json({ message: "Member is not blocked" });
+        }
+
+        member.isBlocked = false;
+        member.blockedReason = null;
+        member.blockedBy = null;
+        member.blockedAt = null;
+
+        member.userlog.push({
+            type: "other",
+            text: "Member unblocked",
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+        res.json({ message: "Member unblocked", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const sessionCheckIn_for_couch = async (req, res) => {
+    try {
+        if(req.user.role==="Coach"){
+            const { memberId } = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+
+            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
+            if(member.PT_sessions > member.used_PT_sessions) {
+                member.used_PT_sessions++;
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member has no free PT sessions" });
+            }
+
+        }else if (req.user.role==="Coach Manager"){
+            const { memberId ,numberOfSessions} = req.body;
+            const member = await findMemberByIdentifier(memberId);
+            if (!member) {
+                return res.status(404).json({ message: "Member not found" });
+            }
+            if (member.couch_subscription_status !== "active") {
+                return res.status(400).json({ message: "Member is not active" });
+            }
+            if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
+
+                member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
+
+                await member.save();
+                return res.status(200).json({ message: "Session checked in" });
+            } else {
+                return res.status(400).json({ message: "Member doesn't have enough PT sessions" });
+            }
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+
+const assignCoach = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { coachId } = req.body;
+
+        const coachUser = await User.findById(coachId);
+        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
+            return res.status(404).json({ message: "Invalid Coach — user not found or not a Coach role" });
+        }
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = coachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Assigned to ${coachUser.name}`,
+            createdBy: req.user.id,
+        });
+
+        member.couch_subscription_status="active";
+
+        await member.save();
+        await member.populate("current_couch", "name role");
+
+        await notifyMemberAssigned({
+            recipientId: coachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.status(200).json({ message: "Coach assigned", member });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const addCouch_notes = async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({ message: "Note text is required" });
+        }
+
+        if (req.user.role === "Coach") {
+            const coachUser = await User.findById(req.user.id);
+            const abilities = resolveAbilities(coachUser);
+            if (!abilities.canCommentOnMembers) {
+                return res.status(403).json({ message: "You are not allowed to comment on members" });
+            }
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.couch_notes.push({ text, createdBy: req.user.id });
+        await member.save();
+        res.status(201).json({ message: "Note added successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const switchCoach = async (req, res) => {
+    try {
+        const { newCoachId } = req.body;
+        if (!newCoachId) {
+            return res.status(400).json({ message: "New Coach Rep ID is required" });
+        }
+
+        const coachUser = await validateCoachAssignee(newCoachId);
+        if (!coachUser) {
+            return res.status(400).json({
+                message: "Invalid coach — user not found or not a coach role"
+            });
+        }
+
+        const identifier = req.params.memberId || req.params.id;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        member.current_couch = newCoachId;
+        member.userlog.push({
+            type: "assign",
+            text: `Transferred to ${coachUser.name}`,
+            createdBy: req.user.id,
+        });
+        await member.save();
+
+        await notifyMemberAssigned({
+            recipientId: newCoachId,
+            member,
+            actorId: req.user.id,
+        });
+
+        res.json({ message: "Coach updated successfully", member });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 module.exports = {
     createMember,
     getAllMembers,
@@ -993,9 +1443,20 @@ module.exports = {
     getMembers,
     getMemberById,
     addNote,
+    addAlert,
+    deactivateAlert,
     switchSalesRep,
     bulkTransferSalesReps,
     addInvitation,
     getAllNotes,
     assignPackage,
+    getTodayCheckIns,
+    uploadNationalId,
+    blockMember,
+    unblockMember,
+
+    sessionCheckIn_for_couch,
+    assignCoach,
+    addCouch_notes,
+    switchCoach,
 };

@@ -41,7 +41,7 @@ router.get("/team", protect, authorizeRoles("Sales Manager", "Owner", "Accountan
 router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesProfile);
 router.get("/coach-team", protect, authorizeRoles("Coach Manager", "Owner"), getCoachTeam);
 router.get("/coach-team/:id", protect, authorizeRoles("Coach Manager", "Owner"), getCoachProfile);
-router.post("/staff", protect, authorizeRoles("Sales Manager", "Owner"), createStaffUser);
+router.post("/staff", protect, authorizeRoles("Sales Manager", "Owner", "Coach Manager"), createStaffUser);
 router.patch("/:id/target", protect, authorizeRoles("Sales Manager"), updateSalesRepTarget);
 router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateSalesRepAbilities);
 router.patch("/:id/coach-abilities", protect, authorizeRoles("Coach Manager"), updateCoachRepAbilities);

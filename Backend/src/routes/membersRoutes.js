@@ -20,7 +20,7 @@ const {
     sessionCheckIn_for_couch,
     assignCoach,
     addCouch_notes,
-    switchCoach,,
+    switchCoach,
     assignPackage,
     getTodayCheckIns,
     uploadNationalId,
@@ -72,7 +72,7 @@ router.get("/all-notes", protect, authorize("Sales Manager", "Owner","Coach Mana
 router.get("/today-checkins", protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager"), getTodayCheckIns);
 
 router.get("/:memberId", protect, (req, res, next) => {
-    const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant"];
+    const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"];
     if (profileRoles.includes(req.user.role)) {
         return getMemberProfile(req, res, next);
     }

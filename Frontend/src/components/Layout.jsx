@@ -17,6 +17,8 @@ const NAV = {
     { to: '/members', label: 'Members' },
     { to: '/sales/team', label: 'Team' },
   ],
+  Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }],
+  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }

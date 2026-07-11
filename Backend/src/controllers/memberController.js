@@ -203,6 +203,8 @@ const getMemberProfile = async (req, res) => {
             .populate("createdBy", "name role")
             .populate("assignedSales", "name role")
             .populate("notes.createdBy", "name")
+            .populate("couch_notes.createdBy", "name")
+            .populate("current_couch", "name role")
             .populate("alert.createdBy", "name role")
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
@@ -482,6 +484,12 @@ function formatCoachMember(memberObj, userId, role) {
     }
     return memberObj;
 }
+
+const salesMemberQuery = () =>
+    Member.find()
+        .populate("assignedSales", "name email")
+        .populate("current_couch", "name email")
+        .populate("subscriptions.package", "name price duration activityType");
 
 const getMembers = async (req, res) => {
     try {
@@ -1429,7 +1437,6 @@ module.exports = {
     uploadNationalId,
     blockMember,
     unblockMember,
-
     sessionCheckIn_for_couch,
     assignCoach,
     addCouch_notes,

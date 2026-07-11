@@ -13,6 +13,13 @@ export const getSubscriptionsByDate = (params = {}) =>
   api.get('/users/sales-manager/subscriptions', { params });
 export const getSalesMySubscriptions = (params = {}) =>
   api.get('/users/my-subscriptions', { params });
+
+// ── Coach ─────────────────────────────────────────────────────────────────────
+export const getCoachTeam    = () => api.get('/users/coach-team');
+export const assignCoach     = (memberId, coachId) =>
+  api.patch(`/members/${memberId}/assign-coach`, { coachId });
+export const switchCoach     = (memberId, newCoachId) =>
+  api.put(`/members/${memberId}/coach-rep`, { newCoachId });
 export const updateSalesRepTarget = (id, monthlyTarget) =>
   api.patch(`/users/${id}/target`, { monthlyTarget });
 export const updateSalesRepAbilities = (id, abilities) =>

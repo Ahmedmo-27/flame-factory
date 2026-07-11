@@ -163,7 +163,7 @@ export default function MemberProfile() {
               {activeTab === 'freeze'      && <FreezeTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'invitations' && <InvitationsTab member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'checkins'    && <CheckInsTab    checkIns={data?.checkIns ?? []} stats={data?.stats} />}
-              {activeTab === 'others'      && <OthersTab      profileViews={data?.profileViews ?? []} />}
+              {activeTab === 'others'      && <OthersTab      profileViews={data?.profileViews ?? []} member={member} user={user} />}
             </div>
           </>
         )}

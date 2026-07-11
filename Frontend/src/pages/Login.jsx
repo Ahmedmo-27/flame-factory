@@ -18,6 +18,7 @@ export default function Login() {
   if (user) {
     if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
     if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+    if (['Coach', 'Coach Manager'].includes(user.role)) return <Navigate to="/coach/dashboard" replace />;
     return <Navigate to="/members" replace />;
   }
   const validate = () => {
@@ -40,6 +41,8 @@ export default function Login() {
         navigate('/accounting/dashboard', { replace: true });
       } else if (['Sales', 'Sales Manager'].includes(user.role)) {
         navigate('/sales/dashboard', { replace: true });
+      } else if (['Coach', 'Coach Manager'].includes(user.role)) {
+        navigate('/coach/dashboard', { replace: true });
       } else {
         navigate('/members', { replace: true });
       }

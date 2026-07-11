@@ -20,6 +20,12 @@ import CallCenter         from './pages/sales/CallCenter';
 import Transfer           from './pages/sales/Transfer';
 import PackageRequests    from './pages/accounting/PackageRequests';
 import ContractHistory    from './pages/accounting/ContractHistory';
+import CoachDashboard     from './pages/coach/CoachDashboard';
+import CoachMembers       from './pages/coach/CoachMembers';
+import CoachCheckin       from './pages/coach/CoachCheckin';
+import CoachStaff         from './pages/coach/CoachStaff';
+import CoachTransfer      from './pages/coach/CoachTransfer';
+import CoachTransfers     from './pages/coach/CoachTransfers';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
 import CheckIn        from './pages/CheckIn';
 import NotFound       from './pages/NotFound';
@@ -37,6 +43,7 @@ function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
+  if (['Coach', 'Coach Manager'].includes(user.role)) return <Navigate to="/coach/dashboard" replace />;
   if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
   return <Navigate to="/members" replace />;
 }
@@ -50,7 +57,7 @@ function AppRoutes() {
 
       {/* Receptionist / Owner */}
       <Route path="/members" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Accountant']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Accountant', 'Coach Manager']}>
           <Members />
         </PrivateRoute>
       } />
@@ -148,6 +155,38 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/accounting/exceptions" element={<Navigate to="/accounting/package-requests" replace />} />
+
+      {/* Coach routes */}
+      <Route path="/coach/dashboard" element={
+        <PrivateRoute roles={['Coach', 'Coach Manager']}>
+          <CoachDashboard />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/members" element={
+        <PrivateRoute roles={['Coach', 'Coach Manager']}>
+          <CoachMembers />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/checkin" element={
+        <PrivateRoute roles={['Coach', 'Coach Manager']}>
+          <CoachCheckin />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/staff" element={
+        <PrivateRoute roles={['Coach Manager']}>
+          <CoachStaff />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/transfer" element={
+        <PrivateRoute roles={['Coach Manager']}>
+          <CoachTransfer />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/my-transfers" element={
+        <PrivateRoute roles={['Coach']}>
+          <CoachTransfers />
+        </PrivateRoute>
+      } />
 
       {/* 404 */}
       <Route path="*" element={<NotFound />} />

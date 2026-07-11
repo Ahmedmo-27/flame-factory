@@ -1,7 +1,12 @@
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 const logger = require("../utils/logger");
 
-const protect = (req, res, next) => {
+/**
+ * Verifies Bearer JWT and reloads the user from DB so role/ability changes
+ * take effect without waiting for token expiry.
+ */
+const protect = async (req, res, next) => {
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
@@ -26,7 +31,22 @@ const protect = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        const user = await User.findById(decoded.id).select("-password");
+
+        if (!user) {
+            logger.auth("warn", "Auth middleware: user not found for token", {
+                path: req.originalUrl,
+                userId: decoded.id,
+            });
+            return res.status(401).json({ message: "Not authorized, user not found" });
+        }
+
+        req.user = {
+            id: user._id.toString(),
+            role: user.role,
+            name: user.name,
+            email: user.email,
+        };
         next();
     } catch (err) {
         logger.auth("warn", "Auth middleware: token verification failed", {

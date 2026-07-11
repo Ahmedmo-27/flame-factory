@@ -121,15 +121,24 @@ export default function MemberProfile() {
           <span>{loading ? 'Loading…' : (member?.name ?? 'Profile')}</span>
         </div>
       }>
-        {member && user?.role === 'Sales Manager' && (
-          member.isBlocked
-            ? <Btn variant="outline" size="sm" onClick={handleUnblock} disabled={blocking}>
-                {blocking ? <Spinner size="sm" /> : 'Unblock'}
-              </Btn>
-            : <Btn variant="danger" size="sm" onClick={() => setShowBlockModal(true)}>
-                Block
-              </Btn>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {member && ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role) && (
+            <Btn variant={member.status === 'active' || member.status === 'frozen' ? 'success' : 'outline'} size="sm"
+              onClick={handleCheckIn} disabled={checkingIn || member.status === 'expired' || member.status === 'guest' || member.isBlocked}>
+              {checkingIn ? <Spinner size="sm" /> : 'Check In'}
+            </Btn>
+          )}
+          {member && user?.role === 'Sales Manager' && (
+            member.isBlocked
+              ? <Btn variant="outline" size="sm" onClick={handleUnblock} disabled={blocking}>
+                  {blocking ? <Spinner size="sm" /> : 'Unblock'}
+                </Btn>
+              : <Btn variant="danger" size="sm" onClick={() => setShowBlockModal(true)}>
+                  Block
+                </Btn>
+          )}
+        </div>
+
       </PageHeader>
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>

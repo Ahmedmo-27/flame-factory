@@ -29,7 +29,7 @@ export default function SalesMembers() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAllMembers();
+      const res = await getAllMembers({ all: 'true' });
       const allMembers = res.data.members ?? [];
       setMembers(allMembers);
       // Calculate stats client-side

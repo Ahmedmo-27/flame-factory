@@ -2,13 +2,21 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Btn, Input, Spinner, EmptyState, fmtDate, fmtDateTime } from '../../../components/ui';
 import { addInvitation } from '../../../api/endpoints';
-import { apiOrigin } from '../../../api/axios';
+import { fetchProtectedUploadBlobUrl } from '../../../api/axios';
+
+/** Open an authenticated upload in a new tab (Bearer required — public /uploads is disabled). */
+async function openProtectedUpload(filename) {
+  const url = await fetchProtectedUploadBlobUrl(filename);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 export default function InvitationsTab({ member, user, onRefresh }) {
   const [name,  setName]  = useState('');
   const [phone, setPhone] = useState('');
   const [file,  setFile]  = useState(null);
   const [loading, setLoading] = useState(false);
+  const [openingId, setOpeningId] = useState(null);
 
   const invitations = [...(member.invitations ?? [])].reverse();
   const sub       = member.subscriptions?.at(-1);
@@ -31,6 +39,17 @@ export default function InvitationsTab({ member, user, onRefresh }) {
       toast.success('Invitation recorded.'); setName(''); setPhone(''); setFile(null); onRefresh();
     } catch (e) { toast.error(e.response?.data?.message ?? 'Failed.'); }
     finally { setLoading(false); }
+  };
+
+  const handleViewId = async (idFile) => {
+    setOpeningId(idFile);
+    try {
+      await openProtectedUpload(idFile);
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Could not open ID file.');
+    } finally {
+      setOpeningId(null);
+    }
   };
 
   return (
@@ -86,9 +105,14 @@ export default function InvitationsTab({ member, user, onRefresh }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                   {inv.idFile && (
-                    <a href={`${apiOrigin}/uploads/${inv.idFile.split('/').pop()}`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: 'var(--blue)', textDecoration: 'none' }}>View ID</a>
+                    <button
+                      type="button"
+                      onClick={() => handleViewId(inv.idFile)}
+                      disabled={openingId === inv.idFile}
+                      style={{ fontSize: 12, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    >
+                      {openingId === inv.idFile ? 'Opening…' : 'View ID'}
+                    </button>
                   )}
                   <span style={{ fontSize: 11, color: 'var(--t4)' }}>{fmtDate(inv.usedAt)}</span>
                 </div>

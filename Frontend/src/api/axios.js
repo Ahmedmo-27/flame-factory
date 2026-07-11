@@ -12,8 +12,20 @@ function normalizeApiBaseURL(url) {
 const rawApiURL = import.meta.env.VITE_API_URL;
 const apiBaseURL = normalizeApiBaseURL(rawApiURL);
 
-/** Server origin without /api — use for static paths like /uploads. */
+/** Server origin without /api — use for authenticated /uploads downloads. */
 export const apiOrigin = apiBaseURL?.replace(/\/api$/, '') ?? '';
+
+/**
+ * Fetch a protected upload with the staff Bearer token and return a blob URL.
+ * Callers should revoke the URL when done (URL.revokeObjectURL).
+ */
+export async function fetchProtectedUploadBlobUrl(filename) {
+  const name = String(filename).split(/[/\\]/).pop();
+  const res = await api.get(`${apiOrigin}/uploads/${encodeURIComponent(name)}`, {
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(res.data);
+}
 
 if (!rawApiURL) {
   console.error(

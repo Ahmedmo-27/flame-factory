@@ -35,7 +35,7 @@ export default function Transfer() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAllMembers();
+      const res = await getAllMembers({ all: 'true' });
       setMembers(res.data.members ?? []);
     } catch {
       toast.error('Failed to load members.');

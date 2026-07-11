@@ -64,21 +64,16 @@ const createRequest = async (req, res) => {
 const updateRequestStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        if (!["accepted", "rejected"].includes(status)) {
-            return res.status(400).json({ message: "Invalid status" });
-        }
 
-        const request = await SalesRepRequest.findById(req.params.id);
+        const request = await SalesRepRequest.findOneAndUpdate(
+            { _id: req.params.id, status: "pending" },
+            { $set: { status } },
+            { new: true }
+        );
+
         if (!request) {
-            return res.status(404).json({ message: "Request not found" });
+            return res.status(409).json({ message: "Request not found or already processed" });
         }
-
-        if (request.status !== "pending") {
-            return res.status(400).json({ message: "Request has already been processed" });
-        }
-
-        request.status = status;
-        await request.save();
 
         if (status === "accepted") {
             const member = await Member.findById(request.member);

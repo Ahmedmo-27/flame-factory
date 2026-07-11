@@ -1,23 +1,23 @@
 const express = require("express");
-const router  = express.Router();
+const router = express.Router();
+const { protect } = require("../middleware/authMiddleware");
+const authorize = require("../middleware/roleMiddleware");
+const validate = require("../middleware/validate");
+const {
+    salesRequestSchema,
+    salesRequestStatusSchema,
+} = require("../validation/schemas");
 const {
     createRequest,
     updateRequestStatus,
     getRequests
 } = require("../controllers/salesRequestController");
-const { protect } = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
 
-// All routes require authentication
+// Identical auth on /api/sales-requests and /api/requests (both mount this router)
 router.use(protect);
 
-// Sales sees own requests; Sales Manager/Owner sees all
 router.get("/",           authorize("Sales", "Sales Manager", "Owner"), getRequests);
-
-// Sales creates a reassignment request
-router.post("/",          authorize("Sales"),                           createRequest);
-
-// Sales Manager / Owner approves or rejects
-router.put("/:id/status", authorize("Sales Manager", "Owner"),          updateRequestStatus);
+router.post("/",          authorize("Sales"), validate(salesRequestSchema), createRequest);
+router.put("/:id/status", authorize("Sales Manager", "Owner"), validate(salesRequestStatusSchema), updateRequestStatus);
 
 module.exports = router;

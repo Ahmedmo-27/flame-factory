@@ -7,7 +7,61 @@ import Layout from '../../components/Layout';
 import { PageHeader, Card, CardHeader, StatCard, Spinner, Avatar, Badge, EmptyState, fmtDate } from '../../components/ui';
 import { getAllMembers, getSalesTeam, getRequests, getTodayCheckIns, getSalesManagerRevenue } from '../../api/endpoints';
 
-const fmt = n => Number(n ?? 0).toLocaleString();
+const fmt = (n) => {
+  const num = typeof n === 'number' ? n : Number(String(n ?? 0).replace(/,/g, ''));
+  return Number.isFinite(num) ? num.toLocaleString() : '0';
+};
+
+function getAssignedRepId(member) {
+  const rep = member?.assignedSales ?? member?.salesRep;
+  if (!rep) return null;
+  return String(rep._id ?? rep.id ?? rep);
+}
+
+function isCurrentMonth(date) {
+  if (!date) return false;
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+/** Derive per-rep counts/revenue from the members list (authoritative for the dashboard). */
+function buildRepStatsFromMembers(members, repId) {
+  const stats = { total: 0, active: 0, frozen: 0, expired: 0, guests: 0, monthlyRevenue: 0 };
+  const key = String(repId ?? '');
+  if (!key) return stats;
+
+  for (const member of members) {
+    if (getAssignedRepId(member) !== key) continue;
+
+    stats.total += 1;
+    if (member.status === 'active') stats.active += 1;
+    else if (member.status === 'frozen') stats.frozen += 1;
+    else if (member.status === 'expired') stats.expired += 1;
+    else if (member.status === 'guest') stats.guests += 1;
+
+    for (const sub of member.subscriptions || []) {
+      const saleDate = sub.startDate || sub.createdAt;
+      if (!isCurrentMonth(saleDate)) continue;
+      const price = Number(sub.pricePaid ?? sub.package?.price ?? 0);
+      if (Number.isFinite(price) && price > 0) stats.monthlyRevenue += price;
+    }
+  }
+
+  return stats;
+}
+
+function normalizeRepStats(apiStats = {}) {
+  return {
+    total: Number(apiStats.total ?? 0) || 0,
+    active: Number(apiStats.active ?? 0) || 0,
+    frozen: Number(apiStats.frozen ?? 0) || 0,
+    expired: Number(apiStats.expired ?? 0) || 0,
+    guests: Number(apiStats.guests ?? apiStats.guest ?? 0) || 0,
+    monthlyRevenue: Number(apiStats.monthlyRevenue ?? 0) || 0,
+  };
+}
 
 export default function SalesDashboard() {
   usePageTitle('Dashboard');
@@ -27,23 +81,38 @@ export default function SalesDashboard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, rRes, cRes] = await Promise.all([
-        getAllMembers(),
+      const settled = await Promise.allSettled([
+        getAllMembers({ all: 'true' }),
         getRequests(),
         getTodayCheckIns(),
+        isManager ? getSalesTeam() : Promise.resolve(null),
+        isManager ? getSalesManagerRevenue() : Promise.resolve(null),
       ]);
-      setMembers(mRes.data.members ?? []);
-      setRequests(Array.isArray(rRes.data) ? rRes.data : []);
-      setCheckIns(cRes.data.checkIns ?? []);
+
+      const [mRes, rRes, cRes, tRes, revRes] = settled;
+      let failed = false;
+
+      if (mRes.status === 'fulfilled') setMembers(mRes.value.data.members ?? []);
+      else { setMembers([]); failed = true; }
+
+      if (rRes.status === 'fulfilled') {
+        setRequests(Array.isArray(rRes.value.data) ? rRes.value.data : []);
+      } else { setRequests([]); failed = true; }
+
+      if (cRes.status === 'fulfilled') setCheckIns(cRes.value.data.checkIns ?? []);
+      else { setCheckIns([]); failed = true; }
 
       if (isManager) {
-        const [tRes, revRes] = await Promise.all([
-          getSalesTeam(),
-          getSalesManagerRevenue(),
-        ]);
-        setTeam(tRes.data.team ?? []);
-        setRevenue(revRes.data);
+        if (tRes.status === 'fulfilled') {
+          const payload = tRes.value.data;
+          setTeam(Array.isArray(payload?.team) ? payload.team : Array.isArray(payload) ? payload : []);
+        } else { setTeam([]); failed = true; }
+
+        if (revRes.status === 'fulfilled') setRevenue(revRes.value.data);
+        else { setRevenue(null); failed = true; }
       }
+
+      if (failed) toast.error('Failed to load some dashboard data');
     } catch {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -123,6 +192,23 @@ export default function SalesDashboard() {
     recentNotes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
+  const salesReps = team
+    .filter((t) => t.role === 'Sales')
+    .map((rep) => {
+      const fromMembers = buildRepStatsFromMembers(members, rep._id);
+      // Prefer member-derived stats when the members list loaded; otherwise API stats.
+      const stats = members.length > 0 ? fromMembers : normalizeRepStats(rep.stats);
+      const target = Number(rep.monthlyTarget ?? 0) || 0;
+      const pct = target > 0
+        ? Math.min(100, Math.round((stats.monthlyRevenue / target) * 100))
+        : null;
+      return { ...rep, stats, monthlyTarget: target, pct };
+    });
+
+  const currentMonthRevenue = Number(
+    revenue?.monthlyBreakdown?.[0]?.revenue ?? revenue?.currentMonthRevenue ?? 0
+  ) || 0;
+
   return (
     <Layout>
       <PageHeader title="Dashboard">
@@ -136,7 +222,7 @@ export default function SalesDashboard() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spinner size="lg" /></div>
         ) : (
           <>
-            {/* ── KPI Row ─────────────────────────────────────────── */}
+            {/* KPI Row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
               {isManager && revenue && (
                 <StatCard label="Today's Revenue" value={`${fmt(revenue.todayRevenue)} EGP`} color="brand"
@@ -160,7 +246,7 @@ export default function SalesDashboard() {
 
             <div style={{ display: 'grid', gridTemplateColumns: isManager ? '1fr 1fr' : '1fr', gap: 16 }}>
 
-              {/* ── Left column ─────────────────────────────────────── */}
+              {/* Left column */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                 {/* Manager: Expiring soon / Sales: Recent Notes */}
@@ -211,7 +297,7 @@ export default function SalesDashboard() {
                       </span>
                     </div>
                     {recentNotes.length === 0 ? (
-                      <EmptyState icon="💬" message="No recent notes" sub="Notes added to your members will appear here" />
+                      <EmptyState icon="📝" message="No recent notes" sub="Notes added to your members will appear here" />
                     ) : (
                       <div style={{ maxHeight: 280, overflowY: 'auto' }}>
                         {recentNotes.slice(0, 8).map((note, i) => (
@@ -276,7 +362,7 @@ export default function SalesDashboard() {
                 />
               </div>
 
-              {/* ── Right column (Manager only) ─────────────────────── */}
+              {/* Right column (Manager only) */}
               {isManager && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -286,42 +372,37 @@ export default function SalesDashboard() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>Team Performance</span>
                       <span onClick={() => navigate('/sales/team')} style={{ fontSize: 11, color: 'var(--blue)', cursor: 'pointer', fontWeight: 600 }}>View team →</span>
                     </div>
-                    {team.filter(t => t.role === 'Sales').length === 0 ? (
+                    {salesReps.length === 0 ? (
                       <EmptyState message="No sales reps found" />
                     ) : (
                       <div>
-                        {team.filter(t => t.role === 'Sales').map(rep => {
-                          const pct = rep.monthlyTarget > 0
-                            ? Math.min(100, Math.round((rep.stats.monthlyRevenue / rep.monthlyTarget) * 100))
-                            : null;
-                          return (
+                        {salesReps.map(rep => (
                             <div key={rep._id} onClick={() => navigate(`/sales/team/${rep._id}`)}
                               style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: pct !== null ? 8 : 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: rep.pct !== null ? 8 : 0 }}>
                                 <Avatar name={rep.name} size="sm" />
                                 <div style={{ flex: 1 }}>
                                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{rep.name}</div>
                                   <div style={{ fontSize: 11, color: 'var(--t4)' }}>
-                                    {rep.stats.total} members · {fmt(rep.stats.monthlyRevenue)} EGP this month
+                                    {fmt(rep.stats.total)} members · {fmt(rep.stats.monthlyRevenue)} EGP this month
                                   </div>
                                 </div>
-                                {pct !== null && (
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--blue)' : 'var(--amber)' }}>
-                                    {pct}%
+                                {rep.pct !== null && (
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: rep.pct >= 100 ? 'var(--green)' : rep.pct >= 60 ? 'var(--blue)' : 'var(--amber)' }}>
+                                    {rep.pct}%
                                   </span>
                                 )}
                               </div>
-                              {pct !== null && (
+                              {rep.pct !== null && (
                                 <div style={{ height: 4, background: 'var(--bg)', borderRadius: 2, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${pct}%`, background: pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--blue)' : 'var(--amber)', borderRadius: 2 }} />
+                                  <div style={{ height: '100%', width: `${rep.pct}%`, background: rep.pct >= 100 ? 'var(--green)' : rep.pct >= 60 ? 'var(--blue)' : 'var(--amber)', borderRadius: 2 }} />
                                 </div>
                               )}
                             </div>
-                          );
-                        })}
+                        ))}
                       </div>
                     )}
                   </Card>
@@ -332,7 +413,7 @@ export default function SalesDashboard() {
                       { label: 'Targets', sub: 'Revenue tracking', to: '/sales/targets', icon: '📊' },
                       { label: 'Packages', sub: 'Manage plans', to: '/sales/packages', icon: '📦' },
                       { label: 'Transfer', sub: 'Move members', to: '/sales/transfer', icon: '🔄' },
-                      { label: 'Staff', sub: 'Create accounts', to: '/sales/staff', icon: '👤' },
+                      { label: 'Staff', sub: 'Create accounts', to: '/sales/staff', icon: '👥' },
                     ].map(c => (
                       <button key={c.to} onClick={() => navigate(c.to)} style={{
                         background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
@@ -356,7 +437,7 @@ export default function SalesDashboard() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div style={{ background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', padding: '10px 12px' }}>
                           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>This Month</div>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)' }}>{fmt(revenue.monthlyBreakdown?.[0]?.revenue)} EGP</div>
+                          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)' }}>{fmt(currentMonthRevenue)} EGP</div>
                         </div>
                         <div style={{ background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', padding: '10px 12px' }}>
                           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>This Year</div>
@@ -372,7 +453,7 @@ export default function SalesDashboard() {
         )}
       </div>
 
-      {/* ── Today's Activity Popup ─────────────────────────────── */}
+      {/* Today's Activity Popup */}
       {showActivity && (
         <div
           onClick={() => setShowActivity(false)}
@@ -389,7 +470,7 @@ export default function SalesDashboard() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)' }}>Today's Check-Ins ({myCheckIns.length})</h2>
-              <button onClick={() => setShowActivity(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', color: 'var(--t3)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => setShowActivity(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', color: 'var(--t3)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
             {myCheckIns.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -425,7 +506,7 @@ export default function SalesDashboard() {
         </div>
       )}
 
-      {/* ── Today's Contracts Popup (Sales only) ──────────────────── */}
+      {/* Today's Contracts Popup */}
       {showTodaySubs && (
         <div
           onClick={() => setShowTodaySubs(false)}
@@ -442,7 +523,7 @@ export default function SalesDashboard() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)' }}>Today's Contracts ({todaySubscriptions.length})</h2>
-              <button onClick={() => setShowTodaySubs(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', color: 'var(--t3)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => setShowTodaySubs(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', color: 'var(--t3)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
             {todaySubscriptions.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center' }}>

@@ -62,16 +62,16 @@ function AppRoutes() {
         </PrivateRoute>
       } />
 
-      {/* Everyone authenticated can view a member profile */}
+      {/* Member profile — roles must match Backend membersRoutes profileRoles */}
       <Route path="/members/:id" element={
-        <PrivateRoute>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach', 'Accountant']}>
           <MemberProfile />
         </PrivateRoute>
       } />
 
-      {/* Check-in — not available to Accountant */}
+      {/* Check-in — API writeAccess is Receptionist/Owner/Sales Manager only */}
       <Route path="/checkin" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
           <CheckIn />
         </PrivateRoute>
       } />

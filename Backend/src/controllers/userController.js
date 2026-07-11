@@ -4,6 +4,12 @@ const { formatUserResponse } = require("../utils/userAbilities");
 const logger = require("../utils/logger");
 const { hashPassword, verifyPassword, normalizeEmail } = require("../utils/passwordUtils");
 const {
+    getLockState,
+    recordLoginFailure,
+    clearLoginFailures,
+} = require("../middleware/loginLockout");
+const { writeAudit } = require("../utils/audit");
+const {
     monthKey,
     dayKey,
     isSameDay,
@@ -13,6 +19,7 @@ const {
 } = require("../utils/revenueUtils");
 
 const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
+const GENERIC_LOGIN_FAILURE = "Invalid email or password";
 
 const registerUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -21,6 +28,7 @@ const registerUser = async (req, res) => {
         logger.auth("info", "Register attempt", {
             requestId,
             ip: req.ip,
+            actorId: req.user?.id,
             hasJwtSecret: Boolean(process.env.JWT_SECRET),
         });
 
@@ -39,7 +47,7 @@ const registerUser = async (req, res) => {
 
         const userExists = await User.findOne({ email });
         if (userExists) {
-            logger.auth("warn", "Register rejected: user exists", { requestId, email });
+            logger.auth("warn", "Register rejected: user exists", { requestId });
             return res.status(400).json({ message: "User already exists" });
         }
 
@@ -49,8 +57,8 @@ const registerUser = async (req, res) => {
         logger.auth("info", "Register success", {
             requestId,
             userId: user._id.toString(),
-            email: user.email,
             role: user.role,
+            createdBy: req.user?.id,
         });
 
         res.status(201).json({
@@ -58,7 +66,7 @@ const registerUser = async (req, res) => {
             user: { _id: user._id, name: user.name, email: user.email, role: user.role },
         });
     } catch (error) {
-        logger.auth("error", "Register error", { requestId, error: error.message, stack: error.stack });
+        logger.auth("error", "Register error", { requestId, error: error.message });
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
@@ -67,26 +75,19 @@ const loginUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     try {
-        const rawEmail = req.body?.email;
-        const email = normalizeEmail(rawEmail);
-        const passwordProvided = Boolean(req.body?.password);
-        const passwordLength = req.body?.password ? String(req.body.password).length : 0;
+        const email = normalizeEmail(req.body?.email);
 
         logger.auth("info", "Login attempt", {
             requestId,
             ip: req.ip,
             userAgent: req.get("user-agent"),
-            rawEmail: rawEmail || null,
-            normalizedEmail: email || null,
-            emailNormalized: rawEmail !== email,
-            passwordProvided,
-            passwordLength,
+            hasEmail: Boolean(email),
             hasJwtSecret: Boolean(process.env.JWT_SECRET),
             apiBaseHint: req.get("origin") || req.get("referer") || null,
         });
 
         if (!process.env.JWT_SECRET) {
-            logger.auth("error", "Login blocked: JWT_SECRET missing", { requestId, email });
+            logger.auth("error", "Login blocked: JWT_SECRET missing", { requestId });
             return res.status(500).json({ message: "Server misconfigured: JWT_SECRET is missing" });
         }
 
@@ -95,39 +96,62 @@ const loginUser = async (req, res) => {
             return res.status(400).json({ message: "Email and password are required" });
         }
 
-        const user = await User.findOne({ email });
-        if (!user) {
-            logger.auth("warn", "Login failed: user not found", { requestId, email });
-            return res.status(400).json({ message: "User not found" });
+        const lock = getLockState(email);
+        if (lock.locked) {
+            logger.auth("warn", "Login blocked: account locked", { requestId });
+            return res.status(429).json({
+                message: "Account temporarily locked due to failed login attempts",
+                lockedUntil: new Date(lock.lockedUntil).toISOString(),
+            });
         }
 
-        const { match, inspection, compareSkipped } = await verifyPassword(
+        const user = await User.findOne({ email });
+        if (!user) {
+            const fail = recordLoginFailure(email);
+            logger.auth("warn", "Login failed: invalid credentials", {
+                requestId,
+                failureCount: fail.count,
+            });
+            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+        }
+
+        const { match, compareSkipped, needsRehash } = await verifyPassword(
             req.body.password,
             user.password,
-            { requestId, userId: user._id.toString(), email }
+            { requestId, userId: user._id.toString() }
         );
 
         if (compareSkipped || !match) {
-            logger.auth("warn", "Login failed: invalid password", {
+            const fail = recordLoginFailure(email);
+            logger.auth("warn", "Login failed: invalid credentials", {
                 requestId,
                 userId: user._id.toString(),
-                email,
-                inspection,
-                compareSkipped,
+                failureCount: fail.count,
+                locked: Boolean(fail.lockedUntil),
             });
-            return res.status(400).json({ message: "Invalid password" });
+            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+        }
+
+        clearLoginFailures(email);
+
+        if (needsRehash) {
+            user.password = await hashPassword(req.body.password);
+            await user.save();
+            logger.auth("info", "Password rehashed to current cost factor", {
+                requestId,
+                userId: user._id.toString(),
+            });
         }
 
         const token = jwt.sign(
             { id: user.id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "1d" }
+            { expiresIn: process.env.JWT_EXPIRES_IN || "8h" }
         );
 
         logger.auth("info", "Login success", {
             requestId,
             userId: user._id.toString(),
-            email: user.email,
             role: user.role,
         });
 
@@ -137,7 +161,7 @@ const loginUser = async (req, res) => {
             user: formatUserResponse(user),
         });
     } catch (error) {
-        logger.auth("error", "Login error", { requestId, error: error.message, stack: error.stack });
+        logger.auth("error", "Login error", { requestId, error: error.message });
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
@@ -484,8 +508,17 @@ const createStaffUser = async (req, res) => {
         logger.auth("info", "Staff user created", {
             createdBy: req.user.id,
             userId: user._id.toString(),
-            email: user.email,
             role: user.role,
+        });
+
+        await writeAudit({
+            action: "staff_created",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "user",
+            targetId: user._id,
+            meta: { role: user.role },
+            req,
         });
 
         res.status(201).json({
@@ -493,7 +526,7 @@ const createStaffUser = async (req, res) => {
             user: formatUserResponse(user),
         });
     } catch (error) {
-        logger.auth("error", "Staff user create error", { error: error.message, stack: error.stack });
+        logger.auth("error", "Staff user create error", { error: error.message });
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
@@ -526,6 +559,17 @@ const updateSalesRepAbilities = async (req, res) => {
         }
 
         await user.save();
+
+        await writeAudit({
+            action: "sales_abilities_updated",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "user",
+            targetId: user._id,
+            meta: { abilities: user.abilities },
+            req,
+        });
+
         res.json({ message: "Abilities updated", user: formatUserResponse(user) });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });

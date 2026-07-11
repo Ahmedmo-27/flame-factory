@@ -485,61 +485,52 @@ function formatCoachMember(memberObj, userId, role) {
 
 const getMembers = async (req, res) => {
     try {
-        if (req.user.role === "Sales") {
-            const { page, limit, skip } = parsePagination(req.query);
-            const filter = buildMemberListFilter({
-                status: req.query.status,
-                search: req.query.search,
-                assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
-                unassigned: req.query.unassigned,
-                subscribedToday: req.query.subscribedToday,
-            });
-
-            const statsFilter = { ...filter };
-            delete statsFilter["subscriptions.createdAt"];
-
-            const [total, members] = await Promise.all([
-                Member.countDocuments(filter),
-                Member.find(filter)
-                    .populate("assignedSales", "name email")
-                    .populate("subscriptions.package", "name price duration activityType")
-                    .sort({ systemId: 1 })
-                    .skip(skip)
-                    .limit(limit),
-            ]);
-
-            const formatted = members.map((member) =>
-                formatSalesMember(member.toObject(), req.user.id, req.user.role)
-            );
-
-            const stats = await getMemberStatusStats(Member, statsFilter);
-
-            res.status(200).json({
-                count: total,
-                members: formatted,
-                pagination: buildPagination(page, limit, total),
-                stats,
-            });
-            //all members with this coach 
-        }else if(req.user.role=== "Coach"){
+        if (req.user.role === "Coach") {
             const members = await Member.find({ current_couch: req.user.id })
-            .populate("current_couch", "name email")
-            .populate("subscriptions.package", "name price duration activityType");
+                .populate("current_couch", "name email")
+                .populate("subscriptions.package", "name price duration activityType");
 
-            // ana m4 fahm al function di
             const formatted = members.map((member) =>
                 formatCoachMember(member.toObject(), req.user.id, req.user.role)
             );
-            // l7d hena
             return res.status(200).json({ count: formatted.length, members: formatted });
         }
 
-        // gets all the members for coach manager, sales manager and owner
-        const members = await salesMemberQuery();
+        // Sales, Sales Manager, Owner, Coach Manager
+        const { page, limit, skip } = parsePagination(req.query);
+        const filter = buildMemberListFilter({
+            status: req.query.status,
+            search: req.query.search,
+            assignedSales: req.user.role === "Sales" ? req.user.id : req.query.assignedSales,
+            unassigned: req.query.unassigned,
+            subscribedToday: req.query.subscribedToday,
+        });
+
+        const statsFilter = { ...filter };
+        delete statsFilter["subscriptions.createdAt"];
+
+        const [total, members] = await Promise.all([
+            Member.countDocuments(filter),
+            Member.find(filter)
+                .populate("assignedSales", "name email")
+                .populate("subscriptions.package", "name price duration activityType")
+                .sort({ systemId: 1 })
+                .skip(skip)
+                .limit(limit),
+        ]);
+
         const formatted = members.map((member) =>
             formatSalesMember(member.toObject(), req.user.id, req.user.role)
         );
-        res.status(200).json({ count: formatted.length, members: formatted });
+
+        const stats = await getMemberStatusStats(Member, statsFilter);
+
+        res.status(200).json({
+            count: total,
+            members: formatted,
+            pagination: buildPagination(page, limit, total),
+            stats,
+        });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }

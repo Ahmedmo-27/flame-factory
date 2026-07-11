@@ -28,7 +28,7 @@ export default function SalesDashboard() {
     setLoading(true);
     try {
       const [mRes, rRes, cRes] = await Promise.all([
-        getAllMembers(),
+        getAllMembers({ all: 'true' }),
         getRequests(),
         getTodayCheckIns(),
       ]);

@@ -25,7 +25,8 @@ const coachRequestRoutes = require("./routes/coachRequestRoutes");
 const app = express();
 app.set("trust proxy", 1);
 
-const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+// Browser Origin never has a trailing slash — strip so misconfigured env still matches.
+const frontendOrigin = (process.env.FRONTEND_ORIGIN || "http://localhost:5173").replace(/\/+$/, "");
 
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "same-site" },

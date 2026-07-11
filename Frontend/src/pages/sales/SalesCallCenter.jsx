@@ -18,7 +18,7 @@ export default function SalesCallCenter() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAllMembers();
+      const res = await getAllMembers({ all: 'true' });
       const members = res.data.members ?? [];
 
       // Extract all notes written by the current user

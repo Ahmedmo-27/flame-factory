@@ -127,7 +127,9 @@ export default function Layout({ children }) {
               <GlobalSearch />
             </div>
 
-            {showNotifications && <NotificationBell />}
+            <div id="desk-notif" className="desk-notif">
+              {showNotifications && <NotificationBell />}
+            </div>
 
             {/* Profile */}
             <div ref={dropRef} style={{ position: 'relative' }}>
@@ -209,6 +211,11 @@ export default function Layout({ children }) {
         <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <GlobalSearch />
         </div>
+        {showNotifications && (
+          <div className="mob-drawer-notif" style={{ padding: '0 12px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <NotificationBell variant="drawer" />
+          </div>
+        )}
         <nav style={{ flex: 1, padding: '10px 10px', overflowY: 'auto' }}>
           {items.map((item) => (
             <NavItem key={item.to} item={item} variant="drawer" onNavigate={() => setMob(false)} />
@@ -265,7 +272,7 @@ export default function Layout({ children }) {
         }
 
         @media (max-width: 1024px) {
-          .desk-nav, #desk-search { display: none !important; }
+          .desk-nav, #desk-search, .desk-notif { display: none !important; }
           #mob-btn { display: flex !important; }
         }
 

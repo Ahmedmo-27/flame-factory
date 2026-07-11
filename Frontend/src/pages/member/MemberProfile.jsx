@@ -121,7 +121,7 @@ export default function MemberProfile() {
           <span>{loading ? 'Loading…' : (member?.name ?? 'Profile')}</span>
         </div>
       }>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="member-profile-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {member && ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role) && (
             <Btn variant={member.status === 'active' || member.status === 'frozen' ? 'success' : 'outline'} size="sm"
               onClick={handleCheckIn} disabled={checkingIn || member.status === 'expired' || member.status === 'guest' || member.isBlocked}>
@@ -245,7 +245,7 @@ function ProfileHeader({ member, stats }) {
   ];
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
+    <div className="member-profile-header" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
       <Avatar name={member.name} size="lg" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 6 }}>

@@ -496,7 +496,7 @@ export function Card({ children, style = {}, noPad = false }) {
 }
 export function CardHeader({ title, children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+    <div className="card-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.1px' }}>{title}</h3>
       {children && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>}
     </div>
@@ -509,6 +509,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   if (!open) return null;
   return (
     <div
+      className="modal-backdrop"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 200,
@@ -519,7 +520,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
       <div
         onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true"
-        className="fade-up"
+        className="fade-up modal-panel"
         style={{
           background: '#fff', borderRadius: 8,
           border: '1px solid var(--border)',
@@ -585,7 +586,7 @@ export function Table({ headers, children, loading, skeletonRows = 5 }) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 export function Tabs({ tabs, active, onChange }) {
   return (
-    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20, gap: 0, overflowX: 'auto' }}>
+    <div className="tabs-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20, gap: 0, overflowX: 'auto' }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           padding: '8px 16px', background: 'none', border: 'none',
@@ -663,9 +664,9 @@ export function StatCard({ label, value, color = 'default', sub, onClick }) {
 export function PageHeader({ title, children }) {
   return (
     <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', padding: '0' }}>
-      <div className="wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, height: 52 }}>
-        <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.2px' }}>{title}</h1>
-        {children && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{children}</div>}
+      <div className="wrap page-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, height: 52 }}>
+        <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.2px', flexShrink: 0 }}>{title}</h1>
+        {children && <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>{children}</div>}
       </div>
     </div>
   );
@@ -721,7 +722,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPageChange }) 
   const end = Math.min(page * pageSize, total);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+    <div className="pagination-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
       <span style={{ fontSize: 12, color: 'var(--t4)' }}>{start}–{end} of {total}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Btn variant="outline" size="xs" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>← Prev</Btn>
@@ -735,7 +736,7 @@ export function Pagination({ page, totalPages, total, pageSize, onPageChange }) 
 // ── Search Input ──────────────────────────────────────────────────────────────
 export function SearchInput({ value, onChange, placeholder = 'Search…', width = 220 }) {
   return (
-    <div style={{ position: 'relative', width }}>
+    <div className="search-input-wrap" style={{ position: 'relative', width, maxWidth: '100%' }}>
       <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--t4)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input
         type="search" value={value} onChange={e => onChange(e.target.value)}
@@ -756,7 +757,7 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', width 
 // ── Info Row ──────────────────────────────────────────────────────────────────
 export function InfoRow({ label, value }) {
   return (
-    <div style={{
+    <div className="info-row" style={{
       display: 'grid', gridTemplateColumns: '160px 1fr',
       padding: '10px 0', borderBottom: '1px solid var(--bg)', gap: 16, alignItems: 'start',
     }}>

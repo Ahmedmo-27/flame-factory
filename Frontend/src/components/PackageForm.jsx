@@ -46,7 +46,7 @@ export default function PackageForm({ form, onChange, errors }) {
         label="Package Name *" value={form.name} error={errors.name}
         onChange={e => set('name', e.target.value)} placeholder="e.g. Gold Membership"
       />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-2">
         <Select label="Activity Type" value={form.activityType} onChange={e => set('activityType', e.target.value)}>
           {ACTIVITY_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
         </Select>
@@ -58,7 +58,7 @@ export default function PackageForm({ form, onChange, errors }) {
         label="Price (EGP) *" type="number" min="0" value={form.price} error={errors.price}
         onChange={e => set('price', e.target.value)} placeholder="0"
       />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+      <div className="grid-3">
         <Input
           label="Freeze Limit (days)" type="number" min="0"
           value={form.freezeLimitDays} error={errors.freezeLimitDays}

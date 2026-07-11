@@ -37,7 +37,7 @@ function Stat({ label, value, sub, color = 'var(--t1)', accent }) {
 // ── Inner tab bar ─────────────────────────────────────────────────────────────
 function TabBar({ tabs, active, onChange }) {
   return (
-    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+    <div className="tab-bar-scroll" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto' }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           padding: '8px 18px', background: 'none', border: 'none',

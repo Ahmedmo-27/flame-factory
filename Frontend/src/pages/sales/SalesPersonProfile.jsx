@@ -209,7 +209,7 @@ export default function SalesPersonProfile() {
               </div>
 
               {/* Stats strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+              <div className="grid-stats-5" style={{ background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
                 {[
                   { l: 'Total',   v: stats?.total,   c: 'var(--navy)' },
                   { l: 'Active',  v: stats?.active,  c: 'var(--green)' },

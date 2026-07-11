@@ -82,7 +82,7 @@ export default function CheckIn() {
       <PageHeader title="Check In" />
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="grid-checkin">
 
           {/* ── Left column: Search + Member card ──────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -135,7 +135,8 @@ export default function CheckIn() {
 
                 {/* Package strip */}
                 {pkg && (
-                  <div style={{
+                  <div                     className="grid-2"
+                    style={{
                     display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1,
                     background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 18,
                   }}>
@@ -276,14 +277,6 @@ export default function CheckIn() {
 
         </div>
       </div>
-
-      {/* Mobile: stack columns */}
-      <style>{`
-        @media (max-width: 900px) {
-          .page-wrap > div { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-
       {/* ── Alert Popup (big centered, auto-dismiss 5s) ──────────── */}
       {alertPopup && (
         <div

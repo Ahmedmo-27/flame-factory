@@ -247,7 +247,7 @@ export default function SalesDashboard() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isManager ? '1fr 1fr' : '1fr', gap: 16 }}>
+            <div className={`grid-split-2${isManager ? ' cols-2' : ''}`}>
 
               {/* Left column */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -411,7 +411,7 @@ export default function SalesDashboard() {
                   </Card>
 
                   {/* Quick links */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="grid-2" style={{ gap: 10 }}>
                     {[
                       { label: 'Targets', sub: 'Revenue tracking', to: '/sales/targets', icon: '📊' },
                       { label: 'Packages', sub: 'Manage plans', to: '/sales/packages', icon: '📦' },
@@ -437,7 +437,7 @@ export default function SalesDashboard() {
                   {revenue && (
                     <Card>
                       <CardHeader title="Revenue Snapshot" />
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="grid-2">
                         <div style={{ background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', padding: '10px 12px' }}>
                           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>This Month</div>
                           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)' }}>{fmt(currentMonthRevenue)} EGP</div>

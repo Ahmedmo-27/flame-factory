@@ -115,7 +115,7 @@ export default function GlobalSearch() {
   };
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', flex: '0 1 280px' }}>
+    <div ref={wrapRef} className="global-search-wrap" style={{ position: 'relative', flex: '0 1 280px' }}>
       {/* Input */}
       <div style={{ position: 'relative' }}>
         <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)', pointerEvents: 'none', flexShrink: 0 }}
@@ -145,7 +145,7 @@ export default function GlobalSearch() {
           onMouseLeave={e => { if (document.activeElement !== e.target) e.target.style.background = 'rgba(255,255,255,0.08)'; }}
         />
         {/* Kbd hint */}
-        <kbd style={{
+        <kbd className="mob-hide-kbd" style={{
           position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
           fontSize: 10, color: 'rgba(255,255,255,0.28)',
           background: 'rgba(255,255,255,0.08)',
@@ -157,7 +157,7 @@ export default function GlobalSearch() {
 
       {/* Dropdown */}
       {open && (
-        <div style={{
+        <div className="global-search-dropdown dropdown-panel" style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0,
           width: 360, background: '#fff',
           border: '1px solid var(--border)', borderRadius: 8,
@@ -361,7 +361,7 @@ function AddPersonModal({ initialName, onClose, onSuccess }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+          <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
             <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} placeholder="Full name" />
             <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} placeholder="Phone number" />
             <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>

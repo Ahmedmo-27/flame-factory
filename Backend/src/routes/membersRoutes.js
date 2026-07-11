@@ -35,7 +35,8 @@ const {
     addAlert,
     deactivateAlert,
     blockMember,
-    unblockMember
+    unblockMember,
+    addPT_sessions,
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -97,4 +98,6 @@ router.put("/:memberId/coach-rep", protect, authorizeRoles("Coach Manager", "Own
 router.post("/:memberId/couch-notes", protect, authorizeRoles("Coach", "Coach Manager"), addCouch_notes);
 router.get("/by/:memberId", ...readAccess, getMemberById);
 
+
+router.post("/members/:memberId/pt-sessions",protect,authorizeRoles("Owner","Accountant"),addPT_sessions);
 module.exports = router;

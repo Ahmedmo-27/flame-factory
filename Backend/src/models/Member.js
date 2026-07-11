@@ -280,6 +280,10 @@ blockedAt: {
         default:0
     },
 
+    PT_sessions_expDate:{
+        type: Date,
+    },
+
     notes:       [noteSchema],
     alert:       [alertSchema],
     couch_notes: [noteSchema],

@@ -1023,6 +1023,7 @@ const assignPackage = async (req, res) => {
             pricePaid,
             discountPercent,
             startDate,
+            ptSessionsExpDate,
         } = req.body;
 
         if (!packageId) {
@@ -1145,6 +1146,27 @@ const assignPackage = async (req, res) => {
                 : `Package assigned: ${packageName}`,
             createdBy: req.user.id,
         });
+
+        member.PT_sessions=(member.PT_sessions||0)+(basePkg.free_pt_sessions||0);
+
+        if (ptSessionsExpDate) {
+            const ptExpDate = new Date(ptSessionsExpDate);
+
+            // Compare dates only (ignore time)
+            const startDay = new Date(start);
+            startDay.setHours(0, 0, 0, 0);
+
+            const expDay = new Date(ptExpDate);
+            expDay.setHours(0, 0, 0, 0);
+
+            if (expDay < startDay) {
+                return res.status(400).json({
+                    message: "PT sessions expiration date must be on or after the package start date",
+                });
+            }
+
+            member.PT_sessions_expDate = ptExpDate;
+        }
 
         await member.save();
 
@@ -1432,6 +1454,58 @@ const switchCoach = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+
+const addPT_sessions = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { numberOfSessions, endDate } = req.body;
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!member.subscriptions?.length) {
+            return res.status(400).json({
+                message: "Member has no active subscription"
+            });
+        }
+
+        const sessions = Number(numberOfSessions);
+
+        if (sessions <= 0 || Number.isNaN(sessions)) {
+            return res.status(400).json({
+                message: "Number of sessions must be greater than zero"
+            });
+        }
+
+        const end = new Date(endDate);
+        const subscriptionEnd = new Date(member.subscriptions.at(-1).endDate);
+
+        if (end > subscriptionEnd) {
+            return res.status(400).json({
+                message: "The new PT session expiration date must be before the end date of the subscription"
+            });
+        }
+
+        member.PT_sessions = (member.PT_sessions || 0) + sessions;
+        member.PT_sessions_expDate = end;
+
+        await member.save();
+
+        res.json({
+            message: "PT sessions updated successfully",
+            member
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1457,4 +1531,6 @@ module.exports = {
     assignCoach,
     addCouch_notes,
     switchCoach,
+
+    addPT_sessions
 };

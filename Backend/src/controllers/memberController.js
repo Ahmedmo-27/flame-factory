@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const Member = require("../models/Member");
 const Package = require("../models/Package");
 const User = require("../models/User");
@@ -8,6 +10,9 @@ const { findMemberByIdentifier, buildMemberFilter } = require("../utils/memberLo
 const { notifyMemberAssigned } = require("../utils/notificationService");
 const { parsePagination, buildPagination } = require("../utils/pagination");
 const { buildMemberListFilter, getMemberStatusStats } = require("../utils/memberFilters");
+const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPrivacy");
+const { assertAllowedUpload } = require("../utils/fileMagic");
+const { writeAudit } = require("../utils/audit");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -135,6 +140,16 @@ const createMember = async (req, res) => {
             });
         }
 
+        await writeAudit({
+            action: "member_created",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "member",
+            targetId: member._id,
+            meta: { systemId: member.systemId, withPackage: Boolean(packageId) },
+            req,
+        });
+
         res.status(201).json({ message: packageId ? "Member created" : "Guest added", member });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -218,10 +233,7 @@ const getMemberProfile = async (req, res) => {
             .populate("viewedBy", "name role")
             .sort({ createdAt: -1 });
 
-        const memberPayload = member.toObject();
-        if (req.user.role === "Sales" && !isAssignedToRep(memberPayload, req.user.id)) {
-            memberPayload.phones = null;
-        }
+        const memberPayload = redactMemberForViewer(member.toObject(), req.user);
 
         res.status(200).json({
             member: memberPayload,
@@ -407,27 +419,26 @@ const freezeMember = async (req, res) => {
 
         await member.save();
 
+        await writeAudit({
+            action: "member_frozen",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "member",
+            targetId: member._id,
+            meta: { startDate: start, endDate: end, requestedDays },
+            req,
+        });
+
         res.status(200).json({
             message:         "Member frozen",
             freezeDaysUsed:  member.freezeDaysUsed,
             freezeLimitDays: allowedDays,
-            member
+            member: redactMemberForViewer(member.toObject ? member.toObject() : member, req.user),
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
-
-function getSalesRepId(memberObj) {
-    const rep = memberObj.salesRep || memberObj.assignedSales;
-    if (!rep) return null;
-    return rep._id ? rep._id.toString() : rep.toString();
-}
-
-function isAssignedToRep(memberObj, userId) {
-    const repId = getSalesRepId(memberObj);
-    return Boolean(repId && repId === userId.toString());
-}
 
 function formatSalesMember(memberObj, userId, role) {
     attachCurrentPackage(memberObj);
@@ -436,10 +447,7 @@ function formatSalesMember(memberObj, userId, role) {
     }
     memberObj.Type = memberObj.source;
     memberObj.isAssignedToMe = isAssignedToRep(memberObj, userId);
-    if (role === "Sales" && !memberObj.isAssignedToMe) {
-        memberObj.phones = null;
-    }
-    return memberObj;
+    return redactMemberForViewer(memberObj, { id: userId, role });
 }
 
 const getMembers = async (req, res) => {
@@ -497,7 +505,7 @@ const getMemberById = async (req, res) => {
         await member.populate("assignedSales", "name email");
         await member.populate("subscriptions.package", "name price duration activityType");
 
-        const memberObj = member.toObject();
+        const memberObj = redactMemberForViewer(member.toObject(), req.user);
         if (["Sales", "Sales Manager"].includes(req.user.role)) {
             return res.json(formatSalesMember(memberObj, req.user.id, req.user.role));
         }
@@ -681,34 +689,47 @@ const addInvitation = async (req, res) => {
         const { invitedName, invitedPhone } = req.body;
 
         if (!invitedName || !invitedName.trim()) {
+            if (req.file?.path) fs.unlink(req.file.path, () => {});
             return res.status(400).json({ message: "Invited person name is required" });
         }
 
         const member = await findMember(memberId);
         if (!member) {
+            if (req.file?.path) fs.unlink(req.file.path, () => {});
             return res.status(404).json({ message: "Member not found" });
         }
 
         // Must have an active subscription with invitation slots
         const currentPkg = getCurrentPackage(member);
         if (!currentPkg) {
+            if (req.file?.path) fs.unlink(req.file.path, () => {});
             return res.status(400).json({ message: "No active package found" });
         }
 
         const allowedInvitations = currentPkg.invitationLimit || 0;
         if (member.invitationsUsed >= allowedInvitations) {
+            if (req.file?.path) fs.unlink(req.file.path, () => {});
             return res.status(400).json({
                 message: `Invitation limit reached. Allowed: ${allowedInvitations}`
             });
         }
 
-        // Store uploaded file path if present
-        const idFilePath = req.file ? req.file.path : null;
+        // Store basename only; magic-byte check rejects spoofed MIME/extension
+        let idFileName = null;
+        if (req.file) {
+            try {
+                await assertAllowedUpload(req.file.path);
+                idFileName = path.basename(req.file.filename || req.file.path);
+            } catch (err) {
+                fs.unlink(req.file.path, () => {});
+                return res.status(err.statusCode || 400).json({ message: err.message });
+            }
+        }
 
         member.invitations.push({
             invitedName:  invitedName.trim(),
             invitedPhone: invitedPhone || null,
-            idFile:       idFilePath,
+            idFile:       idFileName,
             usedAt:       new Date(),
             createdBy:    req.user.id
         });
@@ -720,6 +741,7 @@ const addInvitation = async (req, res) => {
 
         res.status(201).json({ message: "Invitation added", invitation: newInvitation });
     } catch (error) {
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
         res.status(500).json({ message: error.message });
     }
 };
@@ -944,6 +966,17 @@ const assignPackage = async (req, res) => {
         });
 
         await member.save();
+
+        await writeAudit({
+            action: "package_assigned",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "member",
+            targetId: member._id,
+            meta: { packageName, packageId: packageToAssign },
+            req,
+        });
+
         res.status(200).json({ message: "Package assigned successfully", member });
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -3,6 +3,14 @@ const router    = express.Router();
 const { protect, authorizeRoles }   = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
 const upload    = require("../config/multer");
+const validate  = require("../middleware/validate");
+const {
+    createMemberSchema,
+    freezeMemberSchema,
+    addNoteSchema,
+    invitationSchema,
+    assignPackageSchema,
+} = require("../validation/schemas");
 const {
     createMember,
     getMemberProfile,
@@ -22,27 +30,15 @@ const {
 
 // ── Role groups ───────────────────────────────────────────────────────────────
 
-// Read members: all authenticated staff can view
 const readAccess  = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant")];
-
-// Write members: Receptionist + Owner + Sales Manager create
 const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager")];
-
-// Notes: Receptionist, Owner, Sales, Sales Manager
 const notesAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
-
-// Freeze: Receptionist, Owner, Sales, Sales Manager
 const freezeAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
-
-// Invitations: same as notes
 const inviteAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
-
-const salesAccess = [protect, authorizeRoles("Sales", "Sales Manager", "Owner")];
-
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-router.post("/", ...writeAccess, createMember);
+router.post("/", ...writeAccess, validate(createMemberSchema), createMember);
 router.post("/bulk-transfer-sales", protect, authorizeRoles("Sales Manager", "Owner"), bulkTransferSalesReps);
 
 router.get("/", protect, (req, res, next) => {
@@ -65,14 +61,13 @@ router.get("/:memberId", protect, (req, res, next) => {
     return res.status(403).json({ message: "Access denied" });
 });
 
-router.post("/:memberId/notes", ...notesAccess, addNote);
-router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), addInvitation);
+router.post("/:memberId/notes", ...notesAccess, validate(addNoteSchema), addNote);
+router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), validate(invitationSchema), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
 
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
-router.patch("/:memberId/freeze", ...freezeAccess, freezeMember);
-router.post("/:memberId/package", protect, authorize("Accountant"), assignPackage);
-
+router.patch("/:memberId/freeze", ...freezeAccess, validate(freezeMemberSchema), freezeMember);
+router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
 
 module.exports = router;

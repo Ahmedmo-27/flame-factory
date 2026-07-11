@@ -5,19 +5,32 @@ const fs      = require("fs");
 const uploadDir = path.join(__dirname, "../../uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const ALLOWED_EXT = new Set([".jpeg", ".jpg", ".png", ".gif", ".webp", ".pdf"]);
+const ALLOWED_MIME = new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "application/pdf",
+]);
+
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
-    filename:    (_req, file, cb) => {
+    filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const safeExt = ALLOWED_EXT.has(ext) ? ext : "";
         const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-        cb(null, unique + path.extname(file.originalname));
+        // Never use originalname in the stored path (path traversal / overwrite risk)
+        cb(null, unique + safeExt);
     }
 });
 
 const fileFilter = (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
-    const ext  = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_EXT.has(ext) && ALLOWED_MIME.has(file.mimetype)) {
+        return cb(null, true);
+    }
     cb(new Error("Only images (jpeg, png, gif, webp) and PDF files are allowed"));
 };
 

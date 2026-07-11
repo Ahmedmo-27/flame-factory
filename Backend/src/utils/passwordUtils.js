@@ -1,7 +1,8 @@
 const bcrypt = require("bcryptjs");
 const logger = require("./logger");
 
-const BCRYPT_ROUNDS = 10;
+/** OWASP-aligned cost for interactive staff logins (was 10). */
+const BCRYPT_ROUNDS = 12;
 
 function inspectStoredPassword(stored) {
     if (!stored || typeof stored !== "string") {
@@ -18,26 +19,18 @@ function inspectStoredPassword(stored) {
             valid: false,
             reason: "not_bcrypt_format",
             length: stored.length,
-            prefix: stored.slice(0, 12),
         };
     }
 
     return {
         valid: true,
         rounds: Number(match[1]),
-        length: stored.length,
-        prefix: stored.slice(0, 7),
         matchesAppRounds: Number(match[1]) === BCRYPT_ROUNDS,
     };
 }
 
 async function hashPassword(password) {
-    const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    logger.debug("auth", "Password hashed", {
-        rounds: BCRYPT_ROUNDS,
-        hashInspection: inspectStoredPassword(hash),
-    }, { auth: true });
-    return hash;
+    return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
 async function verifyPassword(plainPassword, storedPassword, context = {}) {
@@ -45,29 +38,25 @@ async function verifyPassword(plainPassword, storedPassword, context = {}) {
 
     if (!inspection.valid) {
         logger.warn("auth", "Stored password is not a bcrypt hash", {
-            ...context,
-            inspection,
+            requestId: context.requestId,
+            userId: context.userId,
+            reason: inspection.reason,
         }, { auth: true });
-        return { match: false, inspection, compareSkipped: true };
-    }
-
-    if (!inspection.matchesAppRounds) {
-        logger.warn("auth", "Stored password bcrypt rounds differ from app default", {
-            ...context,
-            storedRounds: inspection.rounds,
-            appRounds: BCRYPT_ROUNDS,
-        }, { auth: true });
+        return { match: false, inspection, compareSkipped: true, needsRehash: false };
     }
 
     const match = await bcrypt.compare(plainPassword, storedPassword);
+    const needsRehash = match && !inspection.matchesAppRounds;
 
+    // Do not log hash prefixes, rounds detail, or password length — reduces credential-adjacent leakage
     logger.auth("info", "Password compare completed", {
-        ...context,
+        requestId: context.requestId,
+        userId: context.userId,
         match,
-        inspection,
+        needsRehash,
     });
 
-    return { match, inspection };
+    return { match, inspection, needsRehash };
 }
 
 function normalizeEmail(email) {

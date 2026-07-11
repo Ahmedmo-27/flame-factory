@@ -8,6 +8,7 @@ const {
     notifyPackageExceptionResolved,
 } = require("../utils/notificationService");
 const { parsePagination, buildPagination } = require("../utils/pagination");
+const { writeAudit } = require("../utils/audit");
 
 const calcEndDate = (startDate, duration) => {
     const end = new Date(startDate);
@@ -204,38 +205,58 @@ const createException = async (req, res) => {
             .populate("basePackage", "name duration price")
             .populate("proposedBy", "name email");
 
+        await writeAudit({
+            action: "package_exception_created",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "package_exception",
+            targetId: request._id,
+            meta: { memberId: member._id, hasException: isException },
+            req,
+        });
+
         res.status(201).json({ message: "Package exception submitted for approval", request: populated });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-// Accountant approves or rejects
+// Accountant approves or rejects — atomic pending→final to prevent double-approve races
 const updateExceptionStatus = async (req, res) => {
     try {
         const { status, reviewNote } = req.body;
-        if (!["accepted", "rejected"].includes(status)) {
-            return res.status(400).json({ message: "Invalid status" });
-        }
 
-        const request = await PackageExceptionRequest.findById(req.params.id)
-            .populate("member", "name");
+        const request = await PackageExceptionRequest.findOneAndUpdate(
+            { _id: req.params.id, status: "pending" },
+            {
+                $set: {
+                    status,
+                    reviewedBy: req.user.id,
+                    reviewNote: reviewNote ?? null,
+                },
+            },
+            { new: true }
+        ).populate("member", "name");
+
         if (!request) {
-            return res.status(404).json({ message: "Request not found" });
+            return res.status(409).json({
+                message: "Request not found or already processed",
+            });
         }
-
-        if (request.status !== "pending") {
-            return res.status(400).json({ message: "Request has already been processed" });
-        }
-
-        request.status = status;
-        request.reviewedBy = req.user.id;
-        request.reviewNote = reviewNote ?? null;
-        await request.save();
 
         if (status === "accepted") {
             await applyApprovedException(request, req.user.id);
         }
+
+        await writeAudit({
+            action: status === "accepted" ? "package_exception_accepted" : "package_exception_rejected",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "package_exception",
+            targetId: request._id,
+            meta: { memberId: request.member?._id || request.member, reviewNote: reviewNote ?? null },
+            req,
+        });
 
         await notifyPackageExceptionResolved({
             recipientId: request.proposedBy,

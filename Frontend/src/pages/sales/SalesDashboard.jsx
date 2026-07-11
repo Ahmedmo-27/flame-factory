@@ -100,7 +100,7 @@ export default function SalesDashboard() {
           {[
             { label: 'Members',  sub: `${stats.total} total`,     to: '/sales/members' },
             { label: 'Requests', sub: 'Assignment requests',       to: '/sales/requests' },
-            { label: 'Check In', sub: 'Quick member check-in',     to: '/checkin' },
+            { label: 'Subscriptions', sub: 'My sales by date',     to: '/sales/subscriptions' },
           ].map(c => (
             <button key={c.to} onClick={() => navigate(c.to)} style={{
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,

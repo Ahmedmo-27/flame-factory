@@ -211,7 +211,7 @@ function SearchableSelect({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q) {
+    if (q && !hasSelection) {
       return selectableOptions.filter(
         (o) =>
           o.label.toLowerCase().includes(q) ||
@@ -220,7 +220,7 @@ function SearchableSelect({
     }
     if (initialLimit) return selectableOptions.slice(0, initialLimit);
     return selectableOptions;
-  }, [selectableOptions, query, initialLimit]);
+  }, [selectableOptions, query, initialLimit, hasSelection]);
 
   const updateDropdownRect = useCallback(() => {
     if (!inputRef.current) return;

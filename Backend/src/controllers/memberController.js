@@ -185,6 +185,7 @@ const getAllMembers = async (req, res) => {
                 .populate("subscriptions.package", "name duration activityType")
                 .populate("createdBy", "name")
                 .populate("assignedSales", "name role")
+                .populate("current_couch", "name role")
                 .sort({ systemId: 1 })
                 .skip(skip)
                 .limit(limit),
@@ -237,6 +238,10 @@ const getMemberProfile = async (req, res) => {
             .filter(log => log.type === "check-in")
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        const ptSessions = member.userlog
+            .filter(log => log.type === "pt-session")
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         // Log this profile view
         await ProfileView.create({ member: member._id, viewedBy: req.user.id });
 
@@ -249,9 +254,11 @@ const getMemberProfile = async (req, res) => {
         res.status(200).json({
             member: memberPayload,
             checkIns,
+            ptSessions,
             profileViews,
             stats: {
                 totalCheckIns:        checkIns.length,
+                totalPTSessions:      ptSessions.length,
                 totalSubscriptions:   member.subscriptions.length,
                 totalFreezes:         member.freeze.length,
                 freezeDaysUsed:       member.freezeDaysUsed,
@@ -361,6 +368,11 @@ const assignSalesman = async (req, res) => {
         const member = await findMember(memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Receptionist can only assign if member has no sales rep yet
+        if (req.user.role === "Receptionist" && member.assignedSales) {
+            return res.status(403).json({ message: "Member already has an assigned sales rep. Only Sales Manager can reassign." });
         }
 
         member.assignedSales = salesId;
@@ -1314,9 +1326,13 @@ const sessionCheckIn_for_couch = async (req, res) => {
                 return res.status(400).json({ message: "Member is not active" });
             }
 
-            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
             if(member.PT_sessions > member.used_PT_sessions) {
                 member.used_PT_sessions++;
+                member.userlog.push({
+                    type: "pt-session",
+                    text: "Private session check-in (1 session)",
+                    createdBy: req.user.id,
+                });
                 await member.save();
                 return res.status(200).json({ message: "Session checked in" });
             } else {
@@ -1335,7 +1351,11 @@ const sessionCheckIn_for_couch = async (req, res) => {
             if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
 
                 member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
-
+                member.userlog.push({
+                    type: "pt-session",
+                    text: `Private session check-in (${numberOfSessions} session${numberOfSessions > 1 ? 's' : ''})`,
+                    createdBy: req.user.id,
+                });
                 await member.save();
                 return res.status(200).json({ message: "Session checked in" });
             } else {
@@ -1507,6 +1527,64 @@ const addPT_sessions = async (req, res) => {
     }
 };
 
+const bulkTransferCoach = async (req, res) => {
+    try {
+        const { coachId, memberIds } = req.body;
+
+        if (!coachId) {
+            return res.status(400).json({ message: "coachId is required" });
+        }
+        if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+            return res.status(400).json({ message: "memberIds array is required" });
+        }
+
+        const coachUser = await User.findById(coachId);
+        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
+            return res.status(400).json({ message: "Invalid coach — user not found or not a Coach role" });
+        }
+
+        // Use bulkWrite for speed instead of saving one by one
+        const bulkOps = memberIds.map(id => ({
+            updateOne: {
+                filter: { _id: id },
+                update: {
+                    $set: { current_couch: coachId, couch_subscription_status: "active" },
+                    $push: {
+                        userlog: {
+                            type: "assign",
+                            text: `Bulk assigned to ${coachUser.name}`,
+                            createdBy: req.user.id,
+                            createdAt: new Date(),
+                        },
+                    },
+                },
+            },
+        }));
+
+        const result = await Member.bulkWrite(bulkOps);
+        const transferredCount = result.modifiedCount || 0;
+
+        // Send one notification to the coach
+        if (transferredCount > 0) {
+            const Notification = require("../models/Notification");
+            await Notification.create({
+                recipient: coachId,
+                type: "member_assigned",
+                title: "Members Assigned",
+                message: `${transferredCount} member(s) have been bulk-assigned to you`,
+                createdBy: req.user.id,
+            }).catch(() => {}); // don't fail if notification fails
+        }
+
+        res.json({
+            message: "Members transferred successfully",
+            transferredCount,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1532,6 +1610,7 @@ module.exports = {
     assignCoach,
     addCouch_notes,
     switchCoach,
+    bulkTransferCoach,
     //comment aho
     addPT_sessions
 };

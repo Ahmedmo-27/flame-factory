@@ -24,12 +24,29 @@ function redactMemberForViewer(memberObj, user) {
     if (!memberObj || !user) return memberObj;
 
     if (user.role === "Sales") {
+        if (user.canViewPhones === false) {
+            return {
+                ...memberObj,
+                phones: "hidden",
+                nationalId: null,
+            };
+        }
         if (isAssignedToRep(memberObj, user.id)) return memberObj;
         return {
             ...memberObj,
             phones: null,
             nationalId: null,
         };
+    }
+
+    if (user.role === "Receptionist") {
+        if (user.canViewPhones === false) {
+            return {
+                ...memberObj,
+                phones: "hidden",
+            };
+        }
+        return memberObj;
     }
 
     if (user.role === "Coach") {

@@ -21,6 +21,10 @@ function formatUserResponse(user) {
         base.abilities = resolveAbilities(user);
     }
 
+    if (user.role === "Receptionist" || user.role === "Sales") {
+        base.canViewPhones = user.canViewPhones ?? true;
+    }
+
     return base;
 }
 

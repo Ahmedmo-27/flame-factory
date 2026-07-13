@@ -23,6 +23,7 @@ const {
     addNote,
     switchSalesRep,
     bulkTransferSalesReps,
+    bulkTransferCoach,
     addInvitation,
     getAllNotes,
     sessionCheckIn_for_couch,
@@ -43,7 +44,7 @@ const {
 
 const readAccess  = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant")];
 const writeAccess = [protect, authorize("Receptionist", "Owner", "Sales Manager", "Sales")];
-const notesAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Coach Manager")];
+const notesAccess = [protect, authorize("Owner", "Sales", "Sales Manager", "Coach", "Coach Manager")];
 const freezeAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
 const inviteAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sales Manager")];
 
@@ -51,12 +52,13 @@ const inviteAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sale
 
 router.post("/", ...writeAccess, validate(createMemberSchema), createMember);
 router.post("/bulk-transfer-sales", protect, authorizeRoles("Sales Manager", "Owner"), bulkTransferSalesReps);
+router.post("/bulk-transfer-coach", protect, authorizeRoles("Coach Manager", "Owner"), bulkTransferCoach);
 
 router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager", "Coach", "Coach Manager"].includes(req.user.role)) {
         return getMembers(req, res, next);
     }
-    if (["Receptionist", "Owner", "Accountant"].includes(req.user.role)) {
+    if (["Owner", "Accountant"].includes(req.user.role)) {
         return getAllMembers(req, res, next);
     }
     return res.status(403).json({ message: "Access denied" });

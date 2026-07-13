@@ -17,7 +17,7 @@ export default function CallCenterTab({ member, user, onRefresh }) {
 
   const canAdd = isCoachRole
     ? ['Coach', 'Coach Manager'].includes(user?.role)
-    : ['Sales', 'Sales Manager', 'Receptionist', 'Owner'].includes(user?.role);
+    : ['Sales', 'Sales Manager', 'Owner'].includes(user?.role);
 
   const handleAdd = async () => {
     if (!text.trim()) { toast.error('Note cannot be empty.'); return; }

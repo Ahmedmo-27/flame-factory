@@ -31,7 +31,7 @@ const alertSchema = new mongoose.Schema({
 const logSchema = new mongoose.Schema({
     type: {
         type: String,
-        enum: ["check-in", "note", "renewal", "freeze", "assign", "other"],
+        enum: ["check-in", "pt-session", "note", "renewal", "freeze", "assign", "other"],
         default: "other"
     },
     text: {

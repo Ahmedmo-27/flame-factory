@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllMembers, getPackages, getSalesUsers, createMember, searchAllMembers } from '../api/endpoints';
+import { getPackages, getSalesUsers, createMember, searchAllMembers } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
-import useDebounce from '../hooks/useDebounce';
 import { Input, Select, Btn, Spinner } from './ui';
 
 const STATUS_DOT = {
@@ -15,45 +14,73 @@ const STATUS_DOT = {
 export default function GlobalSearch() {
   const navigate  = useNavigate();
   const { user }  = useAuth();
-  const inputRef  = useRef(null);
+  const phoneRef  = useRef(null);
+  const idRef     = useRef(null);
   const wrapRef   = useRef(null);
+  const cacheRef  = useRef(null); // cached members list
 
-  const [query,    setQuery]    = useState('');
-  const [results,  setResults]  = useState([]);
-  const [open,     setOpen]     = useState(false);
-  const [cursor,   setCursor]   = useState(-1);
-  const [showAdd,  setShowAdd]  = useState(false);
+  const [phoneQuery, setPhoneQuery] = useState('');
+  const [idQuery, setIdQuery]       = useState('');
+  const [results,  setResults]      = useState([]);
+  const [open,     setOpen]         = useState(false);
+  const [cursor,   setCursor]       = useState(-1);
+  const [showAdd,  setShowAdd]      = useState(false);
+  const [activeField, setActiveField] = useState('phone'); // 'phone' or 'id'
 
   const canAdd = ['Receptionist', 'Owner', 'Sales', 'Sales Manager'].includes(user?.role);
-  const debouncedQuery = useDebounce(query, 200);
 
+  // Fetch members once and cache
+  const loadCache = useCallback(async () => {
+    if (cacheRef.current) return cacheRef.current;
+    try {
+      const res = await searchAllMembers();
+      cacheRef.current = res.data.members ?? [];
+      return cacheRef.current;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Preload cache on mount
+  useEffect(() => { loadCache(); }, [loadCache]);
+
+  // Invalidate cache every 60s so new members show up
   useEffect(() => {
-    const q = debouncedQuery.trim();
+    const interval = setInterval(() => { cacheRef.current = null; }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter locally — instant
+  const doSearch = useCallback((q, field) => {
     if (!q) { setResults([]); setOpen(false); setCursor(-1); return; }
+    const all = cacheRef.current ?? [];
+    let matched;
+    if (field === 'id') {
+      matched = all.filter(m =>
+        String(m.systemId) === q ||
+        String(m.memberId) === q
+      ).slice(0, 8);
+    } else {
+      matched = all.filter(m =>
+        m.phones?.includes(q)
+      ).slice(0, 8);
+    }
+    setResults(matched);
+    setOpen(matched.length > 0 || canAdd);
+    setCursor(-1);
+  }, [canAdd]);
 
-    let cancelled = false;
-    searchAllMembers()
-      .then(res => {
-        if (cancelled) return;
-        const all = res.data.members ?? [];
-        const lower = q.toLowerCase();
-        const matched = all.filter(m =>
-          m.name?.toLowerCase().includes(lower) ||
-          m.phones?.includes(q) ||
-          String(m.systemId) === q ||
-          String(m.memberId) === q
-        ).slice(0, 8);
-        setResults(matched);
-        setOpen(matched.length > 0 || canAdd);
-        setCursor(-1);
-      })
-      .catch((err) => {
-        console.error('[GlobalSearch] fetch error:', err.message);
-        if (!cancelled) setResults([]);
-      });
-
-    return () => { cancelled = true; };
-  }, [debouncedQuery]);
+  // React to input changes
+  useEffect(() => {
+    const q = (activeField === 'phone' ? phoneQuery : idQuery).trim();
+    if (!q) { setResults([]); setOpen(false); setCursor(-1); return; }
+    // If cache not loaded yet, load then search
+    if (!cacheRef.current) {
+      loadCache().then(() => doSearch(q, activeField));
+    } else {
+      doSearch(q, activeField);
+    }
+  }, [phoneQuery, idQuery, activeField, doSearch, loadCache]);
 
   // Close on outside click
   useEffect(() => {
@@ -71,32 +98,38 @@ export default function GlobalSearch() {
     const h = e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
+        phoneRef.current?.focus();
+        phoneRef.current?.select();
       }
-      if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur(); }
+      if (e.key === 'Escape') { setOpen(false); phoneRef.current?.blur(); idRef.current?.blur(); }
     };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, []);
 
   const handleKeyDown = e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (cursor >= 0 && results[cursor]) { go(results[cursor]); }
+      else if (results.length > 0) { go(results[0]); }
+      return;
+    }
     if (!open) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c + 1, results.length - 1)); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setCursor(c => Math.max(c - 1, -1)); }
-    if (e.key === 'Enter' && cursor >= 0) { go(results[cursor]); }
   };
 
   const go = useCallback(member => {
     navigate(`/members/${member.systemId}`);
-    setQuery(''); setOpen(false); setCursor(-1);
-    inputRef.current?.blur();
+    setPhoneQuery(''); setIdQuery(''); setOpen(false); setCursor(-1);
+    phoneRef.current?.blur(); idRef.current?.blur();
   }, [navigate]);
 
   const openAddModal = () => {
     setOpen(false);
     setShowAdd(true);
-    inputRef.current?.blur();
+    phoneRef.current?.blur();
+    idRef.current?.blur();
   };
 
   const highlight = (text, q) => {
@@ -114,45 +147,61 @@ export default function GlobalSearch() {
     );
   };
 
+  const displayQuery = activeField === 'phone' ? phoneQuery.trim() : idQuery.trim();
+
+  const inputStyle = {
+    width: '100%', paddingLeft: 28, paddingRight: 8,
+    paddingTop: 6, paddingBottom: 6,
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.14)',
+    borderRadius: 6, fontSize: 13,
+    color: '#fff',
+    outline: 'none', fontFamily: 'inherit',
+    transition: 'background 0.15s, border-color 0.15s',
+  };
+
   return (
-    <div ref={wrapRef} className="global-search-wrap" style={{ position: 'relative', flex: '0 1 280px' }}>
-      {/* Input */}
-      <div style={{ position: 'relative' }}>
-        <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)', pointerEvents: 'none', flexShrink: 0 }}
-          width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    <div ref={wrapRef} className="global-search-wrap" style={{ position: 'relative', display: 'flex', gap: 6, flex: '0 1 380px' }}>
+      {/* Phone Search */}
+      <div style={{ position: 'relative', flex: 1 }}>
+        <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
         </svg>
         <input
-          ref={inputRef}
+          ref={phoneRef}
           type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
+          value={phoneQuery}
+          onChange={e => { setPhoneQuery(e.target.value); setActiveField('phone'); }}
           onKeyDown={handleKeyDown}
-          onFocus={() => { if (results.length > 0) setOpen(true); }}
-          placeholder="Search members…"
+          onFocus={() => { setActiveField('phone'); if (results.length > 0 && phoneQuery.trim()) setOpen(true); }}
+          placeholder="Phone…"
           autoComplete="off"
-          style={{
-            width: '100%', paddingLeft: 28, paddingRight: 52,
-            paddingTop: 6, paddingBottom: 6,
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.14)',
-            borderRadius: 6, fontSize: 13,
-            color: '#fff',
-            outline: 'none', fontFamily: 'inherit',
-            transition: 'background 0.15s, border-color 0.15s',
-          }}
+          style={inputStyle}
           onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.12)'; }}
           onMouseLeave={e => { if (document.activeElement !== e.target) e.target.style.background = 'rgba(255,255,255,0.08)'; }}
         />
-        {/* Kbd hint */}
-        <kbd className="mob-hide-kbd" style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          fontSize: 10, color: 'rgba(255,255,255,0.28)',
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.14)',
-          borderRadius: 3, padding: '1px 5px', pointerEvents: 'none',
-          fontFamily: 'inherit', letterSpacing: '0.2px',
-        }}>⌘K</kbd>
+      </div>
+
+      {/* ID Search */}
+      <div style={{ position: 'relative', flex: 1 }}>
+        <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M4 4h16v16H4z"/><path d="M9 9h1"/><path d="M14 9h1"/><path d="M9 14h6"/>
+        </svg>
+        <input
+          ref={idRef}
+          type="text"
+          value={idQuery}
+          onChange={e => { setIdQuery(e.target.value); setActiveField('id'); }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => { setActiveField('id'); if (results.length > 0 && idQuery.trim()) setOpen(true); }}
+          placeholder="ID…"
+          autoComplete="off"
+          style={inputStyle}
+          onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.12)'; }}
+          onMouseLeave={e => { if (document.activeElement !== e.target) e.target.style.background = 'rgba(255,255,255,0.08)'; }}
+        />
       </div>
 
       {/* Dropdown */}
@@ -165,14 +214,13 @@ export default function GlobalSearch() {
           zIndex: 200, overflow: 'hidden',
         }}>
           {results.length === 0 ? (
-            /* ── No results ── */
             <div>
               <div style={{ padding: '20px 16px', textAlign: 'center', borderBottom: canAdd ? '1px solid var(--border)' : 'none' }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>
-                  No member found for "{query.trim()}"
+                  No member found for "{displayQuery}"
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--t4)' }}>
-                  No results matching this name, phone, or ID.
+                  No results matching this {activeField === 'phone' ? 'phone number' : 'ID'}.
                 </p>
               </div>
               {canAdd && (
@@ -195,7 +243,7 @@ export default function GlobalSearch() {
                   }}>+</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>
-                      Add "{query.trim()}" as new person
+                      Add new person
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--t4)', marginTop: 1 }}>
                       Create a guest profile or assign a package
@@ -205,13 +253,12 @@ export default function GlobalSearch() {
               )}
             </div>
           ) : (
-            /* ── Results ── */
             <>
               {results.map((m, i) => {
                 const sub = m.subscriptions?.at(-1);
                 const pkg = sub?.package;
                 const isActive = i === cursor;
-                const q = query.trim().toLowerCase();
+                const q = displayQuery.toLowerCase();
                 return (
                   <div
                     key={m._id}
@@ -230,7 +277,7 @@ export default function GlobalSearch() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{highlight(m.name, q)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_DOT[m.status] ?? '#94a3b8', flexShrink: 0 }} />
                       </div>
                       <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--t4)' }}>
@@ -244,7 +291,6 @@ export default function GlobalSearch() {
                 );
               })}
 
-              {/* Add option at bottom of results too */}
               {canAdd && (
                 <button
                   onMouseDown={openAddModal}
@@ -262,7 +308,6 @@ export default function GlobalSearch() {
                 </button>
               )}
 
-              {/* Footer */}
               <div style={{ padding: '7px 12px', background: 'var(--bg)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--t4)' }}>
                 <span>↑↓ navigate</span>
                 <span>↵ open</span>
@@ -277,9 +322,10 @@ export default function GlobalSearch() {
       {/* Add Person Modal */}
       {showAdd && (
         <AddPersonModal
-          initialName={query.trim()}
-          onClose={() => { setShowAdd(false); setQuery(''); }}
-          onSuccess={(systemId) => { setShowAdd(false); setQuery(''); navigate(`/members/${systemId}`); }}
+          initialName=""
+          initialPhone={activeField === 'phone' ? phoneQuery.trim() : ''}
+          onClose={() => { setShowAdd(false); setPhoneQuery(''); setIdQuery(''); }}
+          onSuccess={(systemId) => { setShowAdd(false); setPhoneQuery(''); setIdQuery(''); navigate(`/members/${systemId}`); }}
         />
       )}
     </div>
@@ -287,11 +333,11 @@ export default function GlobalSearch() {
 }
 
 // ── Add Person Modal (inline, no import needed) ───────────────────────────────
-function AddPersonModal({ initialName, onClose, onSuccess }) {
+function AddPersonModal({ initialName, initialPhone, onClose, onSuccess }) {
   const [packages,  setPackages]  = useState([]);
   const [sales,     setSales]     = useState([]);
   const [form, setForm] = useState({
-    name: initialName || '', phones: '',
+    name: initialName || '', phones: initialPhone || '',
     gender: '', birthdate: '', source: '', assignedSales: '',
   });
   const [errors,  setErrors]  = useState({});

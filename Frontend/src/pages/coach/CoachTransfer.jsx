@@ -4,7 +4,7 @@ import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
 import { PageHeader, Card, CardHeader, Table, Badge, Btn, Spinner, EmptyState, SearchInput, Avatar, Modal, Select } from '../../components/ui';
-import { getAllMembers, getCoachTeam, switchCoach, assignCoach } from '../../api/endpoints';
+import { getAllMembers, getCoachTeam, switchCoach, assignCoach, bulkTransferCoach } from '../../api/endpoints';
 
 const PAGE_SIZE = 25;
 
@@ -31,9 +31,9 @@ export default function CoachTransfer() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [mRes, cRes] = await Promise.all([getAllMembers(), getCoachTeam()]);
+      const [mRes, cRes] = await Promise.all([getAllMembers({ all: 'true' }), getCoachTeam()]);
       setMembers(mRes.data.members ?? []);
-      setCoaches((cRes.data.team ?? []).filter(u => u.role === 'Coach'));
+      setCoaches(cRes.data.team ?? []);
     } catch {
       toast.error('Failed to load data');
     } finally { setLoading(false); }
@@ -80,29 +80,19 @@ export default function CoachTransfer() {
     });
   };
 
-  // Bulk assign
+  // Bulk assign — single API call
   const handleBulkAssign = async () => {
     if (!bulkCoach) { toast.error('Select a coach'); return; }
     if (!selectedIds.size) { toast.error('Select at least one member'); return; }
     setTransferring(true);
-    let success = 0;
-    for (const id of selectedIds) {
-      const member = members.find(m => m._id === id);
-      if (!member) continue;
-      try {
-        const currentCoach = member.current_couch?._id || member.current_couch;
-        if (currentCoach) {
-          await switchCoach(member.systemId, bulkCoach);
-        } else {
-          await assignCoach(member.systemId, bulkCoach);
-        }
-        success++;
-      } catch { /* skip failed */ }
-    }
-    toast.success(`Assigned ${success} member(s) to coach`);
-    setSelectedIds(new Set());
-    setTransferring(false);
-    load();
+    try {
+      const res = await bulkTransferCoach({ coachId: bulkCoach, memberIds: [...selectedIds] });
+      toast.success(`Assigned ${res.data.transferredCount} member(s) to coach`);
+      setSelectedIds(new Set());
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Bulk transfer failed');
+    } finally { setTransferring(false); }
   };
 
   // Single transfer
@@ -132,18 +122,35 @@ export default function CoachTransfer() {
 
   return (
     <Layout>
-      <PageHeader title="Coach Transfer">
-        <select value={bulkCoach} onChange={e => setBulkCoach(e.target.value)}
-          style={{ minWidth: 180, padding: '6px 10px', fontSize: 12, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, background: 'rgba(255,255,255,0.1)', color: '#fff', fontFamily: 'inherit' }}>
-          <option value="" style={{ color: '#000' }}>Assign to coach…</option>
-          {coaches.map(c => <option key={c._id} value={c._id} style={{ color: '#000' }}>{c.name}</option>)}
-        </select>
-        <Btn size="sm" onClick={handleBulkAssign} disabled={transferring || !bulkCoach || !selectedIds.size}>
-          {transferring ? <Spinner size="sm" /> : `Assign Selected (${selectedIds.size})`}
-        </Btn>
-      </PageHeader>
+      <PageHeader title="Coach Transfer" />
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+
+        {/* Bulk assign bar */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
+          marginBottom: 16, padding: '12px 16px',
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t2)' }}>Bulk Assign:</span>
+          <select value={bulkCoach} onChange={e => setBulkCoach(e.target.value)}
+            style={{
+              minWidth: 200, padding: '7px 10px', fontSize: 13,
+              border: '1px solid var(--border)', borderRadius: 6,
+              fontFamily: 'inherit', color: 'var(--t1)', background: '#fff', cursor: 'pointer',
+            }}>
+            <option value="">— Select coach —</option>
+            {coaches.map(c => <option key={c._id} value={c._id}>{c.name} ({c.role})</option>)}
+          </select>
+          <Btn size="sm" onClick={handleBulkAssign} disabled={transferring || !bulkCoach || !selectedIds.size}>
+            {transferring ? <Spinner size="sm" /> : `Assign Selected (${selectedIds.size})`}
+          </Btn>
+          {selectedIds.size > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--t4)', marginLeft: 'auto' }}>
+              {selectedIds.size} member(s) selected
+            </span>
+          )}
+        </div>
 
         {/* Filters */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16, alignItems: 'center' }}>

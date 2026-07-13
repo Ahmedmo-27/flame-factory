@@ -38,10 +38,15 @@ function clearLoginFailures(email) {
     if (email) failures.delete(email);
 }
 
+function resetLoginLockoutState() {
+    failures.clear();
+}
+
 module.exports = {
     getLockState,
     recordLoginFailure,
     clearLoginFailures,
+    resetLoginLockoutState,
     MAX_FAILURES,
     LOCK_MS,
 };

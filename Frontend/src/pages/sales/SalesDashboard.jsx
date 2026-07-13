@@ -96,7 +96,7 @@ export default function SalesDashboard() {
       else { setMembers([]); failed = true; }
 
       if (rRes.status === 'fulfilled') {
-        setRequests(Array.isArray(rRes.value.data) ? rRes.value.data : []);
+        setRequests(rRes.value.data.requests ?? []);
       } else { setRequests([]); failed = true; }
 
       if (cRes.status === 'fulfilled') setCheckIns(cRes.value.data.checkIns ?? []);

@@ -85,6 +85,7 @@ export default function Members() {
             { value: 'frozen',  label: `Frozen (${stats.frozen})` },
             { value: 'expired', label: `Expired (${stats.expired})` },
             { value: 'guest',   label: `Guests (${stats.guest})` },
+            { value: 'blocked', label: `Blocked (${stats.blocked ?? 0})` },
           ]} />
         </div>
 

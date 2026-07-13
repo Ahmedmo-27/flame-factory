@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ["member_assigned", "package_exception_pending", "package_exception_resolved"],
+        enum: ["member_assigned", "package_exception_pending", "package_exception_resolved", "sales_rep_request_pending"],
         required: true,
     },
     title: {

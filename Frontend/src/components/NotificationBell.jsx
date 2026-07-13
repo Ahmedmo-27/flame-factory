@@ -74,6 +74,10 @@ export default function NotificationBell({ variant = 'bar' }) {
       } catch { /* silent */ }
     }
     setOpen(false);
+    if (n.type === 'sales_rep_request_pending') {
+      navigate('/sales/requests');
+      return;
+    }
     const memberId = n.member?.systemId || n.member?._id;
     if (!memberId) return;
     const tab = n.type === 'package_exception_pending' ? '?tab=packages' : '';

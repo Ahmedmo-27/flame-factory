@@ -1,6 +1,14 @@
 const logger = require("../utils/logger");
 
 function errorHandler(err, req, res, _next) {
+    if (err.name === "MulterError") {
+        if (res.headersSent) return;
+        if (err.code === "LIMIT_FILE_SIZE") {
+            return res.status(413).json({ message: "File too large. Maximum size is 5 MB." });
+        }
+        return res.status(400).json({ message: err.message });
+    }
+
     const status = err.status || err.statusCode || 500;
 
     logger.error("http", "Unhandled request error", {

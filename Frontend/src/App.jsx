@@ -27,7 +27,8 @@ import CoachStaff         from './pages/coach/CoachStaff';
 import CoachTransfer      from './pages/coach/CoachTransfer';
 import CoachTransfers     from './pages/coach/CoachTransfers';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
-import CheckIn        from './pages/CheckIn';
+import CheckIn            from './pages/CheckIn';
+import ReceptionContacts  from './pages/ReceptionContacts';
 import NotFound       from './pages/NotFound';
 
 // ── Protected route wrapper ───────────────────────────────────────────────────
@@ -71,7 +72,7 @@ function AppRoutes() {
 
       {/* Check-in — API writeAccess is Receptionist/Owner/Sales Manager only */}
       <Route path="/checkin" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Sales']}>
           <CheckIn />
         </PrivateRoute>
       } />
@@ -185,6 +186,13 @@ function AppRoutes() {
       <Route path="/coach/my-transfers" element={
         <PrivateRoute roles={['Coach']}>
           <CoachTransfers />
+        </PrivateRoute>
+      } />
+
+      {/* Reception contacts — all authenticated */}
+      <Route path="/contacts" element={
+        <PrivateRoute>
+          <ReceptionContacts />
         </PrivateRoute>
       } />
 

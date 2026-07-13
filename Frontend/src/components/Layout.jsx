@@ -5,11 +5,11 @@ import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 
 const NAV = {
-  Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
-  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
+  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
 
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
   Accountant:    [
     { to: '/accounting/dashboard', label: 'Dashboard' },
     { to: '/accounting/package-requests', label: 'Requests' },
@@ -17,9 +17,10 @@ const NAV = {
     { to: '/sales/targets', label: 'Revenue' },
     { to: '/members', label: 'Members' },
     { to: '/sales/team', label: 'Team' },
+    { to: '/contacts', label: 'Contacts' },
   ],
-  Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }],
-  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }],
+  Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }, { to: '/contacts', label: 'Contacts' }],
+  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }, { to: '/contacts', label: 'Contacts' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }

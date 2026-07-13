@@ -5,6 +5,7 @@ export const login        = (email, password) =>
   api.post('/users/login', { email, password });
 
 export const getSalesUsers   = () => api.get('/users/sales');
+export const getReceptionists = () => api.get('/users/receptionists');
 export const getSalesTeam    = () => api.get('/users/team');
 export const getSalesProfile = (id) => api.get(`/users/team/${id}`);
 export const getSalesManagerRevenue = (params = {}) =>

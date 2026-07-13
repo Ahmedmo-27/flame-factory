@@ -5,7 +5,7 @@ import Layout from '../../components/Layout';
 import { PageHeader, Card, Input, Btn, Spinner } from '../../components/ui';
 import { createStaffUser } from '../../api/endpoints';
 
-const INIT = { name: '', email: '', password: '', role: 'Coach' };
+const INIT = { name: '', email: '', mobile_number: '', password: '', role: 'Coach' };
 
 export default function CoachStaff() {
   usePageTitle('Manage Coaches');
@@ -19,6 +19,7 @@ export default function CoachStaff() {
     const e = {};
     if (!form.name.trim()) e.name = 'Name is required';
     if (!form.email.trim()) e.email = 'Email is required';
+    if (!form.mobile_number.trim()) e.mobile_number = 'Mobile number is required';
     if (!form.password || form.password.length < 6) e.password = 'Password must be at least 6 characters';
     setErrors(e);
     return !Object.keys(e).length;
@@ -32,6 +33,7 @@ export default function CoachStaff() {
       await createStaffUser({
         name: form.name.trim(),
         email: form.email.trim(),
+        mobile_number: form.mobile_number.trim(),
         password: form.password,
         role: 'Coach',
       });
@@ -64,6 +66,13 @@ export default function CoachStaff() {
               value={form.email}
               onChange={e => set('email', e.target.value)}
               error={errors.email}
+            />
+            <Input
+              label="Mobile Number *"
+              value={form.mobile_number}
+              onChange={e => set('mobile_number', e.target.value)}
+              error={errors.mobile_number}
+              placeholder="e.g. 01012345678"
             />
             <Input
               label="Password *"

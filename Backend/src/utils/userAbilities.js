@@ -11,6 +11,7 @@ function formatUserResponse(user) {
         _id: user._id,
         name: user.name,
         email: user.email,
+        mobile_number: user.mobile_number || null,
         role: user.role,
         monthlyTarget: user.monthlyTarget ?? 0,
         createdAt: user.createdAt,

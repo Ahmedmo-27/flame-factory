@@ -179,6 +179,19 @@ const getSalesUsers = async (req, res) => {
     }
 };
 
+const getReceptionists = async (req, res) => {
+    try {
+        const staff = await User.find(
+            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager"] } },
+            "name mobile_number role _id"
+        ).sort({ role: 1, name: 1 });
+
+        res.json({ receptionists: staff });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getSalesRevenue = async (req, res) => {
     try {
         if (req.user.role !== "Sales") {
@@ -485,10 +498,10 @@ const createStaffUser = async (req, res) => {
             return res.status(403).json({ message: "Not authorized" });
         }
 
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role,mobile_number } = req.body;
 
-        if (!name || !email || !password || !role) {
-            return res.status(400).json({ message: "name, email, password, and role are required" });
+        if (!name || !email || !password || !role || !mobile_number) {
+            return res.status(400).json({ message: "name, email, password, mobile_number and role are required" });
         }
 
         if (!["Sales", "Receptionist", "Accountant","Coach"].includes(role)) {
@@ -503,7 +516,7 @@ const createStaffUser = async (req, res) => {
         const normalizedEmail = normalizeEmail(email);
         const hashedPassword = await hashPassword(password);
 
-        const user = await User.create({ name, email: normalizedEmail, password: hashedPassword, role });
+        const user = await User.create({ name, email: normalizedEmail, password: hashedPassword, role, mobile_number });
 
         logger.auth("info", "Staff user created", {
             createdBy: req.user.id,
@@ -877,6 +890,7 @@ module.exports = {
     registerUser,
     loginUser,
     getSalesUsers,
+    getReceptionists,
     getSalesRevenue,
     getSalesManagerRevenue,
     getSalesReps,

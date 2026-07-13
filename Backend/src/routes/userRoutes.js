@@ -6,6 +6,7 @@ const {
     getSalesRevenue,
     getSalesManagerRevenue,
     getSalesUsers,
+    getReceptionists,
     getSalesReps,
     getMyProfile,
     getUserById,
@@ -43,6 +44,7 @@ router.get("/sales-manager/subscriptions", protect, authorizeRoles("Sales Manage
 router.get("/my-subscriptions", protect, authorizeRoles("Sales"), getSalesMySubscriptions);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
 router.get("/sales", protect, authorizeRoles("Sales Manager", "Owner", "Accountant", "Receptionist"), getSalesUsers);
+router.get("/receptionists", protect, getReceptionists);
 router.get("/team", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesTeam);
 router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesProfile);
 router.get("/coach-team", protect, authorizeRoles("Coach Manager", "Owner"), getCoachTeam);

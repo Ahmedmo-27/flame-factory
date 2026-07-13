@@ -13,6 +13,7 @@ const { buildMemberListFilter, getMemberStatusStats } = require("../utils/member
 const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPrivacy");
 const { assertAllowedUpload } = require("../utils/fileMagic");
 const { writeAudit } = require("../utils/audit");
+const mongoose = require("mongoose");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -907,7 +908,7 @@ const getAllNotes = async (req, res) => {
         const match = { "notes.0": { $exists: true } };
 
         if (req.query.createdBy) {
-            match["notes.createdBy"] = req.query.createdBy;
+            match["notes.createdBy"] = new mongoose.Types.ObjectId(req.query.createdBy);
         }
 
         const search = req.query.search?.trim();
@@ -924,7 +925,7 @@ const getAllNotes = async (req, res) => {
         const pipeline = [
             { $match: match },
             { $unwind: "$notes" },
-            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": req.query.createdBy } }] : []),
+            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": new mongoose.Types.ObjectId(req.query.createdBy) } }] : []),
             {
                 $lookup: {
                     from: "users",

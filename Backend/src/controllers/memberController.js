@@ -14,6 +14,8 @@ const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPriva
 const { assertAllowedUpload } = require("../utils/fileMagic");
 const { writeAudit } = require("../utils/audit");
 const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
+const { sanitizePlainText } = require("../utils/sanitizeText");
+const { validateNoOverlappingSubscription } = require("../utils/subscriptionUtils");
 const mongoose = require("mongoose");
 
 // ─── Helper: get current package from last subscription ───────────────────────
@@ -641,7 +643,7 @@ const addNote = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        member.notes.push({ text, createdBy: req.user.id });
+        member.notes.push({ text: sanitizePlainText(text), createdBy: req.user.id });
         await member.save();
         res.status(201).json({ message: "Note added successfully", member });
     } catch (error) {
@@ -672,7 +674,7 @@ const addAlert = async (req, res) => {
         }
 
         member.alert.push({
-            text,
+            text: sanitizePlainText(text),
             createdBy: req.user.id
         });
 
@@ -1097,6 +1099,10 @@ const assignPackage = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
+        if (member.isBlocked) {
+            return res.status(403).json({ message: "Cannot assign package — member is blocked" });
+        }
+
         const PackageExceptionRequest = require("../models/PackageExceptionRequest");
         const pending = await PackageExceptionRequest.findOne({ member: member._id, status: "pending" });
         if (pending) {
@@ -1160,6 +1166,11 @@ const assignPackage = async (req, res) => {
             }
         } else {
             start = (currentEndDate && currentEndDate > now) ? currentEndDate : now;
+        }
+
+        const overlapError = validateNoOverlappingSubscription(member.subscriptions, start, now);
+        if (overlapError) {
+            return res.status(400).json({ message: overlapError });
         }
 
         const endDate = calcEndDate(start, terms.duration);
@@ -1477,7 +1488,7 @@ const addCouch_notes = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        member.couch_notes.push({ text, createdBy: req.user.id });
+        member.couch_notes.push({ text: sanitizePlainText(text), createdBy: req.user.id });
         await member.save();
         res.status(201).json({ message: "Note added successfully", member });
     } catch (error) {

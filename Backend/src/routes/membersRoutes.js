@@ -8,6 +8,7 @@ const {
     createMemberSchema,
     freezeMemberSchema,
     addNoteSchema,
+    addAlertSchema,
     invitationSchema,
     assignPackageSchema,
 } = require("../validation/schemas");
@@ -81,7 +82,7 @@ router.get("/:memberId", protect, (req, res, next) => {
 router.post("/:memberId/notes", ...notesAccess, validate(addNoteSchema), addNote);
 router.post("/:memberId/invitations", ...inviteAccess, uploadSingle("idFile"), validate(invitationSchema), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
-router.post("/:memberId/alerts", protect, authorize("Receptionist", "Sales", "Sales Manager"), addAlert);
+router.post("/:memberId/alerts", protect, authorize("Receptionist", "Sales", "Sales Manager"), validate(addAlertSchema), addAlert);
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
 router.patch("/:memberId/alerts/:alertId/deactivate", protect, authorize("Receptionist", "Sales", "Sales Manager", "Owner"), deactivateAlert);
 router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);

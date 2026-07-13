@@ -1,10 +1,27 @@
 const Notification = require("../models/Notification");
 
+async function revokeStaleMemberAssignedNotifications({ memberId, currentRecipientId }) {
+    const filter = {
+        member: memberId,
+        type: "member_assigned",
+        read: false,
+    };
+    if (currentRecipientId) {
+        filter.recipient = { $ne: currentRecipientId };
+    }
+    await Notification.updateMany(filter, { $set: { read: true } });
+}
+
 async function notifyMemberAssigned({ recipientId, member, actorId }) {
     if (!recipientId || !member) return null;
 
     const recipientStr = recipientId.toString();
     if (actorId && recipientStr === actorId.toString()) return null;
+
+    await revokeStaleMemberAssignedNotifications({
+        memberId: member._id,
+        currentRecipientId: recipientId,
+    });
 
     const memberName = member.name || "A member";
     return Notification.create({
@@ -76,4 +93,5 @@ module.exports = {
     notifyPackageExceptionPending,
     notifyPackageExceptionResolved,
     notifySalesRepRequestPending,
+    revokeStaleMemberAssignedNotifications,
 };

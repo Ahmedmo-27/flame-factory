@@ -1,8 +1,17 @@
 const { z } = require("zod");
+const { sanitizePlainText } = require("../utils/sanitizeText");
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid id");
 const emptyToNull = (v) => (v === "" || v === undefined ? null : v);
 const nullableObjectId = z.preprocess(emptyToNull, objectId.nullable().optional());
+
+const plainText = (maxLen) =>
+    z.string()
+        .trim()
+        .min(1)
+        .max(maxLen)
+        .transform(sanitizePlainText)
+        .refine((val) => val.length >= 1, "Text is required");
 
 const activityType = z.enum([
     "gym", "crossfit", "box", "mma", "kickboxing", "calisthenics",
@@ -35,7 +44,11 @@ const freezeMemberSchema = z.object({
 });
 
 const addNoteSchema = z.object({
-    text: z.string().trim().min(1).max(2000),
+    text: plainText(2000),
+});
+
+const addAlertSchema = z.object({
+    text: plainText(2000),
 });
 
 const invitationSchema = z.object({
@@ -123,6 +136,7 @@ module.exports = {
     createMemberSchema,
     freezeMemberSchema,
     addNoteSchema,
+    addAlertSchema,
     invitationSchema,
     assignPackageSchema,
     createExceptionSchema,

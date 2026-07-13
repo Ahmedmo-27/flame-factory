@@ -21,6 +21,16 @@ const {
 const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
 const GENERIC_LOGIN_FAILURE = "Invalid email or password";
 
+function respondAfterLoginFailure(res, fail) {
+    if (fail.lockedUntil) {
+        return res.status(429).json({
+            message: "Account temporarily locked due to failed login attempts",
+            lockedUntil: new Date(fail.lockedUntil).toISOString(),
+        });
+    }
+    return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+}
+
 const registerUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -111,8 +121,9 @@ const loginUser = async (req, res) => {
             logger.auth("warn", "Login failed: invalid credentials", {
                 requestId,
                 failureCount: fail.count,
+                locked: Boolean(fail.lockedUntil),
             });
-            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+            return respondAfterLoginFailure(res, fail);
         }
 
         const { match, compareSkipped, needsRehash } = await verifyPassword(
@@ -129,7 +140,7 @@ const loginUser = async (req, res) => {
                 failureCount: fail.count,
                 locked: Boolean(fail.lockedUntil),
             });
-            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+            return respondAfterLoginFailure(res, fail);
         }
 
         clearLoginFailures(email);

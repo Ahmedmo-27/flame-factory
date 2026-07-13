@@ -5,7 +5,11 @@ const { connectTestDb, clearDatabase, disconnectTestDb } = require("../helpers/d
 const { seedTestData, TEST_PASSWORD } = require("../helpers/seed");
 const { authHeader, expiredToken } = require("../helpers/auth");
 const { getApp } = require("../helpers/app");
-const { clearLoginFailures, MAX_FAILURES } = require("../../src/middleware/loginLockout");
+const {
+  clearLoginFailures,
+  resetLoginLockoutState,
+  MAX_FAILURES,
+} = require("../../src/middleware/loginLockout");
 
 describe("Auth & RBAC edge cases", () => {
   let app;
@@ -19,6 +23,7 @@ describe("Auth & RBAC edge cases", () => {
   beforeEach(async () => {
     await clearDatabase();
     data = await seedTestData();
+    resetLoginLockoutState();
     clearLoginFailures("sales1@test.com");
     clearLoginFailures("nonexistent@test.com");
   });
@@ -28,10 +33,10 @@ describe("Auth & RBAC edge cases", () => {
   });
 
   describe("Login lockout", () => {
-    it("locks account after MAX_FAILURES wrong passwords", async () => {
+    it("returns 429 on the 5th wrong password (hardened lockout)", async () => {
       const email = "sales1@test.com";
 
-      for (let i = 0; i < MAX_FAILURES; i++) {
+      for (let i = 0; i < MAX_FAILURES - 1; i++) {
         const res = await request(app)
           .post("/api/users/login")
           .send({ email, password: "wrong-password" });
@@ -48,11 +53,10 @@ describe("Auth & RBAC edge cases", () => {
       expect(locked.body.lockedUntil).toBeDefined();
     });
 
-    it("locks unknown email after MAX_FAILURES failed attempts", async () => {
+    it("locks unknown email on the 5th failed attempt", async () => {
       const email = "nonexistent@test.com";
-      clearLoginFailures(email);
 
-      for (let i = 0; i < MAX_FAILURES; i++) {
+      for (let i = 0; i < MAX_FAILURES - 1; i++) {
         const res = await request(app)
           .post("/api/users/login")
           .send({ email, password: "wrong" });

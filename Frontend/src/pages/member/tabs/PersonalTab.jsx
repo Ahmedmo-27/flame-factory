@@ -10,15 +10,19 @@ export default function PersonalTab({ member, user, onRefresh }) {
   const [selected, setSelected]     = useState(member.assignedSales?._id ?? '');
   const [loading, setLoading]       = useState(false);
 
-  const canAssign = ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role);
+  const canAssign = user?.role === 'Sales Manager' || user?.role === 'Owner' ||
+    (user?.role === 'Receptionist' && !member.assignedSales);
 
   // Phone visibility: Sales Manager always, Sales only if assigned to this member, Receptionist/Owner always
   const isSalesManager = user?.role === 'Sales Manager';
   const isAssignedSales = user?.role === 'Sales' && member.assignedSales?._id === user?._id;
-  const isNonSalesRole = ['Receptionist', 'Owner', 'Accountant'].includes(user?.role);
-  const canSeePhone = isSalesManager || isAssignedSales;
-  // Non-sales roles see phone directly, no button needed
-  const showPhoneDirectly = isNonSalesRole;
+  const isReceptionist = user?.role === 'Receptionist';
+  const isNonSalesRole = ['Owner', 'Accountant'].includes(user?.role);
+  // If user has canViewPhones === false, they cannot see phone numbers (hide button)
+  const phonePrivacyRestricted = user?.canViewPhones === false;
+  const canSeePhone = !phonePrivacyRestricted && (isSalesManager || isAssignedSales || isReceptionist);
+  // Owner/Accountant see phone directly, no button needed — unless restricted
+  const showPhoneDirectly = !phonePrivacyRestricted && isNonSalesRole;
 
   const openAssign = async () => {
     try { const res = await getSalesUsers(); setSalesUsers(res.data.salesUsers ?? []); setSelected(member.assignedSales?._id ?? ''); }

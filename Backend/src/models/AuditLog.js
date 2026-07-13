@@ -18,6 +18,7 @@ const auditLogSchema = new mongoose.Schema({
             "staff_created",
             "sales_abilities_updated",
             "upload_accessed",
+            "phone_privacy_updated",
         ],
     },
     actor: {

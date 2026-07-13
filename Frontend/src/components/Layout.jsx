@@ -5,11 +5,11 @@ import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 
 const NAV = {
-  Receptionist:  [{ to: '/members', label: 'Members' }, { to: '/checkin', label: 'Check In' }],
-  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  Receptionist:  [{ to: '/checkin', label: 'Check In' }, { to: '/add-member', label: 'Add Member' }, { to: '/contacts', label: 'Contacts' }],
+  Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
 
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
-  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
+  Owner:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contract History' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
   Accountant:    [
     { to: '/accounting/dashboard', label: 'Dashboard' },
     { to: '/accounting/package-requests', label: 'Requests' },
@@ -17,9 +17,10 @@ const NAV = {
     { to: '/sales/targets', label: 'Revenue' },
     { to: '/members', label: 'Members' },
     { to: '/sales/team', label: 'Team' },
+    { to: '/contacts', label: 'Contacts' },
   ],
-  Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }],
-  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }],
+  Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }, { to: '/contacts', label: 'Contacts' }],
+  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }, { to: '/contacts', label: 'Contacts' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }
@@ -127,7 +128,9 @@ export default function Layout({ children }) {
               <GlobalSearch />
             </div>
 
-            {showNotifications && <NotificationBell />}
+            <div id="desk-notif" className="desk-notif">
+              {showNotifications && <NotificationBell />}
+            </div>
 
             {/* Profile */}
             <div ref={dropRef} style={{ position: 'relative' }}>
@@ -209,6 +212,11 @@ export default function Layout({ children }) {
         <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <GlobalSearch />
         </div>
+        {showNotifications && (
+          <div className="mob-drawer-notif" style={{ padding: '0 12px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <NotificationBell variant="drawer" />
+          </div>
+        )}
         <nav style={{ flex: 1, padding: '10px 10px', overflowY: 'auto' }}>
           {items.map((item) => (
             <NavItem key={item.to} item={item} variant="drawer" onNavigate={() => setMob(false)} />
@@ -265,7 +273,7 @@ export default function Layout({ children }) {
         }
 
         @media (max-width: 1024px) {
-          .desk-nav, #desk-search { display: none !important; }
+          .desk-nav, #desk-search, .desk-notif { display: none !important; }
           #mob-btn { display: flex !important; }
         }
 

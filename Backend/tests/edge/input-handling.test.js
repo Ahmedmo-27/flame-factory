@@ -75,9 +75,9 @@ describe("Input handling edge cases", () => {
   });
 
   describe("XSS in free-text fields", () => {
-    const xssPayload = '<script>alert("xss")</script>';
+    const xssPayload = '<script>alert("xss")</script>Hello';
 
-    it("stores XSS payload in notes as-is (unsanitized)", async () => {
+    it("sanitizes XSS payload in notes before storage", async () => {
       const res = await request(app)
         .post(`/api/members/${data.members.activeMember.systemId}/notes`)
         .set(authHeader(data.users.sales1))
@@ -87,10 +87,11 @@ describe("Input handling edge cases", () => {
 
       const member = await Member.findById(data.members.activeMember._id);
       const lastNote = member.notes[member.notes.length - 1];
-      expect(lastNote.text).toBe(xssPayload);
+      expect(lastNote.text).not.toContain("<script>");
+      expect(lastNote.text).toBe('alert("xss")Hello');
     });
 
-    it("stores XSS payload in alerts as-is (unsanitized)", async () => {
+    it("sanitizes XSS payload in alerts before storage", async () => {
       const res = await request(app)
         .post(`/api/members/${data.members.activeMember.systemId}/alerts`)
         .set(authHeader(data.users.receptionist))
@@ -100,7 +101,8 @@ describe("Input handling edge cases", () => {
 
       const member = await Member.findById(data.members.activeMember._id);
       const lastAlert = member.alert[member.alert.length - 1];
-      expect(lastAlert.text).toBe(xssPayload);
+      expect(lastAlert.text).not.toContain("<script>");
+      expect(lastAlert.text).toBe('alert("xss")Hello');
     });
   });
 });

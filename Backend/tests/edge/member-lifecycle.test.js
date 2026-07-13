@@ -52,7 +52,7 @@ describe("Member lifecycle edge cases", () => {
   });
 
   describe("Concurrent ID generation", () => {
-    it("handles simultaneous guest creation without duplicate systemId", async () => {
+    it("creates 10 concurrent guests with unique systemIds (no race 500s)", async () => {
       const payload = (n) => ({
         name: `Race Guest ${n}`,
         phones: `0105555${String(n).padStart(4, "0")}`,
@@ -70,24 +70,17 @@ describe("Member lifecycle edge cases", () => {
       const successes = results.filter((r) => r.status === 201);
       const failures = results.filter((r) => r.status !== 201);
 
-      expect(successes.length).toBeGreaterThan(0);
+      expect(failures.map((r) => ({ status: r.status, body: r.body }))).toEqual([]);
+      expect(successes.length).toBe(10);
 
       const systemIds = successes.map((r) => r.body.member.systemId);
-      const uniqueIds = new Set(systemIds);
-      expect(uniqueIds.size).toBe(systemIds.length);
-
-      if (failures.length > 0) {
-        failures.forEach((r) => {
-          expect([500, 400]).toContain(r.status);
-        });
-      }
+      expect(new Set(systemIds).size).toBe(10);
     });
   });
 
   describe("Package assignment on active subscription", () => {
-    it("allows assigning package to member who already has active subscription", async () => {
+    it("rejects overlapping package start while subscription is active", async () => {
       const member = data.members.activeMember;
-      const subsBefore = member.subscriptions.length;
 
       const res = await request(app)
         .post(`/api/members/${member.systemId}/package`)
@@ -97,12 +90,29 @@ describe("Member lifecycle edge cases", () => {
           name: "Premium Quarterly",
           duration: "3 months",
           pricePaid: 4000,
+          startDate: new Date().toISOString(),
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/start date must be on or after|active subscription/i);
+    });
+
+    it("allows renewal scheduled on/after current package end date", async () => {
+      const member = data.members.activeMember;
+      const currentEnd = new Date(member.subscriptions[0].endDate);
+
+      const res = await request(app)
+        .post(`/api/members/${member.systemId}/package`)
+        .set(authHeader(data.users.accountant))
+        .send({
+          packageId: data.packages.premiumPkg._id.toString(),
+          name: "Premium Quarterly",
+          duration: "3 months",
+          pricePaid: 4000,
+          startDate: currentEnd.toISOString(),
         });
 
       expect(res.status).toBe(200);
-
-      const updated = await Member.findById(member._id);
-      expect(updated.subscriptions.length).toBe(subsBefore + 1);
     });
   });
 

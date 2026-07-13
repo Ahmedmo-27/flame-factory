@@ -40,4 +40,21 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } // 5 MB max
 });
 
+function handleUploadError(err, res) {
+    if (err.name === "MulterError" && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "File too large. Maximum size is 5 MB." });
+    }
+    return res.status(400).json({ message: err.message });
+}
+
+function uploadSingle(fieldName) {
+    return (req, res, next) => {
+        upload.single(fieldName)(req, res, (err) => {
+            if (!err) return next();
+            return handleUploadError(err, res);
+        });
+    };
+}
+
 module.exports = upload;
+module.exports.uploadSingle = uploadSingle;

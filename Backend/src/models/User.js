@@ -9,8 +9,13 @@ const userSchema = new mongoose.Schema({
     },
 
     username: String,
-
+    mobile_number:String,
     password: String,
+    
+    canViewPhones: {
+        type: Boolean,
+        default: true,
+    },
 
     role: {
         type: String,

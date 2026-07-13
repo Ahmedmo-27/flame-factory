@@ -46,6 +46,7 @@ const protect = async (req, res, next) => {
             role: user.role,
             name: user.name,
             email: user.email,
+            canViewPhones: user.canViewPhones,
         };
         next();
     } catch (err) {

@@ -18,7 +18,7 @@ function timeAgo(date) {
   return `${days}d ago`;
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ variant = 'bar' }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
@@ -74,6 +74,10 @@ export default function NotificationBell() {
       } catch { /* silent */ }
     }
     setOpen(false);
+    if (n.type === 'sales_rep_request_pending') {
+      navigate('/sales/requests');
+      return;
+    }
     const memberId = n.member?.systemId || n.member?._id;
     if (!memberId) return;
     const tab = n.type === 'package_exception_pending' ? '?tab=packages' : '';
@@ -88,31 +92,38 @@ export default function NotificationBell() {
     } catch { /* silent */ }
   };
 
+  const isDrawer = variant === 'drawer';
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', width: isDrawer ? '100%' : 'auto' }}>
       <button
         onClick={handleOpen}
         aria-label="Notifications"
         style={{
           position: 'relative',
-          background: 'rgba(255,255,255,0.07)',
+          background: isDrawer ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)',
           border: '1px solid rgba(255,255,255,0.12)',
           borderRadius: 6,
-          width: 34,
+          width: isDrawer ? '100%' : 34,
           height: 34,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: isDrawer ? 'flex-start' : 'center',
+          gap: isDrawer ? 10 : 0,
+          padding: isDrawer ? '0 12px' : 0,
           transition: 'background 0.12s',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = isDrawer ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.12)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = isDrawer ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)'; }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
+        {isDrawer && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>Notifications</span>
+        )}
         {count > 0 && (
           <span style={{
             position: 'absolute', top: -4, right: -4,
@@ -128,8 +139,8 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fade-up" style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+        <div className="fade-up notif-panel dropdown-panel" style={{
+          position: 'absolute', top: 'calc(100% + 8px)', right: isDrawer ? 'auto' : 0, left: isDrawer ? 0 : 'auto',
           background: '#fff', border: '1px solid var(--border)',
           borderRadius: 8, width: 320, maxHeight: 400,
           boxShadow: '0 8px 24px rgba(15,23,42,0.14)',

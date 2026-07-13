@@ -69,7 +69,7 @@ export default function Members() {
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <div className="grid-stats-5">
           <StatCard label="Total"   value={loading ? '—' : stats.total}   color="brand" />
           <StatCard label="Active"  value={loading ? '—' : stats.active}  color="success" />
           <StatCard label="Frozen"  value={loading ? '—' : stats.frozen}  color="info" />
@@ -85,6 +85,7 @@ export default function Members() {
             { value: 'frozen',  label: `Frozen (${stats.frozen})` },
             { value: 'expired', label: `Expired (${stats.expired})` },
             { value: 'guest',   label: `Guests (${stats.guest})` },
+            { value: 'blocked', label: `Blocked (${stats.blocked ?? 0})` },
           ]} />
         </div>
 
@@ -173,7 +174,7 @@ function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
   return (
     <Modal open={open} onClose={onClose} title="Add Person"
       footer={<><Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn><Btn size="sm" onClick={handleSubmit} disabled={loading}>{loading ? <Spinner size="sm" /> : 'Add'}</Btn></>}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+      <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
         <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
         <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
         <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>

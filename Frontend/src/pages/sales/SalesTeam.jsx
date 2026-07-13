@@ -4,24 +4,41 @@ import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
 import { PageHeader, Card, Spinner, EmptyState, Avatar, Badge } from '../../components/ui';
-import { getSalesTeam } from '../../api/endpoints';
+import { getSalesTeam, getReceptionistTeam } from '../../api/endpoints';
 
 export default function SalesTeam() {
   usePageTitle('Team');
   const navigate = useNavigate();
-  const [team,    setTeam]    = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('sales'); // 'sales' | 'receptionists'
 
-  const fetchTeam = useCallback(async () => {
-    setLoading(true);
+  const [salesTeam,    setSalesTeam]    = useState([]);
+  const [receptionists, setReceptionists] = useState([]);
+  const [loadingSales, setLoadingSales] = useState(true);
+  const [loadingRecp, setLoadingRecp]  = useState(true);
+
+  const fetchSales = useCallback(async () => {
+    setLoadingSales(true);
     try {
       const res = await getSalesTeam();
-      setTeam(res.data.team ?? []);
-    } catch { toast.error('Failed to load team.'); }
-    finally { setLoading(false); }
+      setSalesTeam(res.data.team ?? []);
+    } catch { toast.error('Failed to load sales team.'); }
+    finally { setLoadingSales(false); }
   }, []);
 
-  useEffect(() => { fetchTeam(); }, [fetchTeam]);
+  const fetchReceptionists = useCallback(async () => {
+    setLoadingRecp(true);
+    try {
+      const res = await getReceptionistTeam();
+      setReceptionists(res.data.team ?? []);
+    } catch { toast.error('Failed to load receptionists.'); }
+    finally { setLoadingRecp(false); }
+  }, []);
+
+  useEffect(() => { fetchSales(); }, [fetchSales]);
+  useEffect(() => { fetchReceptionists(); }, [fetchReceptionists]);
+
+  const loading = tab === 'sales' ? loadingSales : loadingRecp;
+  const team = tab === 'sales' ? salesTeam : receptionists;
 
   return (
     <Layout>
@@ -29,38 +46,81 @@ export default function SalesTeam() {
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
 
-        {/* Summary row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px,1fr))', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        {/* ── Tabs ──────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
           {[
-            { label: 'Total Members',  value: loading ? '—' : team.reduce((s, u) => s + u.stats.total, 0) },
-            { label: 'Sales Reps',     value: loading ? '—' : team.filter(u => u.role === 'Sales').length },
-            { label: 'Sales Managers', value: loading ? '—' : team.filter(u => u.role === 'Sales Manager').length },
-          ].map(s => (
-            <div key={s.label} style={{ background: 'var(--card)', padding: '12px 16px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t1)' }}>{s.value}</div>
-            </div>
+            { id: 'sales', label: `Sales (${salesTeam.length})` },
+            { id: 'receptionists', label: `Receptionists (${receptionists.length})` },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: '8px 18px', background: 'none', border: 'none',
+              borderBottom: `2px solid ${tab === t.id ? 'var(--navy)' : 'transparent'}`,
+              marginBottom: -1,
+              color: tab === t.id ? 'var(--t1)' : 'var(--t3)',
+              fontSize: 13, fontWeight: tab === t.id ? 700 : 400,
+              cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              transition: 'color 0.12s',
+            }}
+              onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--t2)'; }}
+              onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--t3)'; }}
+            >{t.label}</button>
           ))}
         </div>
 
-        {/* Team grid */}
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
-        ) : !team.length ? (
-          <EmptyState message="No sales team members found" />
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-            {team.map(member => (
-              <TeamCard key={member._id} member={member} onClick={() => navigate(`/sales/team/${member._id}`)} />
-            ))}
-          </div>
+        {/* ── Sales Tab ────────────────────────────────────────── */}
+        {tab === 'sales' && (
+          <>
+            {/* Summary row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px,1fr))', gap: 1, background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              {[
+                { label: 'Total Members',  value: loadingSales ? '—' : salesTeam.reduce((s, u) => s + u.stats.total, 0) },
+                { label: 'Sales Reps',     value: loadingSales ? '—' : salesTeam.filter(u => u.role === 'Sales').length },
+                { label: 'Sales Managers', value: loadingSales ? '—' : salesTeam.filter(u => u.role === 'Sales Manager').length },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--card)', padding: '12px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t1)' }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {loadingSales ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
+            ) : !salesTeam.length ? (
+              <EmptyState message="No sales team members found" />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                {salesTeam.map(member => (
+                  <SalesCard key={member._id} member={member} onClick={() => navigate(`/sales/team/${member._id}`)} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Receptionists Tab ────────────────────────────────── */}
+        {tab === 'receptionists' && (
+          <>
+            {loadingRecp ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
+            ) : !receptionists.length ? (
+              <EmptyState message="No receptionists found" />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                {receptionists.map(member => (
+                  <ReceptionistCard key={member._id} member={member} onClick={() => navigate(`/sales/team/receptionist/${member._id}`)} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </Layout>
   );
 }
 
-function TeamCard({ member, onClick }) {
+// ── Sales Card ────────────────────────────────────────────────────────────────
+function SalesCard({ member, onClick }) {
   const { stats } = member;
   const pct = member.monthlyTarget > 0
     ? Math.min(100, Math.round((stats.monthlyRevenue / member.monthlyTarget) * 100))
@@ -90,7 +150,7 @@ function TeamCard({ member, onClick }) {
       </div>
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: pct !== null ? 12 : 0 }}>
+      <div className="grid-stats-4" style={{ background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: pct !== null ? 12 : 0 }}>
         {[
           { l: 'Active',  v: stats.active,  c: 'var(--green)' },
           { l: 'Frozen',  v: stats.frozen,  c: 'var(--sky)' },
@@ -123,6 +183,45 @@ function TeamCard({ member, onClick }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Receptionist Card ─────────────────────────────────────────────────────────
+function ReceptionistCard({ member, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 8, padding: '16px 18px',
+      cursor: 'pointer', transition: 'border-color 0.12s, box-shadow 0.12s',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--navy)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(15,23,42,0.08)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Avatar name={member.name} size="md" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 3 }}>{member.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--t3)' }}>{member.email}</div>
+          {member.mobile_number && (
+            <div style={{ fontSize: 12, color: 'var(--blue)', fontFamily: 'monospace', marginTop: 4 }}>
+              📞 {member.mobile_number}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 4 }}>
+            🖥️ Receptionist
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+            background: member.canViewPhones !== false ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+            color: member.canViewPhones !== false ? 'var(--green)' : 'var(--red)',
+          }}>
+            {member.canViewPhones !== false ? '🔓 Phones visible' : '🔒 Phones hidden'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -13,6 +13,10 @@ const { buildMemberListFilter, getMemberStatusStats } = require("../utils/member
 const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPrivacy");
 const { assertAllowedUpload } = require("../utils/fileMagic");
 const { writeAudit } = require("../utils/audit");
+const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
+const { sanitizePlainText } = require("../utils/sanitizeText");
+const { validateNoOverlappingSubscription } = require("../utils/subscriptionUtils");
+const mongoose = require("mongoose");
 
 // ─── Helper: get current package from last subscription ───────────────────────
 const getCurrentPackage = (member) => {
@@ -38,31 +42,13 @@ const validateCoachAssignee = async (CoachId) => {
 };
 
 // ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
-const generateSystemId = async () => {
-    const last = await Member.findOne({}, { systemId: 1 }).sort({ systemId: -1 });
-    if (!last || !last.systemId) return 100;
-    return last.systemId + 1;
-};
+const generateSystemId = () => nextSystemId();
 
 // ─── Helper: generate next memberId (subscribers only, starts at 100) ────────
-const generateMemberId = async () => {
-    const last = await Member.findOne(
-        { memberId: { $ne: null } },
-        { memberId: 1 }
-    ).sort({ memberId: -1 });
-    if (!last || !last.memberId) return 100;
-    return last.memberId + 1;
-};
+const generateMemberId = () => nextMemberId();
 
 // ─── Helper: generate next subscriptionId (global counter, starts at 100) ────
-const generateSubscriptionId = async () => {
-    const result = await Member.aggregate([
-        { $unwind: "$subscriptions" },
-        { $group: { _id: null, maxId: { $max: "$subscriptions.subscriptionId" } } }
-    ]);
-    if (!result.length || result[0].maxId == null) return 100;
-    return result[0].maxId + 1;
-};
+const generateSubscriptionId = () => nextSubscriptionId();
 
 // ─── Helper: calculate subscription end date ─────────────────────────────────
 const calcEndDate = (startDate, duration) => {
@@ -137,7 +123,7 @@ const createMember = async (req, res) => {
             personData.isMember = false;
         }
 
-        const member = await Member.create(personData);
+        const member = await createMemberRecord(personData);
 
         if (personData.assignedSales) {
             await notifyMemberAssigned({
@@ -159,9 +145,35 @@ const createMember = async (req, res) => {
 
         res.status(201).json({ message: packageId ? "Member created" : "Guest added", member });
     } catch (error) {
+        if (isDuplicateKeyError(error, ["systemId", "memberId"])) {
+            return res.status(409).json({ message: "Member ID conflict, please retry" });
+        }
         res.status(500).json({ message: error.message });
     }
 };
+
+async function createMemberRecord(personData, maxAttempts = 5) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            if (attempt > 0) {
+                personData.systemId = await generateSystemId();
+                if (personData.memberId != null) {
+                    personData.memberId = await generateMemberId();
+                }
+                if (personData.subscriptions?.length) {
+                    personData.subscriptions[0].subscriptionId = await generateSubscriptionId();
+                }
+            }
+            return await Member.create(personData);
+        } catch (error) {
+            if (isDuplicateKeyError(error, ["systemId", "memberId"]) && attempt < maxAttempts - 1) {
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw new Error("Failed to allocate unique member identifiers");
+}
 
 // ─── 2. Get All Members ───────────────────────────────────────────────────────
 const getAllMembers = async (req, res) => {
@@ -181,12 +193,15 @@ const getAllMembers = async (req, res) => {
         const [total, members, stats] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
+                .select("name systemId memberId phones status isBlocked gender assignedSales current_couch subscriptions createdBy createdAt source PT_sessions used_PT_sessions couch_subscription_status")
                 .populate("subscriptions.package", "name duration activityType")
                 .populate("createdBy", "name")
                 .populate("assignedSales", "name role")
+                .populate("current_couch", "name role")
                 .sort({ systemId: 1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             getMemberStatusStats(Member, statsFilter),
         ]);
 
@@ -224,16 +239,44 @@ const getMemberProfile = async (req, res) => {
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
-            .populate("userlog.createdBy", "name");
+            .populate("userlog.createdBy", "name role")
+            .populate("pt_subscriptions.createdBy", "name role");
 
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Auto-unfreeze if freeze period has ended
+        if (member.status === "frozen") {
+            const now = new Date();
+            const activeFreeze = member.freeze
+                .filter(f => !f.endedBy)
+                .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
+            if (!activeFreeze || new Date(activeFreeze.endDate) <= now) {
+                member.status = "active";
+                if (activeFreeze) {
+                    const freezeStart = new Date(activeFreeze.startDate);
+                    const freezeEnd = new Date(activeFreeze.endDate);
+                    const frozenDays = Math.ceil((freezeEnd - freezeStart) / 86400000);
+                    const currentSub = member.subscriptions?.at(-1);
+                    if (currentSub) {
+                        const subEnd = new Date(currentSub.endDate);
+                        subEnd.setDate(subEnd.getDate() + frozenDays);
+                        currentSub.endDate = subEnd;
+                    }
+                }
+                await member.save();
+            }
         }
 
         const currentPkg = getCurrentPackage(member);
 
         const checkIns = member.userlog
             .filter(log => log.type === "check-in")
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const ptSessions = member.userlog
+            .filter(log => log.type === "pt-session")
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         // Log this profile view
@@ -248,9 +291,11 @@ const getMemberProfile = async (req, res) => {
         res.status(200).json({
             member: memberPayload,
             checkIns,
+            ptSessions,
             profileViews,
             stats: {
                 totalCheckIns:        checkIns.length,
+                totalPTSessions:      ptSessions.length,
                 totalSubscriptions:   member.subscriptions.length,
                 totalFreezes:         member.freeze.length,
                 freezeDaysUsed:       member.freezeDaysUsed,
@@ -360,6 +405,11 @@ const assignSalesman = async (req, res) => {
         const member = await findMember(memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Receptionist can only assign if member has no sales rep yet
+        if (req.user.role === "Receptionist" && member.assignedSales) {
+            return res.status(403).json({ message: "Member already has an assigned sales rep. Only Sales Manager can reassign." });
         }
 
         member.assignedSales = salesId;
@@ -520,15 +570,17 @@ const getMembers = async (req, res) => {
         const [total, members] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
+                .select("name systemId memberId phones status isBlocked gender assignedSales subscriptions createdAt source")
                 .populate("assignedSales", "name email")
                 .populate("subscriptions.package", "name price duration activityType")
                 .sort({ systemId: 1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
         ]);
 
         const formatted = members.map((member) =>
-            formatSalesMember(member.toObject(), req.user.id, req.user.role)
+            formatSalesMember(member, req.user.id, req.user.role)
         );
 
         const stats = await getMemberStatusStats(Member, statsFilter);
@@ -591,7 +643,7 @@ const addNote = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        member.notes.push({ text, createdBy: req.user.id });
+        member.notes.push({ text: sanitizePlainText(text), createdBy: req.user.id });
         await member.save();
         res.status(201).json({ message: "Note added successfully", member });
     } catch (error) {
@@ -622,7 +674,7 @@ const addAlert = async (req, res) => {
         }
 
         member.alert.push({
-            text,
+            text: sanitizePlainText(text),
             createdBy: req.user.id
         });
 
@@ -907,7 +959,7 @@ const getAllNotes = async (req, res) => {
         const match = { "notes.0": { $exists: true } };
 
         if (req.query.createdBy) {
-            match["notes.createdBy"] = req.query.createdBy;
+            match["notes.createdBy"] = new mongoose.Types.ObjectId(req.query.createdBy);
         }
 
         const search = req.query.search?.trim();
@@ -924,7 +976,7 @@ const getAllNotes = async (req, res) => {
         const pipeline = [
             { $match: match },
             { $unwind: "$notes" },
-            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": req.query.createdBy } }] : []),
+            ...(req.query.createdBy ? [{ $match: { "notes.createdBy": new mongoose.Types.ObjectId(req.query.createdBy) } }] : []),
             {
                 $lookup: {
                     from: "users",
@@ -1023,6 +1075,7 @@ const assignPackage = async (req, res) => {
             pricePaid,
             discountPercent,
             startDate,
+            ptSessionsExpDate,
         } = req.body;
 
         if (!packageId) {
@@ -1037,10 +1090,17 @@ const assignPackage = async (req, res) => {
         if (pricePaid == null || pricePaid === "") {
             return res.status(400).json({ message: "Price paid is required" });
         }
+        if (Number(pricePaid) <= 0) {
+            return res.status(400).json({ message: "Price paid must be greater than zero" });
+        }
 
         const member = await findMember(req.params.memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (member.isBlocked) {
+            return res.status(403).json({ message: "Cannot assign package — member is blocked" });
         }
 
         const PackageExceptionRequest = require("../models/PackageExceptionRequest");
@@ -1108,6 +1168,11 @@ const assignPackage = async (req, res) => {
             start = (currentEndDate && currentEndDate > now) ? currentEndDate : now;
         }
 
+        const overlapError = validateNoOverlappingSubscription(member.subscriptions, start, now);
+        if (overlapError) {
+            return res.status(400).json({ message: overlapError });
+        }
+
         const endDate = calcEndDate(start, terms.duration);
         const subscriptionId = await generateSubscriptionId();
         const hadSubscription = member.subscriptions?.length > 0;
@@ -1146,6 +1211,27 @@ const assignPackage = async (req, res) => {
             createdBy: req.user.id,
         });
 
+        member.PT_sessions=(member.PT_sessions||0)+(basePkg.free_pt_sessions||0);
+
+        if (ptSessionsExpDate) {
+            const ptExpDate = new Date(ptSessionsExpDate);
+
+            // Compare dates only (ignore time)
+            const startDay = new Date(start);
+            startDay.setHours(0, 0, 0, 0);
+
+            const expDay = new Date(ptExpDate);
+            expDay.setHours(0, 0, 0, 0);
+
+            if (expDay < startDay) {
+                return res.status(400).json({
+                    message: "PT sessions expiration date must be on or after the package start date",
+                });
+            }
+
+            member.PT_sessions_expDate = ptExpDate;
+        }
+
         await member.save();
 
         await writeAudit({
@@ -1181,7 +1267,16 @@ const uploadNationalId = async (req, res) => {
             return res.status(400).json({ message: "National ID file is required" });
         }
 
-        member.nationalId = req.file.path;
+        let idFileName;
+        try {
+            await assertAllowedUpload(req.file.path);
+            idFileName = path.basename(req.file.filename || req.file.path);
+        } catch (err) {
+            fs.unlink(req.file.path, () => {});
+            return res.status(err.statusCode || 400).json({ message: err.message });
+        }
+
+        member.nationalId = idFileName;
         await member.save();
 
         res.json({ message: "National ID uploaded", nationalId: member.nationalId });
@@ -1291,9 +1386,13 @@ const sessionCheckIn_for_couch = async (req, res) => {
                 return res.status(400).json({ message: "Member is not active" });
             }
 
-            // dlw2ty law howa m4 fel free sessions eh a; hy7sl
             if(member.PT_sessions > member.used_PT_sessions) {
                 member.used_PT_sessions++;
+                member.userlog.push({
+                    type: "pt-session",
+                    text: "Private session check-in (1 session)",
+                    createdBy: req.user.id,
+                });
                 await member.save();
                 return res.status(200).json({ message: "Session checked in" });
             } else {
@@ -1312,7 +1411,11 @@ const sessionCheckIn_for_couch = async (req, res) => {
             if((member.PT_sessions-member.used_PT_sessions) >= numberOfSessions) {
 
                 member.used_PT_sessions=member.used_PT_sessions+numberOfSessions;
-
+                member.userlog.push({
+                    type: "pt-session",
+                    text: `Private session check-in (${numberOfSessions} session${numberOfSessions > 1 ? 's' : ''})`,
+                    createdBy: req.user.id,
+                });
                 await member.save();
                 return res.status(200).json({ message: "Session checked in" });
             } else {
@@ -1385,7 +1488,7 @@ const addCouch_notes = async (req, res) => {
             return res.status(404).json({ message: "Member not found" });
         }
 
-        member.couch_notes.push({ text, createdBy: req.user.id });
+        member.couch_notes.push({ text: sanitizePlainText(text), createdBy: req.user.id });
         await member.save();
         res.status(201).json({ message: "Note added successfully", member });
     } catch (error) {
@@ -1432,6 +1535,138 @@ const switchCoach = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+
+const addPT_sessions = async (req, res) => {
+    try {
+        const { memberId } = req.params;
+        const { numberOfSessions, startDate, durationMonths } = req.body;
+
+        const member = await findMember(memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!member.subscriptions?.length) {
+            return res.status(400).json({
+                message: "Member has no active subscription"
+            });
+        }
+
+        const sessions = Number(numberOfSessions);
+        if (sessions <= 0 || Number.isNaN(sessions)) {
+            return res.status(400).json({
+                message: "Number of sessions must be greater than zero"
+            });
+        }
+
+        const months = Number(durationMonths);
+        if (months <= 0 || Number.isNaN(months)) {
+            return res.status(400).json({
+                message: "Duration (months) must be greater than zero"
+            });
+        }
+
+        const start = startDate ? new Date(startDate) : new Date();
+        // Convert months to days: full months (30 days each) + half month (15 days)
+        const fullMonths = Math.floor(months);
+        const hasHalf = months - fullMonths >= 0.5;
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + fullMonths);
+        if (hasHalf) end.setDate(end.getDate() + 15);
+
+        const subscriptionEnd = new Date(member.subscriptions.at(-1).endDate);
+        if (end > subscriptionEnd) {
+            return res.status(400).json({
+                message: `Expiration date (${end.toISOString().slice(0,10)}) exceeds subscription end (${subscriptionEnd.toISOString().slice(0,10)})`
+            });
+        }
+
+        member.PT_sessions = (member.PT_sessions || 0) + sessions;
+        member.PT_sessions_startDate = start;
+        member.PT_sessions_expDate = end;
+
+        // Add to history
+        member.pt_subscriptions.push({
+            sessions,
+            startDate: start,
+            endDate: end,
+            durationMonths: months,
+            createdBy: req.user.id,
+        });
+
+        await member.save();
+
+        res.json({
+            message: "PT sessions updated successfully",
+            member
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+const bulkTransferCoach = async (req, res) => {
+    try {
+        const { coachId, memberIds } = req.body;
+
+        if (!coachId) {
+            return res.status(400).json({ message: "coachId is required" });
+        }
+        if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
+            return res.status(400).json({ message: "memberIds array is required" });
+        }
+
+        const coachUser = await User.findById(coachId);
+        if (!coachUser || !["Coach", "Coach Manager"].includes(coachUser.role)) {
+            return res.status(400).json({ message: "Invalid coach — user not found or not a Coach role" });
+        }
+
+        // Use bulkWrite for speed instead of saving one by one
+        const bulkOps = memberIds.map(id => ({
+            updateOne: {
+                filter: { _id: id },
+                update: {
+                    $set: { current_couch: coachId, couch_subscription_status: "active" },
+                    $push: {
+                        userlog: {
+                            type: "assign",
+                            text: `Bulk assigned to ${coachUser.name}`,
+                            createdBy: req.user.id,
+                            createdAt: new Date(),
+                        },
+                    },
+                },
+            },
+        }));
+
+        const result = await Member.bulkWrite(bulkOps);
+        const transferredCount = result.modifiedCount || 0;
+
+        // Send one notification to the coach
+        if (transferredCount > 0) {
+            const Notification = require("../models/Notification");
+            await Notification.create({
+                recipient: coachId,
+                type: "member_assigned",
+                title: "Members Assigned",
+                message: `${transferredCount} member(s) have been bulk-assigned to you`,
+                createdBy: req.user.id,
+            }).catch(() => {}); // don't fail if notification fails
+        }
+
+        res.json({
+            message: "Members transferred successfully",
+            transferredCount,
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1457,4 +1692,7 @@ module.exports = {
     assignCoach,
     addCouch_notes,
     switchCoach,
+    bulkTransferCoach,
+    //comment aho
+    addPT_sessions
 };

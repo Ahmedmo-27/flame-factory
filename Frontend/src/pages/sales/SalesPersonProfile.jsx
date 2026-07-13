@@ -10,7 +10,7 @@ import {
 } from '../../components/ui';
 import {
   getSalesProfile, getSalesUsers, updateSalesRepTarget,
-  bulkTransferSalesReps, updateSalesRepAbilities,
+  bulkTransferSalesReps, updateSalesRepAbilities, updatePhonePrivacy,
 } from '../../api/endpoints';
 
 // ── Abilities config ──────────────────────────────────────────────────────────
@@ -72,6 +72,9 @@ export default function SalesPersonProfile() {
   // Abilities
   const [savingAbility, setSavingAbility] = useState(null);
 
+  // Phone Privacy
+  const [savingPhonePrivacy, setSavingPhonePrivacy] = useState(false);
+
   usePageTitle(data?.user?.name ?? 'Sales Profile');
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -98,7 +101,8 @@ export default function SalesPersonProfile() {
   const stats      = data?.stats;
   const members    = data?.members ?? [];
   const isSalesRep = user?.role === 'Sales';
-  const showAccessTab = isManager && isSalesRep;
+  const isReceptionist = user?.role === 'Receptionist';
+  const showAccessTab = isManager && (isSalesRep || isReceptionist);
 
   const filtered = filter === 'all' ? members : members.filter(m => m.status === filter);
 
@@ -138,6 +142,26 @@ export default function SalesPersonProfile() {
       }));
       toast.error(e.response?.data?.message || 'Failed to update permission');
     } finally { setSavingAbility(null); }
+  };
+
+  const handleTogglePhonePrivacy = async (value) => {
+    // Optimistic update
+    setData(prev => ({
+      ...prev,
+      user: { ...prev.user, canViewPhones: value },
+    }));
+    setSavingPhonePrivacy(true);
+    try {
+      await updatePhonePrivacy(id, value);
+      toast.success('Phone privacy updated');
+    } catch (e) {
+      // Revert to previous state
+      setData(prev => ({
+        ...prev,
+        user: { ...prev.user, canViewPhones: !value },
+      }));
+      toast.error(e.response?.data?.message || 'Failed to update phone privacy');
+    } finally { setSavingPhonePrivacy(false); }
   };
 
   const toggleSelect = memberId => {
@@ -209,7 +233,7 @@ export default function SalesPersonProfile() {
               </div>
 
               {/* Stats strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+              <div className="grid-stats-5" style={{ background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
                 {[
                   { l: 'Total',   v: stats?.total,   c: 'var(--navy)' },
                   { l: 'Active',  v: stats?.active,  c: 'var(--green)' },
@@ -392,6 +416,43 @@ export default function SalesPersonProfile() {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* ── Phone Privacy Toggle ──────────────────────────────── */}
+                <div style={{ marginTop: 24, marginBottom: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>
+                    Privacy Settings
+                  </h3>
+                  <p style={{ fontSize: 12, color: 'var(--t4)' }}>
+                    Control data visibility for <strong>{user?.name}</strong>.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    background: 'var(--card)', padding: '14px 16px',
+                  }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>🔒</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 2 }}>
+                        Can View Phone Numbers
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--t4)' }}>Can view member phone numbers on profiles</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: (user?.canViewPhones !== false) ? 'var(--green)' : 'var(--red)' }}>
+                        {(user?.canViewPhones !== false) ? 'Enabled' : 'Disabled'}
+                      </span>
+                      {savingPhonePrivacy
+                        ? <Spinner size="sm" />
+                        : <Toggle
+                            checked={user?.canViewPhones !== false}
+                            onChange={val => handleTogglePhonePrivacy(val)}
+                          />
+                      }
+                    </div>
+                  </div>
                 </div>
               </Card>
             )}

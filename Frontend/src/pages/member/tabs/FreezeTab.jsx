@@ -37,7 +37,7 @@ export default function FreezeTab({ member, user, onRefresh }) {
         <CardHeader title="Freeze Management"><Badge status={member.status} /></CardHeader>
 
         {/* Quota row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+        <div className="grid-stats-3" style={{ background: 'var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
           {[{ l: 'Allowed', v: `${allowed}d`, c: 'var(--t1)' }, { l: 'Used', v: `${used}d`, c: 'var(--amber)' }, { l: 'Remaining', v: `${remaining}d`, c: remaining > 0 ? 'var(--green)' : 'var(--red)' }].map(s => (
             <div key={s.l} style={{ background: 'var(--card)', padding: '10px 14px', textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
@@ -48,7 +48,7 @@ export default function FreezeTab({ member, user, onRefresh }) {
 
         {canFreeze && isActive && remaining > 0 && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="grid-2">
               <Input label="Start Date" type="date" value={startDate} onChange={e => setStart(e.target.value)} />
               <Input label="End Date"   type="date" value={endDate}   onChange={e => setEnd(e.target.value)} />
             </div>
@@ -68,7 +68,7 @@ export default function FreezeTab({ member, user, onRefresh }) {
         {!freezes.length ? <EmptyState message="No freezes on record" /> :
           <div>
             {freezes.map(f => (
-              <div key={f._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)', gap: 16 }}
+              <div key={f._id} className="freeze-history-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)', gap: 16 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                 onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <div>

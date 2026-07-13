@@ -5,6 +5,7 @@ export const login        = (email, password) =>
   api.post('/users/login', { email, password });
 
 export const getSalesUsers   = () => api.get('/users/sales');
+export const getReceptionists = () => api.get('/users/receptionists');
 export const getSalesTeam    = () => api.get('/users/team');
 export const getSalesProfile = (id) => api.get(`/users/team/${id}`);
 export const getSalesManagerRevenue = (params = {}) =>
@@ -24,6 +25,12 @@ export const updateSalesRepTarget = (id, monthlyTarget) =>
   api.patch(`/users/${id}/target`, { monthlyTarget });
 export const updateSalesRepAbilities = (id, abilities) =>
   api.patch(`/users/${id}/abilities`, { abilities });
+export const updatePhonePrivacy = (id, canViewPhones) =>
+  api.patch(`/users/${id}/phone-privacy`, { canViewPhones });
+export const updateStaffMobile = (id, mobile_number) =>
+  api.patch(`/users/${id}/mobile`, { mobile_number });
+export const getReceptionistTeam = () => api.get('/users/receptionist-team');
+export const getUserById = (id) => api.get(`/users/${id}`);
 export const createStaffUser = (data) => api.post('/users/staff', data);
 
 // ── Notifications ─────────────────────────────────────────────────────────────
@@ -34,7 +41,7 @@ export const markAllNotificationsRead = () => api.patch('/notifications/read-all
 
 // ── Members ───────────────────────────────────────────────────────────────────
 export const getAllMembers     = (params) => api.get('/members', { params });
-export const searchAllMembers  = ()       => api.get('/members/all');
+export const searchAllMembers  = ()       => api.get('/members/all', { params: { limit: 10000 } });
 export const getAllNotes       = (params) => api.get('/members/all-notes', { params });
 export const getMemberProfile  = (id)       => api.get(`/members/${id}`);
 export const createMember      = (data)     => api.post('/members', data);
@@ -42,6 +49,8 @@ export const assignSales       = (id, salesId) =>
   api.patch(`/members/${id}/assign-sales`, { salesId });
 export const bulkTransferSalesReps = (data) =>
   api.post('/members/bulk-transfer-sales', data);
+export const bulkTransferCoach = (data) =>
+  api.post('/members/bulk-transfer-coach', data);
 export const switchSalesRep = (id, newSalesRepId) =>
   api.put(`/members/${id}/sales-rep`, { newSalesRepId });
 export const freezeMember      = (id, data) =>
@@ -75,6 +84,8 @@ export const deletePackage = (id)       => api.delete(`/packages/${id}`);
 
 export const assignPackage       = (id, data) =>
   api.post(`/members/${id}/package`, data);
+export const addPTSessions       = (id, data) =>
+  api.post(`/members/${id}/pt-sessions`, data);
 
 // ── Package Exceptions ────────────────────────────────────────────────────────
 export const getPackageExceptions         = (params) => api.get('/package-exceptions', { params });

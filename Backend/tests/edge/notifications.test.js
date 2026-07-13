@@ -25,7 +25,7 @@ describe("Notifications edge cases", () => {
     await disconnectTestDb();
   });
 
-  it("notification persists for rep after member reassigned to another rep", async () => {
+    it("marks old assignment notification read after member is reassigned", async () => {
     const createRes = await request(app)
       .post("/api/sales-requests")
       .set(authHeader(data.users.sales1))
@@ -45,24 +45,19 @@ describe("Notifications edge cases", () => {
       type: "member_assigned",
     });
     expect(notifBefore).toBeTruthy();
+    expect(notifBefore.read).toBe(false);
 
-    await request(app)
+    const transfer = await request(app)
       .put(`/api/members/${data.members.guest.systemId}/sales-rep`)
       .set(authHeader(data.users.salesManager))
       .send({ newSalesRepId: data.users.sales2._id.toString() });
+    expect(transfer.status).toBe(200);
 
     const member = await Member.findById(data.members.guest._id);
     expect(member.assignedSales.toString()).toBe(data.users.sales2._id.toString());
 
-    const notifRes = await request(app)
-      .get("/api/notifications")
-      .set(authHeader(data.users.sales1));
-
-    expect(notifRes.status).toBe(200);
-    const staleNotif = notifRes.body.notifications?.find(
-      (n) => n._id === notifBefore._id.toString() || n._id === notifBefore._id
-    );
-    expect(staleNotif).toBeDefined();
+    const staleNotif = await Notification.findById(notifBefore._id);
+    expect(staleNotif.read).toBe(true);
   });
 
   it("Sales rep can still fetch notifications endpoint after reassignment", async () => {

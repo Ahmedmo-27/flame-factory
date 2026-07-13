@@ -7,8 +7,9 @@
     "dev": "nodemon server.js",
     "build": "node --check server.js",
     "seed": "node src/seed.js",
-    "test": "NODE_ENV=test jest",
-    "test:edge": "NODE_ENV=test jest --runInBand --verbose"
+    "test": "vitest --run",
+    "test:edge": "NODE_ENV=test jest --runInBand --verbose",
+    "test:jest": "NODE_ENV=test jest --runInBand --verbose"
   },
   "keywords": [],
   "author": "",
@@ -28,9 +29,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "fast-check": "^4.9.0",
     "jest": "^30.4.2",
     "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.14",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "vitest": "^1.6.1"
   }
 }

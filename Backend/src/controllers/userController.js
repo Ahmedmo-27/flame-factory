@@ -21,6 +21,16 @@ const {
 const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
 const GENERIC_LOGIN_FAILURE = "Invalid email or password";
 
+function respondAfterLoginFailure(res, fail) {
+    if (fail.lockedUntil) {
+        return res.status(429).json({
+            message: "Account temporarily locked due to failed login attempts",
+            lockedUntil: new Date(fail.lockedUntil).toISOString(),
+        });
+    }
+    return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+}
+
 const registerUser = async (req, res) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -111,8 +121,9 @@ const loginUser = async (req, res) => {
             logger.auth("warn", "Login failed: invalid credentials", {
                 requestId,
                 failureCount: fail.count,
+                locked: Boolean(fail.lockedUntil),
             });
-            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+            return respondAfterLoginFailure(res, fail);
         }
 
         const { match, compareSkipped, needsRehash } = await verifyPassword(
@@ -129,7 +140,7 @@ const loginUser = async (req, res) => {
                 failureCount: fail.count,
                 locked: Boolean(fail.lockedUntil),
             });
-            return res.status(400).json({ message: GENERIC_LOGIN_FAILURE });
+            return respondAfterLoginFailure(res, fail);
         }
 
         clearLoginFailures(email);
@@ -174,6 +185,19 @@ const getSalesUsers = async (req, res) => {
         ).sort({ name: 1 });
 
         res.status(200).json({ salesUsers });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getReceptionists = async (req, res) => {
+    try {
+        const staff = await User.find(
+            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager"] } },
+            "name mobile_number role _id"
+        ).sort({ role: 1, name: 1 });
+
+        res.json({ receptionists: staff });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -485,10 +509,10 @@ const createStaffUser = async (req, res) => {
             return res.status(403).json({ message: "Not authorized" });
         }
 
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role,mobile_number } = req.body;
 
-        if (!name || !email || !password || !role) {
-            return res.status(400).json({ message: "name, email, password, and role are required" });
+        if (!name || !email || !password || !role || !mobile_number) {
+            return res.status(400).json({ message: "name, email, password, mobile_number and role are required" });
         }
 
         if (!["Sales", "Receptionist", "Accountant","Coach"].includes(role)) {
@@ -503,7 +527,7 @@ const createStaffUser = async (req, res) => {
         const normalizedEmail = normalizeEmail(email);
         const hashedPassword = await hashPassword(password);
 
-        const user = await User.create({ name, email: normalizedEmail, password: hashedPassword, role });
+        const user = await User.create({ name, email: normalizedEmail, password: hashedPassword, role, mobile_number });
 
         logger.auth("info", "Staff user created", {
             createdBy: req.user.id,
@@ -873,10 +897,99 @@ const updateCoachRepAbilities = async (req, res) => {
     }
 };
 
+const updateStaffMobile = async (req, res) => {
+    try {
+        if (!["Sales Manager", "Owner"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Only managers can update staff mobile numbers" });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const { mobile_number } = req.body;
+        if (!mobile_number || typeof mobile_number !== "string" || !mobile_number.trim()) {
+            return res.status(400).json({ message: "mobile_number (string) is required" });
+        }
+
+        const previousValue = user.mobile_number;
+        user.mobile_number = mobile_number.trim();
+        await user.save();
+
+        await writeAudit({
+            action: "staff_mobile_updated",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "user",
+            targetId: user._id,
+            meta: { previousValue, newValue: mobile_number.trim() },
+            req,
+        });
+
+        res.json({ message: "Mobile number updated", user: formatUserResponse(user) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const getReceptionistTeam = async (req, res) => {
+    try {
+        const team = await User.find({ role: "Receptionist" })
+            .select("name email role mobile_number canViewPhones abilities createdAt")
+            .sort({ name: 1 });
+
+        res.json({ team: team.map(formatUserResponse) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+const updatePhonePrivacy = async (req, res) => {
+    try {
+        if (req.user.role !== "Sales Manager") {
+            return res.status(403).json({ message: "Only sales managers can update phone privacy settings" });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (!["Receptionist", "Sales"].includes(user.role)) {
+            return res.status(400).json({ message: "Phone privacy can only be updated for Receptionists and Sales Representatives" });
+        }
+
+        const { canViewPhones } = req.body;
+        if (typeof canViewPhones !== "boolean") {
+            return res.status(400).json({ message: "canViewPhones (boolean) is required" });
+        }
+
+        const previousValue = user.canViewPhones ?? true;
+        user.canViewPhones = canViewPhones;
+        await user.save();
+
+        await writeAudit({
+            action: "phone_privacy_updated",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "user",
+            targetId: user._id,
+            meta: { previousValue, newValue: canViewPhones },
+            req,
+        });
+
+        res.json({ message: "Phone privacy updated", user: formatUserResponse(user) });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
     getSalesUsers,
+    getReceptionists,
     getSalesRevenue,
     getSalesManagerRevenue,
     getSalesReps,
@@ -885,6 +998,9 @@ module.exports = {
     updateSalesRepTarget,
     createStaffUser,
     updateSalesRepAbilities,
+    updatePhonePrivacy,
+    updateStaffMobile,
+    getReceptionistTeam,
     getSalesTeam,
     getSalesProfile,
     getSubscriptionsByDate,

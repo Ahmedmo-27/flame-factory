@@ -25,7 +25,7 @@ describe("File upload edge cases", () => {
   });
 
   describe("Invitation ID upload (multer + magic bytes)", () => {
-    it("rejects file exceeding 5MB", async () => {
+    it("rejects file exceeding 5MB with 413", async () => {
       const bigBuffer = Buffer.alloc(5 * 1024 * 1024 + 1, 0xff);
       bigBuffer[0] = 0xff;
       bigBuffer[1] = 0xd8;
@@ -40,7 +40,8 @@ describe("File upload edge cases", () => {
           contentType: "image/jpeg",
         });
 
-      expect([400, 413, 500]).toContain(res.status);
+      expect(res.status).toBe(413);
+      expect(res.body.message).toMatch(/file too large/i);
     });
 
     it("rejects disguised PHP file renamed to .jpg (magic-byte validation)", async () => {
@@ -81,7 +82,7 @@ describe("File upload edge cases", () => {
   });
 
   describe("National ID upload (Accountant)", () => {
-    it("may accept disguised file without magic-byte check on national-id route", async () => {
+    it("rejects disguised PHP file via magic-byte check", async () => {
       const phpPayload = Buffer.from("<?php echo 'pwned'; ?>");
 
       const res = await request(app)
@@ -92,9 +93,26 @@ describe("File upload edge cases", () => {
           contentType: "image/jpeg",
         });
 
-      if (res.status === 200) {
-        expect(res.body.nationalId).toBeDefined();
-      }
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/does not match allowed types|content/i);
+    });
+
+    it("stores basename only for genuine JPEG national ID", async () => {
+      const jpeg = Buffer.from([
+        0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+      ]);
+
+      const res = await request(app)
+        .patch(`/api/members/${data.members.activeMember.systemId}/national-id`)
+        .set(authHeader(data.users.accountant))
+        .attach("nationalIdFile", jpeg, {
+          filename: "id.jpg",
+          contentType: "image/jpeg",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.nationalId).toMatch(/\.jpg$/);
+      expect(res.body.nationalId).not.toContain("/");
     });
   });
 

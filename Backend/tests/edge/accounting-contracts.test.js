@@ -24,7 +24,7 @@ describe("Accounting / contracts edge cases", () => {
   });
 
   describe("Contract entry amounts", () => {
-    it("allows zero-amount package assignment (pricePaid = 0)", async () => {
+    it("rejects zero-amount package assignment (pricePaid = 0)", async () => {
       const res = await request(app)
         .post(`/api/members/${data.members.guest.systemId}/package`)
         .set(authHeader(data.users.accountant))
@@ -35,7 +35,8 @@ describe("Accounting / contracts edge cases", () => {
           pricePaid: 0,
         });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/greater than zero|positive|Validation failed/i);
     });
 
     it("rejects negative pricePaid via validation", async () => {
@@ -54,7 +55,7 @@ describe("Accounting / contracts edge cases", () => {
   });
 
   describe("Contract creation for blocked/deleted member", () => {
-    it("allows package assign to blocked member", async () => {
+    it("rejects package assign to blocked member with 403", async () => {
       await Member.findByIdAndUpdate(data.members.guest._id, {
         isBlocked: true,
         blockedReason: "test block",
@@ -70,7 +71,8 @@ describe("Accounting / contracts edge cases", () => {
           pricePaid: 1500,
         });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/blocked/i);
     });
 
     it("returns 404 when assigning package to deleted member", async () => {

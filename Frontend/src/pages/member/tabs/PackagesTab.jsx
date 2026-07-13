@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, fmtDateTime, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
-import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage } from '../../../api/endpoints';
+import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage, addPTSessions } from '../../../api/endpoints';
 import CatalogPackageForm, { EMPTY_PACKAGE_FORM, validatePackageForm, packageFormToPayload } from '../../../components/PackageForm';
 import PackageAcceptModal from '../../../components/accounting/PackageAcceptModal';
 
@@ -15,6 +15,175 @@ const EMPTY_FORM = {
 };
 
 export default function PackagesTab({ member, user, onRefresh }) {
+  const [tab, setTab] = useState('packages'); // 'packages' | 'pt-sessions'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+        {[
+          { id: 'packages', label: 'Packages' },
+          { id: 'pt-sessions', label: 'Private Sessions' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding: '8px 18px', background: 'none', border: 'none',
+            borderBottom: `2px solid ${tab === t.id ? 'var(--navy)' : 'transparent'}`,
+            marginBottom: -1,
+            color: tab === t.id ? 'var(--t1)' : 'var(--t3)',
+            fontSize: 13, fontWeight: tab === t.id ? 700 : 400,
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+            transition: 'color 0.12s',
+          }}
+            onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--t2)'; }}
+            onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--t3)'; }}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'packages' && <PackagesContent member={member} user={user} onRefresh={onRefresh} />}
+      {tab === 'pt-sessions' && <PTSessionsContent member={member} user={user} onRefresh={onRefresh} />}
+    </div>
+  );
+}
+
+// ── Private Sessions Sub-tab ──────────────────────────────────────────────────
+function PTSessionsContent({ member, user, onRefresh }) {
+  const [sessions, setSessions] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [durationMonths, setDurationMonths] = useState('');
+  const [loading, setLoading] = useState(false);
+  const canAdd = ['Owner', 'Accountant'].includes(user?.role);
+
+  const totalSessions = member.PT_sessions ?? 0;
+  const usedSessions = member.used_PT_sessions ?? 0;
+  const remaining = totalSessions - usedSessions;
+  const ptStart = member.PT_sessions_startDate;
+  const ptEnd = member.PT_sessions_expDate;
+  const ptSubs = member.pt_subscriptions ?? [];
+  const latestSub = ptSubs.at(-1);
+
+  const handleAdd = async () => {
+    const num = Number(sessions);
+    if (!num || num <= 0) { toast.error('Enter a valid number of sessions'); return; }
+    const months = Number(durationMonths);
+    if (!months || months <= 0) { toast.error('Enter a valid duration in months'); return; }
+    if (!startDate) { toast.error('Start date is required'); return; }
+    setLoading(true);
+    try {
+      await addPTSessions(member.systemId ?? member._id, {
+        numberOfSessions: num,
+        startDate,
+        durationMonths: months,
+      });
+      toast.success(`Added ${num} private session(s)`);
+      setSessions('');
+      setDurationMonths('');
+      onRefresh?.();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to add sessions');
+    } finally { setLoading(false); }
+  };
+
+  const activeDetails = totalSessions > 0 ? [
+    { label: 'Total Sessions', value: totalSessions },
+    { label: 'Used', value: usedSessions },
+    { label: 'Remaining', value: remaining },
+    { label: 'Start', value: ptStart ? fmtDate(ptStart) : '—' },
+    { label: 'Expiry', value: ptEnd ? fmtDate(ptEnd) : '—' },
+    { label: 'Duration', value: latestSub ? `${latestSub.durationMonths} month${latestSub.durationMonths !== 1 ? 's' : ''}` : '—' },
+    { label: 'Status', value: <Badge status={remaining > 0 && ptEnd && new Date(ptEnd) > new Date() ? 'active' : remaining <= 0 ? 'expired' : 'expired'} /> },
+    { label: 'Coach', value: member.current_couch?.name ?? '—' },
+  ] : [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Active Sessions Card */}
+      <Card>
+        <CardHeader title="Active Private Sessions">
+          {canAdd && (
+            <Btn size="xs" onClick={() => document.getElementById('pt-add-form')?.scrollIntoView({ behavior: 'smooth' })}>+ Add Sessions</Btn>
+          )}
+        </CardHeader>
+
+        {totalSessions === 0
+          ? <EmptyState message="No active private sessions" sub={canAdd ? 'Click Add Sessions to assign PT sessions to this member.' : 'No private sessions assigned yet.'} />
+          : <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1,
+              background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
+            }}>
+              {activeDetails.map(d => (
+                <div key={d.label} style={{ background: 'var(--card)', padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{d.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{d.value ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+        }
+      </Card>
+
+      {/* Add Sessions Form */}
+      {canAdd && (
+        <Card id="pt-add-form">
+          <CardHeader title="Add Private Sessions" />
+          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 12 }}>
+            Add PT sessions to <strong>{member.name}</strong>. Duration in months (e.g. 1, 2.5, 3). Half months = 15 days.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, alignItems: 'flex-end', marginBottom: 12 }}>
+            <Input
+              label="Number of Sessions"
+              type="number" min="1"
+              value={sessions}
+              onChange={e => setSessions(e.target.value)}
+              placeholder="e.g. 10"
+            />
+            <Input
+              label="Start Date"
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+            />
+            <Input
+              label="Duration (months)"
+              type="number" min="0.5" step="0.5"
+              value={durationMonths}
+              onChange={e => setDurationMonths(e.target.value)}
+              placeholder="e.g. 2.5"
+            />
+          </div>
+          <Btn size="sm" onClick={handleAdd} disabled={loading}>
+            {loading ? <Spinner size="sm" /> : 'Add Sessions'}
+          </Btn>
+        </Card>
+      )}
+
+      {/* Session History Table */}
+      <Card noPad>
+        <div style={{ padding: '14px 18px 0' }}>
+          <CardHeader title={`Session History (${ptSubs.length})`} />
+        </div>
+        {!ptSubs.length ? <EmptyState message="No session records yet" /> :
+          <Table headers={['#', 'Sessions', 'Duration', 'Start', 'Expiry', 'Coach', 'Date Added']}>
+            {[...ptSubs].reverse().map((sub, i) => (
+              <tr key={sub._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{ptSubs.length - i}</td>
+                <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{sub.sessions}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{sub.durationMonths} month{sub.durationMonths !== 1 ? 's' : ''}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.startDate)}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.endDate)}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{member.current_couch?.name ?? '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{fmtDateTime(sub.createdAt)}</td>
+              </tr>
+            ))}
+          </Table>
+        }
+      </Card>
+    </div>
+  );
+}
+
+// ── Packages Sub-tab (original content) ───────────────────────────────────────
+function PackagesContent({ member, user, onRefresh }) {
   const [pending, setPending] = useState(null);
   const [loadingPending, setLoadingPending] = useState(true);
   const [showAddPackage, setShowAddPackage] = useState(false);
@@ -290,7 +459,7 @@ function PackageFormFields({ form, set, readOnly, makeException, allEditable }) 
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="grid-2">
       <Input label="Package Name" value={form.name} onChange={e => set?.('name', e.target.value)} disabled={fieldDisabled('name')} readOnly={readOnly} />
       <Select label="Activity" value={form.activityType} onChange={e => set?.('activityType', e.target.value)} disabled={fieldDisabled('activityType')} readOnly={readOnly}>
         {ACTIVITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}

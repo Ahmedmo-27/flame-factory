@@ -11,6 +11,7 @@ import SalesMembers       from './pages/sales/SalesMembers';
 import SalesRequests      from './pages/sales/SalesRequests';
 import SalesTeam          from './pages/sales/SalesTeam';
 import SalesPersonProfile from './pages/sales/SalesPersonProfile';
+import ReceptionistProfile from './pages/sales/ReceptionistProfile';
 import ManageStaff        from './pages/sales/ManageStaff';
 import ManagePackages     from './pages/sales/ManagePackages';
 import TargetDashboard    from './pages/sales/TargetDashboard';
@@ -27,7 +28,9 @@ import CoachStaff         from './pages/coach/CoachStaff';
 import CoachTransfer      from './pages/coach/CoachTransfer';
 import CoachTransfers     from './pages/coach/CoachTransfers';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
-import CheckIn        from './pages/CheckIn';
+import CheckIn            from './pages/CheckIn';
+import AddMember          from './pages/AddMember';
+import ReceptionContacts  from './pages/ReceptionContacts';
 import NotFound       from './pages/NotFound';
 
 // ── Protected route wrapper ───────────────────────────────────────────────────
@@ -45,6 +48,7 @@ function RootRedirect() {
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
   if (['Coach', 'Coach Manager'].includes(user.role)) return <Navigate to="/coach/dashboard" replace />;
   if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
+  if (user.role === 'Receptionist') return <Navigate to="/checkin" replace />;
   return <Navigate to="/members" replace />;
 }
 
@@ -57,22 +61,29 @@ function AppRoutes() {
 
       {/* Receptionist / Owner */}
       <Route path="/members" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Accountant', 'Coach Manager']}>
+        <PrivateRoute roles={['Owner', 'Sales Manager', 'Accountant', 'Coach Manager']}>
           <Members />
         </PrivateRoute>
       } />
 
       {/* Member profile — roles must match Backend membersRoutes profileRoles */}
       <Route path="/members/:id" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach', 'Accountant']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales', 'Sales Manager', 'Coach', 'Coach Manager', 'Accountant']}>
           <MemberProfile />
         </PrivateRoute>
       } />
 
       {/* Check-in — API writeAccess is Receptionist/Owner/Sales Manager only */}
       <Route path="/checkin" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Sales']}>
           <CheckIn />
+        </PrivateRoute>
+      } />
+
+      {/* Add Member */}
+      <Route path="/add-member" element={
+        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
+          <AddMember />
         </PrivateRoute>
       } />
 
@@ -95,6 +106,11 @@ function AppRoutes() {
       <Route path="/sales/team" element={
         <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
           <SalesTeam />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/team/receptionist/:id" element={
+        <PrivateRoute roles={['Sales Manager', 'Owner']}>
+          <ReceptionistProfile />
         </PrivateRoute>
       } />
       <Route path="/sales/team/:id" element={
@@ -185,6 +201,13 @@ function AppRoutes() {
       <Route path="/coach/my-transfers" element={
         <PrivateRoute roles={['Coach']}>
           <CoachTransfers />
+        </PrivateRoute>
+      } />
+
+      {/* Reception contacts — all authenticated */}
+      <Route path="/contacts" element={
+        <PrivateRoute>
+          <ReceptionContacts />
         </PrivateRoute>
       } />
 

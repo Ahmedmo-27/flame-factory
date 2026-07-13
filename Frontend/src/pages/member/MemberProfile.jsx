@@ -121,7 +121,7 @@ export default function MemberProfile() {
           <span>{loading ? 'Loading…' : (member?.name ?? 'Profile')}</span>
         </div>
       }>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="member-profile-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {member && ['Receptionist', 'Owner', 'Sales Manager'].includes(user?.role) && (
             <Btn variant={member.status === 'active' || member.status === 'frozen' ? 'success' : 'outline'} size="sm"
               onClick={handleCheckIn} disabled={checkingIn || member.status === 'expired' || member.status === 'guest' || member.isBlocked}>
@@ -161,7 +161,7 @@ export default function MemberProfile() {
                 </div>
               </div>
             )}
-            <ProfileHeader member={member} stats={stats} />
+            <ProfileHeader member={member} stats={stats} user={user} />
             <Tabs tabs={TABS} active={activeTab} onChange={setTab} />
             <div className="fade-up">
               {activeTab === 'personal'    && <PersonalTab    member={member} user={user} onRefresh={fetchProfile} />}
@@ -171,7 +171,7 @@ export default function MemberProfile() {
               {activeTab === 'callcenter'  && <CallCenterTab  member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'freeze'      && <FreezeTab      member={member} user={user} onRefresh={fetchProfile} />}
               {activeTab === 'invitations' && <InvitationsTab member={member} user={user} onRefresh={fetchProfile} />}
-              {activeTab === 'checkins'    && <CheckInsTab    checkIns={data?.checkIns ?? []} stats={data?.stats} />}
+              {activeTab === 'checkins'    && <CheckInsTab    checkIns={data?.checkIns ?? []} ptSessions={data?.ptSessions ?? []} stats={data?.stats} member={member} />}
               {activeTab === 'others'      && <OthersTab      profileViews={data?.profileViews ?? []} member={member} user={user} />}
             </div>
           </>
@@ -233,19 +233,25 @@ export default function MemberProfile() {
   );
 }
 
-function ProfileHeader({ member, stats }) {
+function ProfileHeader({ member, stats, user }) {
   const sub = member.subscriptions?.at(-1);
   const pkg = sub?.package;
+
+  const totalPT = member.PT_sessions ?? 0;
+  const usedPT = member.used_PT_sessions ?? 0;
+  const remainingPT = totalPT - usedPT;
 
   const statItems = [
     { label: 'Check-ins',     value: stats?.totalCheckIns ?? 0 },
     { label: 'Subscriptions', value: stats?.totalSubscriptions ?? 0 },
     { label: 'Freeze used',   value: `${stats?.freezeDaysUsed ?? 0} / ${pkg?.freezeLimitDays ?? 0}d` },
     { label: 'Invitations',   value: `${stats?.invitationsUsed ?? 0} / ${pkg?.invitationLimit ?? 0}` },
+    { label: 'PT Sessions',   value: `${usedPT} / ${totalPT}` },
+    { label: 'PT Remaining',  value: remainingPT, color: remainingPT > 0 ? 'var(--green)' : 'var(--t4)' },
   ];
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
+    <div className="member-profile-header" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
       <Avatar name={member.name} size="lg" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -253,15 +259,15 @@ function ProfileHeader({ member, stats }) {
           <Badge status={member.isBlocked ? 'blocked' : member.status} />
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--t3)', marginBottom: 12 }}>
-          <span>{member.phones}</span>
           {member.gender     && <span style={{ textTransform: 'capitalize' }}>{member.gender}</span>}
           {member.assignedSales && <span>Sales: {member.assignedSales.name}</span>}
+          {member.current_couch && <span>Coach: {member.current_couch.name}</span>}
           <span style={{ fontFamily: 'monospace', color: 'var(--t4)' }}>#{member.systemId}{member.memberId ? ` / M${member.memberId}` : ''}</span>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {statItems.map(s => (
             <div key={s.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 12px', textAlign: 'center', minWidth: 80 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>{s.value}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: s.color ?? 'var(--t1)' }}>{s.value}</div>
               <div style={{ fontSize: 10, color: 'var(--t4)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: 2 }}>{s.label}</div>
             </div>
           ))}

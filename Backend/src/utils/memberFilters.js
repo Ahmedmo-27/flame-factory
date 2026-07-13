@@ -1,7 +1,9 @@
 function buildMemberListFilter({ status, search, assignedSales, unassigned, subscribedToday }) {
     const filter = {};
 
-    if (status && status !== "all") {
+    if (status === "blocked") {
+        filter.isBlocked = true;
+    } else if (status && status !== "all") {
         filter.status = status;
     }
 
@@ -36,12 +38,15 @@ function buildMemberListFilter({ status, search, assignedSales, unassigned, subs
 }
 
 async function getMemberStatusStats(Member, baseFilter = {}) {
-    const groups = await Member.aggregate([
-        { $match: baseFilter },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
+    const [groups, blockedCount] = await Promise.all([
+        Member.aggregate([
+            { $match: baseFilter },
+            { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
+        Member.countDocuments({ ...baseFilter, isBlocked: true }),
     ]);
 
-    const stats = { total: 0, active: 0, frozen: 0, expired: 0, guest: 0 };
+    const stats = { total: 0, active: 0, frozen: 0, expired: 0, guest: 0, blocked: blockedCount };
     groups.forEach((g) => {
         if (g._id && Object.prototype.hasOwnProperty.call(stats, g._id)) {
             stats[g._id] = g.count;

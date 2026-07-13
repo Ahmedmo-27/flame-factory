@@ -3,7 +3,7 @@ const Member = require("../models/Member");
 const User = require("../models/User");
 const { resolveAbilities } = require("../utils/userAbilities");
 const { buildMemberFilter, findMemberByIdentifier } = require("../utils/memberLookup");
-const { notifyMemberAssigned } = require("../utils/notificationService");
+const { notifyMemberAssigned, notifySalesRepRequestPending } = require("../utils/notificationService");
 const { parsePagination, buildPagination } = require("../utils/pagination");
 
 // Submit a request to assign a member to the logged-in sales rep
@@ -53,6 +53,20 @@ const createRequest = async (req, res) => {
             requestedBy: req.user.id,
             status: "pending"
         });
+
+        const salesManagers = await User.find({ role: "Sales Manager" }).select("_id");
+        await Promise.all(
+            salesManagers.map((manager) =>
+                notifySalesRepRequestPending({
+                    recipientId: manager._id,
+                    member,
+                    actorId: req.user.id,
+                    requestId: newRequest._id,
+                    salesRepName: salesUser?.name,
+                    isTakeover,
+                })
+            )
+        );
 
         res.status(201).json({ message: "Request submitted successfully", request: newRequest });
     } catch (error) {

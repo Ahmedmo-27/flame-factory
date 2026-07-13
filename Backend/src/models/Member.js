@@ -31,7 +31,7 @@ const alertSchema = new mongoose.Schema({
 const logSchema = new mongoose.Schema({
     type: {
         type: String,
-        enum: ["check-in", "note", "renewal", "freeze", "assign", "other"],
+        enum: ["check-in", "pt-session", "note", "renewal", "freeze", "assign", "other"],
         default: "other"
     },
     text: {
@@ -280,6 +280,23 @@ blockedAt: {
         default:0
     },
 
+    PT_sessions_expDate:{
+        type: Date,
+    },
+
+    PT_sessions_startDate:{
+        type: Date,
+    },
+
+    pt_subscriptions: [{
+        sessions: { type: Number, required: true },
+        startDate: { type: Date, required: true },
+        endDate: { type: Date, required: true },
+        durationMonths: { type: Number, required: true },
+        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        createdAt: { type: Date, default: Date.now },
+    }],
+
     notes:       [noteSchema],
     alert:       [alertSchema],
     couch_notes: [noteSchema],
@@ -288,5 +305,14 @@ blockedAt: {
     userlog:     [logSchema]
 
 }, { timestamps: true });
+
+// ── Indexes for performance ───────────────────────────────────────────────────
+memberSchema.index({ status: 1, systemId: 1 });
+memberSchema.index({ assignedSales: 1, status: 1 });
+memberSchema.index({ current_couch: 1 });
+memberSchema.index({ systemId: 1 });
+memberSchema.index({ isBlocked: 1 });
+memberSchema.index({ name: 1 });
+memberSchema.index({ phones: 1 });
 
 module.exports = mongoose.model("Member", memberSchema);

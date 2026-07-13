@@ -3,6 +3,7 @@ const connectDB = require("./src/config/db");
 const app = require("./src/app");
 const logger = require("./src/utils/logger");
 const { BCRYPT_ROUNDS } = require("./src/utils/passwordUtils");
+const { startScheduledTasks } = require("./src/utils/scheduledTasks");
 
 dotenv.config();
 connectDB();
@@ -17,4 +18,7 @@ app.listen(PORT, () => {
         bcryptRounds: BCRYPT_ROUNDS,
         logLevel: process.env.LOG_LEVEL || "info",
     });
+
+    // Start background tasks (freeze auto-unfreeze, etc.)
+    startScheduledTasks();
 });

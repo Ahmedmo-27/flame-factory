@@ -84,6 +84,8 @@ export const deletePackage = (id)       => api.delete(`/packages/${id}`);
 
 export const assignPackage       = (id, data) =>
   api.post(`/members/${id}/package`, data);
+export const addPTSessions       = (id, data) =>
+  api.post(`/members/${id}/pt-sessions`, data);
 
 // ── Package Exceptions ────────────────────────────────────────────────────────
 export const getPackageExceptions         = (params) => api.get('/package-exceptions', { params });

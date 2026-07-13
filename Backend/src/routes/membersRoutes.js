@@ -101,5 +101,5 @@ router.post("/:memberId/couch-notes", protect, authorizeRoles("Coach", "Coach Ma
 router.get("/by/:memberId", ...readAccess, getMemberById);
 
 
-router.post("/members/:memberId/pt-sessions",protect,authorizeRoles("Owner","Accountant"),addPT_sessions);
+router.post("/:memberId/pt-sessions", protect, authorizeRoles("Owner", "Accountant"), addPT_sessions);
 module.exports = router;

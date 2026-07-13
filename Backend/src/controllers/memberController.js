@@ -182,13 +182,15 @@ const getAllMembers = async (req, res) => {
         const [total, members, stats] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
+                .select("name systemId memberId phones status isBlocked gender assignedSales current_couch subscriptions createdBy createdAt source PT_sessions used_PT_sessions couch_subscription_status")
                 .populate("subscriptions.package", "name duration activityType")
                 .populate("createdBy", "name")
                 .populate("assignedSales", "name role")
                 .populate("current_couch", "name role")
                 .sort({ systemId: 1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             getMemberStatusStats(Member, statsFilter),
         ]);
 
@@ -226,10 +228,34 @@ const getMemberProfile = async (req, res) => {
             .populate("freeze.createdBy", "name")
             .populate("freeze.endedBy", "name")
             .populate("invitations.createdBy", "name")
-            .populate("userlog.createdBy", "name");
+            .populate("userlog.createdBy", "name role")
+            .populate("pt_subscriptions.createdBy", "name role");
 
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
+        }
+
+        // Auto-unfreeze if freeze period has ended
+        if (member.status === "frozen") {
+            const now = new Date();
+            const activeFreeze = member.freeze
+                .filter(f => !f.endedBy)
+                .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0];
+            if (!activeFreeze || new Date(activeFreeze.endDate) <= now) {
+                member.status = "active";
+                if (activeFreeze) {
+                    const freezeStart = new Date(activeFreeze.startDate);
+                    const freezeEnd = new Date(activeFreeze.endDate);
+                    const frozenDays = Math.ceil((freezeEnd - freezeStart) / 86400000);
+                    const currentSub = member.subscriptions?.at(-1);
+                    if (currentSub) {
+                        const subEnd = new Date(currentSub.endDate);
+                        subEnd.setDate(subEnd.getDate() + frozenDays);
+                        currentSub.endDate = subEnd;
+                    }
+                }
+                await member.save();
+            }
         }
 
         const currentPkg = getCurrentPackage(member);
@@ -533,15 +559,17 @@ const getMembers = async (req, res) => {
         const [total, members] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
+                .select("name systemId memberId phones status isBlocked gender assignedSales subscriptions createdAt source")
                 .populate("assignedSales", "name email")
                 .populate("subscriptions.package", "name price duration activityType")
                 .sort({ systemId: 1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
         ]);
 
         const formatted = members.map((member) =>
-            formatSalesMember(member.toObject(), req.user.id, req.user.role)
+            formatSalesMember(member, req.user.id, req.user.role)
         );
 
         const stats = await getMemberStatusStats(Member, statsFilter);
@@ -1480,7 +1508,7 @@ const switchCoach = async (req, res) => {
 const addPT_sessions = async (req, res) => {
     try {
         const { memberId } = req.params;
-        const { numberOfSessions, endDate } = req.body;
+        const { numberOfSessions, startDate, durationMonths } = req.body;
 
         const member = await findMember(memberId);
         if (!member) {
@@ -1494,24 +1522,46 @@ const addPT_sessions = async (req, res) => {
         }
 
         const sessions = Number(numberOfSessions);
-
         if (sessions <= 0 || Number.isNaN(sessions)) {
             return res.status(400).json({
                 message: "Number of sessions must be greater than zero"
             });
         }
 
-        const end = new Date(endDate);
-        const subscriptionEnd = new Date(member.subscriptions.at(-1).endDate);
+        const months = Number(durationMonths);
+        if (months <= 0 || Number.isNaN(months)) {
+            return res.status(400).json({
+                message: "Duration (months) must be greater than zero"
+            });
+        }
 
+        const start = startDate ? new Date(startDate) : new Date();
+        // Convert months to days: full months (30 days each) + half month (15 days)
+        const fullMonths = Math.floor(months);
+        const hasHalf = months - fullMonths >= 0.5;
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + fullMonths);
+        if (hasHalf) end.setDate(end.getDate() + 15);
+
+        const subscriptionEnd = new Date(member.subscriptions.at(-1).endDate);
         if (end > subscriptionEnd) {
             return res.status(400).json({
-                message: "The new PT session expiration date must be before the end date of the subscription"
+                message: `Expiration date (${end.toISOString().slice(0,10)}) exceeds subscription end (${subscriptionEnd.toISOString().slice(0,10)})`
             });
         }
 
         member.PT_sessions = (member.PT_sessions || 0) + sessions;
+        member.PT_sessions_startDate = start;
         member.PT_sessions_expDate = end;
+
+        // Add to history
+        member.pt_subscriptions.push({
+            sessions,
+            startDate: start,
+            endDate: end,
+            durationMonths: months,
+            createdBy: req.user.id,
+        });
 
         await member.save();
 

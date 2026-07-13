@@ -13,6 +13,7 @@ const { buildMemberListFilter, getMemberStatusStats } = require("../utils/member
 const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPrivacy");
 const { assertAllowedUpload } = require("../utils/fileMagic");
 const { writeAudit } = require("../utils/audit");
+const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
 const mongoose = require("mongoose");
 
 // ─── Helper: get current package from last subscription ───────────────────────
@@ -39,31 +40,13 @@ const validateCoachAssignee = async (CoachId) => {
 };
 
 // ─── Helper: generate next systemId (everyone, starts at 100) ────────────────
-const generateSystemId = async () => {
-    const last = await Member.findOne({}, { systemId: 1 }).sort({ systemId: -1 });
-    if (!last || !last.systemId) return 100;
-    return last.systemId + 1;
-};
+const generateSystemId = () => nextSystemId();
 
 // ─── Helper: generate next memberId (subscribers only, starts at 100) ────────
-const generateMemberId = async () => {
-    const last = await Member.findOne(
-        { memberId: { $ne: null } },
-        { memberId: 1 }
-    ).sort({ memberId: -1 });
-    if (!last || !last.memberId) return 100;
-    return last.memberId + 1;
-};
+const generateMemberId = () => nextMemberId();
 
 // ─── Helper: generate next subscriptionId (global counter, starts at 100) ────
-const generateSubscriptionId = async () => {
-    const result = await Member.aggregate([
-        { $unwind: "$subscriptions" },
-        { $group: { _id: null, maxId: { $max: "$subscriptions.subscriptionId" } } }
-    ]);
-    if (!result.length || result[0].maxId == null) return 100;
-    return result[0].maxId + 1;
-};
+const generateSubscriptionId = () => nextSubscriptionId();
 
 // ─── Helper: calculate subscription end date ─────────────────────────────────
 const calcEndDate = (startDate, duration) => {
@@ -138,7 +121,7 @@ const createMember = async (req, res) => {
             personData.isMember = false;
         }
 
-        const member = await Member.create(personData);
+        const member = await createMemberRecord(personData);
 
         if (personData.assignedSales) {
             await notifyMemberAssigned({
@@ -160,9 +143,35 @@ const createMember = async (req, res) => {
 
         res.status(201).json({ message: packageId ? "Member created" : "Guest added", member });
     } catch (error) {
+        if (isDuplicateKeyError(error, ["systemId", "memberId"])) {
+            return res.status(409).json({ message: "Member ID conflict, please retry" });
+        }
         res.status(500).json({ message: error.message });
     }
 };
+
+async function createMemberRecord(personData, maxAttempts = 5) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            if (attempt > 0) {
+                personData.systemId = await generateSystemId();
+                if (personData.memberId != null) {
+                    personData.memberId = await generateMemberId();
+                }
+                if (personData.subscriptions?.length) {
+                    personData.subscriptions[0].subscriptionId = await generateSubscriptionId();
+                }
+            }
+            return await Member.create(personData);
+        } catch (error) {
+            if (isDuplicateKeyError(error, ["systemId", "memberId"]) && attempt < maxAttempts - 1) {
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw new Error("Failed to allocate unique member identifiers");
+}
 
 // ─── 2. Get All Members ───────────────────────────────────────────────────────
 const getAllMembers = async (req, res) => {
@@ -1079,6 +1088,9 @@ const assignPackage = async (req, res) => {
         if (pricePaid == null || pricePaid === "") {
             return res.status(400).json({ message: "Price paid is required" });
         }
+        if (Number(pricePaid) <= 0) {
+            return res.status(400).json({ message: "Price paid must be greater than zero" });
+        }
 
         const member = await findMember(req.params.memberId);
         if (!member) {
@@ -1244,7 +1256,16 @@ const uploadNationalId = async (req, res) => {
             return res.status(400).json({ message: "National ID file is required" });
         }
 
-        member.nationalId = req.file.path;
+        let idFileName;
+        try {
+            await assertAllowedUpload(req.file.path);
+            idFileName = path.basename(req.file.filename || req.file.path);
+        } catch (err) {
+            fs.unlink(req.file.path, () => {});
+            return res.status(err.statusCode || 400).json({ message: err.message });
+        }
+
+        member.nationalId = idFileName;
         await member.save();
 
         res.json({ message: "National ID uploaded", nationalId: member.nationalId });

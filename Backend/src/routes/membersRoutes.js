@@ -2,7 +2,7 @@ const express   = require("express");
 const router    = express.Router();
 const { protect, authorizeRoles }   = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
-const upload    = require("../config/multer");
+const { uploadSingle } = require("../config/multer");
 const validate  = require("../middleware/validate");
 const {
     createMemberSchema,
@@ -79,7 +79,7 @@ router.get("/:memberId", protect, (req, res, next) => {
 });
 
 router.post("/:memberId/notes", ...notesAccess, validate(addNoteSchema), addNote);
-router.post("/:memberId/invitations", ...inviteAccess, upload.single("idFile"), validate(invitationSchema), addInvitation);
+router.post("/:memberId/invitations", ...inviteAccess, uploadSingle("idFile"), validate(invitationSchema), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
 router.post("/:memberId/alerts", protect, authorize("Receptionist", "Sales", "Sales Manager"), addAlert);
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
@@ -89,7 +89,7 @@ router.patch("/:memberId/freeze", ...freezeAccess, validate(freezeMemberSchema),
 router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
-router.patch("/:memberId/national-id", protect, authorize("Accountant"), upload.single("nationalIdFile"), uploadNationalId);
+router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadSingle("nationalIdFile"), uploadNationalId);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 

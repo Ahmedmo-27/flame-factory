@@ -57,7 +57,7 @@ const assignPackageSchema = z.object({
     freezeLimitDays: z.coerce.number().int().nonnegative().optional(),
     invitationLimit: z.coerce.number().int().nonnegative().optional(),
     renewalDiscountPercent: z.coerce.number().min(0).max(100).optional(),
-    pricePaid: z.coerce.number().nonnegative(),
+    pricePaid: z.coerce.number().positive("Price paid must be greater than zero"),
     discountPercent: z.coerce.number().min(0).max(100).optional(),
     startDate: z.string().max(40).nullable().optional(),
 });

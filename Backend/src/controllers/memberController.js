@@ -1549,17 +1549,11 @@ const switchCoach = async (req, res) => {
 const addPT_sessions = async (req, res) => {
     try {
         const { memberId } = req.params;
-        const { numberOfSessions, startDate, durationMonths } = req.body;
+        const { numberOfSessions, startDate, durationMonths, pricePaid } = req.body;
 
         const member = await findMember(memberId);
         if (!member) {
             return res.status(404).json({ message: "Member not found" });
-        }
-
-        if (!member.subscriptions?.length) {
-            return res.status(400).json({
-                message: "Member has no active subscription"
-            });
         }
 
         const sessions = Number(numberOfSessions);
@@ -1584,13 +1578,6 @@ const addPT_sessions = async (req, res) => {
         end.setMonth(end.getMonth() + fullMonths);
         if (hasHalf) end.setDate(end.getDate() + 15);
 
-        const subscriptionEnd = new Date(member.subscriptions.at(-1).endDate);
-        if (end > subscriptionEnd) {
-            return res.status(400).json({
-                message: `Expiration date (${end.toISOString().slice(0,10)}) exceeds subscription end (${subscriptionEnd.toISOString().slice(0,10)})`
-            });
-        }
-
         member.PT_sessions = (member.PT_sessions || 0) + sessions;
         member.PT_sessions_startDate = start;
         member.PT_sessions_expDate = end;
@@ -1601,6 +1588,7 @@ const addPT_sessions = async (req, res) => {
             startDate: start,
             endDate: end,
             durationMonths: months,
+            pricePaid: Number(pricePaid) || 0,
             createdBy: req.user.id,
         });
 

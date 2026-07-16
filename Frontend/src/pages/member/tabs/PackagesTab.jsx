@@ -51,7 +51,9 @@ function PTSessionsContent({ member, user, onRefresh }) {
   const [sessions, setSessions] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [durationMonths, setDurationMonths] = useState('');
+  const [pricePaid, setPricePaid] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const canAdd = ['Owner', 'Accountant'].includes(user?.role);
 
   const totalSessions = member.PT_sessions ?? 0;
@@ -74,10 +76,13 @@ function PTSessionsContent({ member, user, onRefresh }) {
         numberOfSessions: num,
         startDate,
         durationMonths: months,
+        pricePaid: Number(pricePaid) || 0,
       });
       toast.success(`Added ${num} private session(s)`);
       setSessions('');
       setDurationMonths('');
+      setPricePaid('');
+      setShowAddModal(false);
       onRefresh?.();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to add sessions');
@@ -91,7 +96,8 @@ function PTSessionsContent({ member, user, onRefresh }) {
     { label: 'Start', value: ptStart ? fmtDate(ptStart) : '—' },
     { label: 'Expiry', value: ptEnd ? fmtDate(ptEnd) : '—' },
     { label: 'Duration', value: latestSub ? `${latestSub.durationMonths} month${latestSub.durationMonths !== 1 ? 's' : ''}` : '—' },
-    { label: 'Status', value: <Badge status={remaining > 0 && ptEnd && new Date(ptEnd) > new Date() ? 'active' : remaining <= 0 ? 'expired' : 'expired'} /> },
+    { label: 'Price Paid', value: latestSub?.pricePaid ? `EGP ${latestSub.pricePaid}` : '—' },
+    { label: 'Status', value: <Badge status={remaining > 0 && ptEnd && new Date(ptEnd) > new Date() ? 'active' : 'expired'} /> },
     { label: 'Coach', value: member.current_couch?.name ?? '—' },
   ] : [];
 
@@ -102,12 +108,12 @@ function PTSessionsContent({ member, user, onRefresh }) {
       <Card>
         <CardHeader title="Active Private Sessions">
           {canAdd && (
-            <Btn size="xs" onClick={() => document.getElementById('pt-add-form')?.scrollIntoView({ behavior: 'smooth' })}>+ Add Sessions</Btn>
+            <Btn size="xs" onClick={() => setShowAddModal(true)}>+ Add Sessions</Btn>
           )}
         </CardHeader>
 
         {totalSessions === 0
-          ? <EmptyState message="No active private sessions" sub={canAdd ? 'Click Add Sessions to assign PT sessions to this member.' : 'No private sessions assigned yet.'} />
+          ? <EmptyState message="No active private sessions" sub={canAdd ? 'Click + Add Sessions to assign PT sessions to this member.' : 'No private sessions assigned yet.'} />
           : <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1,
               background: 'var(--border)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
@@ -122,48 +128,13 @@ function PTSessionsContent({ member, user, onRefresh }) {
         }
       </Card>
 
-      {/* Add Sessions Form */}
-      {canAdd && (
-        <Card id="pt-add-form">
-          <CardHeader title="Add Private Sessions" />
-          <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 12 }}>
-            Add PT sessions to <strong>{member.name}</strong>. Duration in months (e.g. 1, 2.5, 3). Half months = 15 days.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, alignItems: 'flex-end', marginBottom: 12 }}>
-            <Input
-              label="Number of Sessions"
-              type="number" min="1"
-              value={sessions}
-              onChange={e => setSessions(e.target.value)}
-              placeholder="e.g. 10"
-            />
-            <Input
-              label="Start Date"
-              type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-            />
-            <Input
-              label="Duration (months)"
-              type="number" min="0.5" step="0.5"
-              value={durationMonths}
-              onChange={e => setDurationMonths(e.target.value)}
-              placeholder="e.g. 2.5"
-            />
-          </div>
-          <Btn size="sm" onClick={handleAdd} disabled={loading}>
-            {loading ? <Spinner size="sm" /> : 'Add Sessions'}
-          </Btn>
-        </Card>
-      )}
-
       {/* Session History Table */}
       <Card noPad>
         <div style={{ padding: '14px 18px 0' }}>
           <CardHeader title={`Session History (${ptSubs.length})`} />
         </div>
         {!ptSubs.length ? <EmptyState message="No session records yet" /> :
-          <Table headers={['#', 'Sessions', 'Duration', 'Start', 'Expiry', 'Coach', 'Date Added']}>
+          <Table headers={['#', 'Sessions', 'Duration', 'Start', 'Expiry', 'Price Paid', 'Coach', 'Date Added']}>
             {[...ptSubs].reverse().map((sub, i) => (
               <tr key={sub._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{ptSubs.length - i}</td>
@@ -171,6 +142,7 @@ function PTSessionsContent({ member, user, onRefresh }) {
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{sub.durationMonths} month{sub.durationMonths !== 1 ? 's' : ''}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.startDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.endDate)}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{sub.pricePaid ? `EGP ${sub.pricePaid}` : '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{member.current_couch?.name ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{fmtDateTime(sub.createdAt)}</td>
               </tr>
@@ -178,6 +150,49 @@ function PTSessionsContent({ member, user, onRefresh }) {
           </Table>
         }
       </Card>
+
+      {/* Add Sessions Modal */}
+      <Modal open={showAddModal} onClose={() => !loading && setShowAddModal(false)} title="Add Private Sessions" size="md"
+        footer={<>
+          <Btn variant="ghost" size="sm" onClick={() => setShowAddModal(false)} disabled={loading}>Cancel</Btn>
+          <Btn size="sm" onClick={handleAdd} disabled={loading}>
+            {loading ? <Spinner size="sm" /> : 'Add Sessions'}
+          </Btn>
+        </>}
+      >
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16, lineHeight: 1.6 }}>
+          Add PT sessions to <strong>{member.name}</strong>. Duration in months (e.g. 1, 2.5, 3). Half months = 15 days.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Input
+            label="Number of Sessions *"
+            type="number" min="1"
+            value={sessions}
+            onChange={e => setSessions(e.target.value)}
+            placeholder="e.g. 10"
+          />
+          <Input
+            label="Start Date *"
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+          />
+          <Input
+            label="Duration (months) *"
+            type="number" min="0.5" step="0.5"
+            value={durationMonths}
+            onChange={e => setDurationMonths(e.target.value)}
+            placeholder="e.g. 2.5"
+          />
+          <Input
+            label="Price Paid (EGP)"
+            type="number" min="0"
+            value={pricePaid}
+            onChange={e => setPricePaid(e.target.value)}
+            placeholder="e.g. 500"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

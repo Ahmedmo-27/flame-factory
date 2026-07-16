@@ -293,6 +293,7 @@ blockedAt: {
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
         durationMonths: { type: Number, required: true },
+        pricePaid: { type: Number, default: 0 },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         createdAt: { type: Date, default: Date.now },
     }],

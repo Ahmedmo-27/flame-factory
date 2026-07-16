@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
 import { PageHeader, Card, CardHeader, Spinner, EmptyState, Badge, Avatar, fmtDate, Select } from '../../components/ui';
-import { getSalesManagerRevenue, getSubscriptionsByDate, getSalesUsers } from '../../api/endpoints';
+import { getSalesManagerRevenue, getSubscriptionsByDate, getSalesUsers, getCoachTeam, getAllMembers } from '../../api/endpoints';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt  = (n) => Number(n ?? 0).toLocaleString('en-EG');
@@ -300,6 +301,40 @@ function AnnualTab({ data, loading }) {
 
 // ── Tab: Subscriptions ────────────────────────────────────────────────────────
 function SubscriptionsTab() {
+  const [subTab, setSubTab] = useState('sales'); // 'sales' | 'coaches'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+        {[
+          { id: 'sales', label: 'Sales Subscriptions' },
+          { id: 'coaches', label: 'Coach Private Sessions' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+            padding: '8px 18px', background: 'none', border: 'none',
+            borderBottom: `2px solid ${subTab === t.id ? 'var(--navy)' : 'transparent'}`,
+            marginBottom: -1,
+            color: subTab === t.id ? 'var(--t1)' : 'var(--t3)',
+            fontSize: 13, fontWeight: subTab === t.id ? 700 : 400,
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+            transition: 'color 0.12s',
+          }}
+            onMouseEnter={e => { if (subTab !== t.id) e.currentTarget.style.color = 'var(--t2)'; }}
+            onMouseLeave={e => { if (subTab !== t.id) e.currentTarget.style.color = 'var(--t3)'; }}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {subTab === 'sales' && <SalesSubscriptionsContent />}
+      {subTab === 'coaches' && <CoachSessionsContent />}
+    </div>
+  );
+}
+
+// ── Sales Subscriptions Content ───────────────────────────────────────────────
+function SalesSubscriptionsContent() {
+  const navigate = useNavigate();
   const [dateFrom,    setDateFrom]    = useState(TODAY);
   const [dateTo,      setDateTo]      = useState(TODAY);
   const [salesRepId,  setSalesRepId]  = useState('');
@@ -307,7 +342,6 @@ function SubscriptionsTab() {
   const [data,        setData]        = useState(null);
   const [loading,     setLoading]     = useState(true);
 
-  // Load sales reps for the filter dropdown
   useEffect(() => {
     getSalesUsers()
       .then(r => setSalesReps(r.data.salesUsers ?? []))
@@ -364,17 +398,17 @@ function SubscriptionsTab() {
 
           {/* Sales rep filter */}
           <div style={{ flex: 2, minWidth: 200 }}>
-            <Select
-              label="Sales Rep"
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Sales Rep
+            </label>
+            <select
               value={salesRepId}
               onChange={e => setSalesRepId(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff', cursor: 'pointer' }}
             >
               <option value="">All Sales Reps</option>
-              {salesReps
-                .filter(r => r.role === 'Sales')
-                .map(r => <option key={r._id} value={r._id}>{r.name}</option>)
-              }
-            </Select>
+              {salesReps.map(r => <option key={r._id} value={r._id}>{r.name} ({r.role})</option>)}
+            </select>
           </div>
 
           {/* Reset */}
@@ -418,7 +452,8 @@ function SubscriptionsTab() {
             </thead>
             <tbody>
               {entries.map((e, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                  onClick={() => navigate(`/members/${e.member.systemId}`)}
                   onMouseEnter={ev => ev.currentTarget.style.background = 'var(--bg)'}
                   onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
                 >
@@ -466,6 +501,153 @@ function SubscriptionsTab() {
                 <td colSpan={2} style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--t1)' }}>Total ({entries.length})</td>
                 <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--green)' }}>{fmt(data?.totalRevenue)} EGP</td>
                 <td colSpan={4} />
+              </tr>
+            </tfoot>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Coach Sessions Content ────────────────────────────────────────────────────
+function CoachSessionsContent() {
+  const navigate = useNavigate();
+  const [coaches, setCoaches]   = useState([]);
+  const [coachId, setCoachId]   = useState('');
+  const [members, setMembers]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    getCoachTeam()
+      .then(r => setCoaches((r.data.team ?? []).filter(u => u.role === 'Coach')))
+      .catch(() => {});
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getAllMembers({ all: 'true' });
+      setMembers(res.data.members ?? []);
+    } catch {
+      toast.error('Failed to load members');
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Filter members that have PT sessions
+  const ptMembers = members.filter(m => {
+    if (!m.PT_sessions || m.PT_sessions <= 0) return false;
+    if (coachId) {
+      const mCoachId = m.current_couch?._id || m.current_couch;
+      return String(mCoachId) === coachId;
+    }
+    return true;
+  });
+
+  const totalSessions = ptMembers.reduce((s, m) => s + (m.PT_sessions || 0), 0);
+  const usedSessions = ptMembers.reduce((s, m) => s + (m.used_PT_sessions || 0), 0);
+  const remainingSessions = totalSessions - usedSessions;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Filter */}
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--t3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Coach
+            </label>
+            <select
+              value={coachId}
+              onChange={e => setCoachId(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit', color: 'var(--t1)', background: '#fff', cursor: 'pointer' }}
+            >
+              <option value="">All Coaches</option>
+              {coaches.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Members with PT', value: ptMembers.length, color: 'var(--blue)', accent: 'var(--blue)' },
+          { label: 'Total Sessions', value: totalSessions, color: 'var(--navy)', accent: 'var(--navy)' },
+          { label: 'Used', value: usedSessions, color: 'var(--amber)', accent: 'var(--amber)' },
+          { label: 'Remaining', value: remainingSessions, color: 'var(--green)', accent: 'var(--green)' },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderLeft: `3px solid ${s.accent}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t4)', marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      <Card noPad>
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size="lg" /></div>
+        ) : ptMembers.length === 0 ? (
+          <EmptyState icon="🏋️" message="No members with private sessions" sub="Adjust the coach filter or add PT sessions to members" />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+                {['Member', 'Coach', 'Total Sessions', 'Used', 'Remaining', 'Price Paid', 'Status'].map(h => (
+                  <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--t3)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ptMembers.map(m => {
+                const remaining = (m.PT_sessions || 0) - (m.used_PT_sessions || 0);
+                return (
+                  <tr key={m._id} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                    onClick={() => navigate(`/members/${m.systemId}`)}
+                    onMouseEnter={ev => ev.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Avatar name={m.name} size="sm" />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--t4)' }}>#{m.systemId}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>
+                      {m.current_couch?.name ?? <span style={{ color: 'var(--t4)' }}>Unassigned</span>}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--blue)' }}>{m.PT_sessions || 0}</td>
+                    <td style={{ padding: '10px 14px', color: 'var(--t2)' }}>{m.used_PT_sessions || 0}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: remaining > 0 ? 'var(--green)' : 'var(--red)' }}>{remaining}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--green)' }}>
+                      {m.pt_subscriptions?.reduce((s, sub) => s + (sub.pricePaid || 0), 0)
+                        ? `EGP ${m.pt_subscriptions.reduce((s, sub) => s + (sub.pricePaid || 0), 0).toLocaleString()}`
+                        : '—'}
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <Badge status={m.couch_subscription_status || 'guest'} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)' }}>
+                <td colSpan={2} style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--t1)' }}>Total ({ptMembers.length})</td>
+                <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--blue)' }}>{totalSessions}</td>
+                <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--t2)' }}>{usedSessions}</td>
+                <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--green)' }}>{remainingSessions}</td>
+                <td style={{ padding: '10px 14px', fontWeight: 800, color: 'var(--green)' }}>
+                  EGP {ptMembers.reduce((s, m) => s + (m.pt_subscriptions?.reduce((a, sub) => a + (sub.pricePaid || 0), 0) || 0), 0).toLocaleString()}
+                </td>
+                <td />
               </tr>
             </tfoot>
           </table>

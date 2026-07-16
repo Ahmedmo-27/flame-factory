@@ -58,7 +58,7 @@ router.patch("/:id/abilities", protect, authorizeRoles("Sales Manager"), updateS
 router.patch("/:id/coach-abilities", protect, authorizeRoles("Coach Manager"), updateCoachRepAbilities);
 router.patch("/:id/phone-privacy", protect, authorizeRoles("Sales Manager"), updatePhonePrivacy);
 router.patch("/:id/mobile", protect, authorizeRoles("Sales Manager", "Owner"), updateStaffMobile);
-router.get("/receptionist-team", protect, authorizeRoles("Sales Manager", "Owner"), getReceptionistTeam);
+router.get("/receptionist-team", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getReceptionistTeam);
 router.get("/changerole/:id/:new_role", protect, authorizeRoles("Owner"), change_Role);
 router.get("/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getUserById);
 

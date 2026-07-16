@@ -17,6 +17,10 @@ export const getSalesMySubscriptions = (params = {}) =>
 
 // ── Coach ─────────────────────────────────────────────────────────────────────
 export const getCoachTeam    = () => api.get('/users/coach-team');
+export const getCoachProfile = (id) => api.get(`/users/coach-team/${id}`);
+export const updateCoachRepAbilities = (id, abilities) =>
+  api.patch(`/users/${id}/coach-abilities`, { abilities });
+export const getTodayCoachTransfers = () => api.get('/members/today-coach-transfers');
 export const assignCoach     = (memberId, coachId) =>
   api.patch(`/members/${memberId}/assign-coach`, { coachId });
 export const switchCoach     = (memberId, newCoachId) =>

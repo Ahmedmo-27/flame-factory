@@ -20,7 +20,7 @@ const NAV = {
     { to: '/contacts', label: 'Contacts' },
   ],
   Coach:           [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/my-transfers', label: 'Transfers' }, { to: '/contacts', label: 'Contacts' }],
-  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/staff', label: 'Staff' }, { to: '/contacts', label: 'Contacts' }],
+  'Coach Manager': [{ to: '/coach/dashboard', label: 'Dashboard' }, { to: '/coach/members', label: 'All Members' }, { to: '/coach/checkin', label: 'Session Check-In' }, { to: '/coach/transfer', label: 'Transfer' }, { to: '/coach/my-transfers', label: 'Transfers Log' }, { to: '/coach/team', label: 'Team' }, { to: '/coach/staff', label: 'Staff' }, { to: '/contacts', label: 'Contacts' }],
 };
 
 function ini(name = '') { return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'; }

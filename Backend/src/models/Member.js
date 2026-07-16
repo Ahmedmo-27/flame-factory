@@ -310,7 +310,6 @@ blockedAt: {
 memberSchema.index({ status: 1, systemId: 1 });
 memberSchema.index({ assignedSales: 1, status: 1 });
 memberSchema.index({ current_couch: 1 });
-memberSchema.index({ systemId: 1 });
 memberSchema.index({ isBlocked: 1 });
 memberSchema.index({ name: 1 });
 memberSchema.index({ phones: 1 });

@@ -100,7 +100,7 @@ export default function CoachMembers() {
           ) : filtered.length === 0 ? (
             <EmptyState icon="🏋️" message="No members match" />
           ) : (
-            <Table headers={['ID', 'Name', 'Status', 'Sessions', 'Used', 'Remaining']}>
+            <Table headers={['ID', 'Name', ...(isManager ? ['Coach'] : []), 'Status', 'Sessions', 'Used', 'Remaining']}>
               {filtered.map(m => (
                 <tr key={m._id} onClick={() => navigate(`/members/${m.systemId}`)}
                   style={{ cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
@@ -114,6 +114,11 @@ export default function CoachMembers() {
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                     </div>
                   </td>
+                  {isManager && (
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>
+                      {m.current_couch?.name ?? <span style={{ color: 'var(--t4)' }}>Unassigned</span>}
+                    </td>
+                  )}
                   <td style={{ padding: '10px 14px' }}><Badge status={m.couch_subscription_status || 'guest'} /></td>
                   <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: 'var(--blue)' }}>{m.PT_sessions || 0}</td>
                   <td style={{ padding: '10px 14px', fontSize: 13, color: 'var(--t2)' }}>{m.used_PT_sessions || 0}</td>

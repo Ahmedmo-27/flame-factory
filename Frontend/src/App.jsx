@@ -27,6 +27,8 @@ import CoachCheckin       from './pages/coach/CoachCheckin';
 import CoachStaff         from './pages/coach/CoachStaff';
 import CoachTransfer      from './pages/coach/CoachTransfer';
 import CoachTransfers     from './pages/coach/CoachTransfers';
+import CoachTargets       from './pages/coach/CoachTargets';
+import CoachProfile       from './pages/coach/CoachProfile';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
 import CheckIn            from './pages/CheckIn';
 import AddMember          from './pages/AddMember';
@@ -193,13 +195,28 @@ function AppRoutes() {
           <CoachStaff />
         </PrivateRoute>
       } />
+      <Route path="/coach/targets" element={
+        <PrivateRoute roles={['Coach Manager']}>
+          <CoachTargets />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/team" element={
+        <PrivateRoute roles={['Coach Manager']}>
+          <CoachTargets />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/team/:id" element={
+        <PrivateRoute roles={['Coach Manager']}>
+          <CoachProfile />
+        </PrivateRoute>
+      } />
       <Route path="/coach/transfer" element={
         <PrivateRoute roles={['Coach Manager']}>
           <CoachTransfer />
         </PrivateRoute>
       } />
       <Route path="/coach/my-transfers" element={
-        <PrivateRoute roles={['Coach']}>
+        <PrivateRoute roles={['Coach', 'Coach Manager']}>
           <CoachTransfers />
         </PrivateRoute>
       } />

@@ -182,7 +182,6 @@ const getAllMembers = async (req, res) => {
         const [total, members, stats] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
-                .select("name systemId memberId phones status isBlocked gender assignedSales current_couch subscriptions createdBy createdAt source PT_sessions used_PT_sessions couch_subscription_status")
                 .populate("subscriptions.package", "name duration activityType")
                 .populate("createdBy", "name")
                 .populate("assignedSales", "name role")
@@ -559,8 +558,8 @@ const getMembers = async (req, res) => {
         const [total, members] = await Promise.all([
             Member.countDocuments(filter),
             Member.find(filter)
-                .select("name systemId memberId phones status isBlocked gender assignedSales subscriptions createdAt source")
                 .populate("assignedSales", "name email")
+                .populate("current_couch", "name role")
                 .populate("subscriptions.package", "name price duration activityType")
                 .sort({ systemId: 1 })
                 .skip(skip)
@@ -1354,6 +1353,16 @@ const sessionCheckIn_for_couch = async (req, res) => {
                 return res.status(400).json({ message: "Member is not active" });
             }
 
+            // Check if coach already checked in this member today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const alreadyCheckedIn = member.userlog.some(log =>
+                log.type === "pt-session" && new Date(log.createdAt) >= today
+            );
+            if (alreadyCheckedIn) {
+                return res.status(400).json({ message: "This member already has a session check-in today" });
+            }
+
             if(member.PT_sessions > member.used_PT_sessions) {
                 member.used_PT_sessions++;
                 member.userlog.push({
@@ -1635,6 +1644,65 @@ const bulkTransferCoach = async (req, res) => {
     }
 };
 
+const getTodayCoachTransfers = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Find members with coach-assign userlog entries today
+        const filter = {
+            "userlog": {
+                $elemMatch: {
+                    type: "assign",
+                    createdAt: { $gte: today, $lt: tomorrow },
+                },
+            },
+        };
+
+        // Coach only sees members currently assigned to them
+        if (req.user.role === "Coach") {
+            const mongoose = require("mongoose");
+            filter.current_couch = new mongoose.Types.ObjectId(req.user.id);
+        }
+
+        const members = await Member.find(filter)
+            .populate("current_couch", "name role")
+            .populate("userlog.createdBy", "name role")
+            .select("name systemId memberId phones status couch_subscription_status current_couch userlog");
+
+        const transfers = [];
+        members.forEach(m => {
+            (m.userlog || []).forEach(log => {
+                if (log.type === "assign" && new Date(log.createdAt) >= today && new Date(log.createdAt) < tomorrow) {
+                    transfers.push({
+                        _id: log._id,
+                        member: {
+                            _id: m._id,
+                            name: m.name,
+                            systemId: m.systemId,
+                            memberId: m.memberId,
+                            status: m.status,
+                            couch_subscription_status: m.couch_subscription_status,
+                            current_couch: m.current_couch,
+                        },
+                        text: log.text,
+                        time: log.createdAt,
+                        by: log.createdBy?.name || "Unknown",
+                        byRole: log.createdBy?.role || null,
+                    });
+                }
+            });
+        });
+
+        transfers.sort((a, b) => new Date(b.time) - new Date(a.time));
+        res.json({ transfers, count: transfers.length });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1661,6 +1729,6 @@ module.exports = {
     addCouch_notes,
     switchCoach,
     bulkTransferCoach,
-    //comment aho
+    getTodayCoachTransfers,
     addPT_sessions
 };

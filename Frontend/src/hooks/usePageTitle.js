@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const APP = import.meta.env.VITE_APP_NAME || 'FlamFactory';
+const APP = import.meta.env.VITE_APP_NAME || 'Flame Factory';
 
 export default function usePageTitle(title) {
   useEffect(() => {

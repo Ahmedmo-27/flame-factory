@@ -118,7 +118,7 @@ export default function Login() {
             fontSize: 36, fontWeight: 800, color: '#ffffff',
             letterSpacing: '-0.5px', marginBottom: 12,
           }}>
-            FlamFactory
+            Flame Factory
           </h1>
           <p style={{
             fontSize: 15, color: 'rgba(255,255,255,0.55)',
@@ -145,7 +145,7 @@ export default function Login() {
           position: 'absolute', bottom: 24,
           fontSize: 11, color: 'rgba(255,255,255,0.25)',
         }}>
-          © {new Date().getFullYear()} FlamFactory. All rights reserved.
+          © {new Date().getFullYear()} Flame Factory. All rights reserved.
         </p>
       </div>
 

@@ -110,7 +110,7 @@ export default function Layout({ children }) {
           {/* ── LEFT: Logo ───────────────────────────────────────── */}
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>🔥</span>
-            <span className="nav-logo-text" style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.2px' }}>FlamFactory</span>
+            <span className="nav-logo-text" style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.2px' }}>Flame Factory</span>
             <span className="nav-logo-badge" style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', background: 'rgba(255,255,255,0.08)', padding: '1px 6px', borderRadius: 3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase' }}>GYM</span>
           </div>
 
@@ -204,7 +204,7 @@ export default function Layout({ children }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18 }}>🔥</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>FlamFactory</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Flame Factory</span>
           </div>
           <button onClick={() => setMob(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 5, width: 28, height: 28, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>

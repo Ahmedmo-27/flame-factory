@@ -96,8 +96,8 @@ router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMembe
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadLimiter, uploadSingle("nationalIdFile"), uploadNationalId);
-router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
-router.delete("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, deleteProfilePhoto);
+router.patch("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
+router.delete("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, deleteProfilePhoto);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 

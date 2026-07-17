@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { Avatar, Btn, Modal, Spinner } from './ui';
 import { deleteMemberPhoto, uploadMemberPhoto } from '../api/endpoints';
 
-const CAN_UPLOAD = ['Receptionist', 'Accountant'];
+const CAN_UPLOAD = ['Accountant'];
 
 function CameraIcon({ size = 22 }) {
   return (

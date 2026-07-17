@@ -107,7 +107,7 @@ export default function Members() {
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Avatar name={m.name} size="sm" />
+                          <Avatar name={m.name} size="sm" photo={m.photo} />
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
                         </div>
                       </td>

@@ -118,7 +118,7 @@ export default function CheckIn() {
               <Card>
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-                  <Avatar name={member.name} size="lg" />
+                  <Avatar name={member.name} size="lg" photo={member.photo} />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--t1)', margin: 0 }}>{member.name}</h2>
@@ -251,7 +251,7 @@ export default function CheckIn() {
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <Avatar name={entry.member.name} size="sm" />
+                      <Avatar name={entry.member.name} size="sm" photo={entry.member.photo} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{entry.member.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--t4)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>

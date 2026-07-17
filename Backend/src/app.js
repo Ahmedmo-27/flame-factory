@@ -77,7 +77,7 @@ const uploadsDir = path.join(__dirname, "../uploads");
 app.get(
     "/uploads/:filename",
     protect,
-    authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Accountant"),
+    authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"),
     async (req, res) => {
         const safe = path.basename(req.params.filename);
         if (safe !== req.params.filename || safe.includes("..")) {

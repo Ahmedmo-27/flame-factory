@@ -65,6 +65,10 @@ export const unblockMember     = (id) =>
   api.patch(`/members/${id}/unblock`);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
 export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
+export const uploadMemberPhoto = (id, formData) =>
+  api.patch(`/members/${id}/photo`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
 export const uploadNationalId = (id, formData) =>
   api.patch(`/members/${id}/national-id`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

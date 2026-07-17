@@ -35,6 +35,7 @@ const {
     assignPackage,
     getTodayCheckIns,
     uploadNationalId,
+    uploadProfilePhoto,
     addAlert,
     deactivateAlert,
     blockMember,
@@ -60,7 +61,7 @@ router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager", "Coach", "Coach Manager"].includes(req.user.role)) {
         return getMembers(req, res, next);
     }
-    if (["Owner", "Accountant"].includes(req.user.role)) {
+    if (["Owner", "Accountant", "Receptionist"].includes(req.user.role)) {
         return getAllMembers(req, res, next);
     }
     return res.status(403).json({ message: "Access denied" });
@@ -93,6 +94,7 @@ router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMembe
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadSingle("nationalIdFile"), uploadNationalId);
+router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadSingle("photoFile"), uploadProfilePhoto);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 

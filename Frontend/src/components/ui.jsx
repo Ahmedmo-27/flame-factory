@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, Children, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { fetchProtectedUploadBlobUrl } from '../api/axios';
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 export function Spinner({ size = 'md' }) {
@@ -701,16 +702,51 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 const AV = { sm: [28, 10], md: [36, 12], lg: [48, 16], xl: [64, 22] };
-export function Avatar({ name = '', size = 'md' }) {
+export function Avatar({ name = '', size = 'md', photo = null, style: ex = {} }) {
   const [sz, fs] = AV[size] ?? AV.md;
   const ini = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const [src, setSrc] = useState(null);
+
+  useEffect(() => {
+    if (!photo) { setSrc(null); return; }
+    let cancelled = false;
+    let blobUrl = null;
+    fetchProtectedUploadBlobUrl(photo)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        blobUrl = url;
+        setSrc(url);
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(null);
+      });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [photo]);
+
   return (
     <div style={{
       width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
       background: 'var(--navy)', color: '#fff',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: fs, fontWeight: 700, letterSpacing: '0.5px',
-    }}>{ini}</div>
+      overflow: 'hidden', position: 'relative',
+      ...ex,
+    }}>
+      {src ? (
+        <img
+          src={src}
+          alt={name || 'Profile'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={() => setSrc(null)}
+        />
+      ) : ini}
+    </div>
   );
 }
 

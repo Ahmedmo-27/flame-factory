@@ -4,8 +4,9 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
-import { PageHeader, Tabs, Badge, Btn, Spinner, Avatar, Skeleton, Modal, Input } from '../../components/ui';
+import { PageHeader, Tabs, Badge, Btn, Spinner, Skeleton, Modal, Input } from '../../components/ui';
 import { getMemberProfile, checkInMember, blockMember, unblockMember } from '../../api/endpoints';
+import ProfilePhotoUpload from '../../components/ProfilePhotoUpload';
 import PersonalTab    from './tabs/PersonalTab';
 import PackagesTab    from './tabs/PackagesTab';
 import CallCenterTab  from './tabs/CallCenterTab';
@@ -161,7 +162,7 @@ export default function MemberProfile() {
                 </div>
               </div>
             )}
-            <ProfileHeader member={member} stats={stats} user={user} />
+            <ProfileHeader member={member} stats={stats} user={user} onPhotoUploaded={fetchProfile} />
             <Tabs tabs={TABS} active={activeTab} onChange={setTab} />
             <div className="fade-up">
               {activeTab === 'personal'    && <PersonalTab    member={member} user={user} onRefresh={fetchProfile} />}
@@ -233,7 +234,7 @@ export default function MemberProfile() {
   );
 }
 
-function ProfileHeader({ member, stats, user }) {
+function ProfileHeader({ member, stats, user, onPhotoUploaded }) {
   const sub = member.subscriptions?.at(-1);
   const pkg = sub?.package;
 
@@ -252,7 +253,7 @@ function ProfileHeader({ member, stats, user }) {
 
   return (
     <div className="member-profile-header" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 }}>
-      <Avatar name={member.name} size="lg" />
+      <ProfilePhotoUpload member={member} user={user} onUploaded={onPhotoUploaded} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 6 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>{member.name}</h2>

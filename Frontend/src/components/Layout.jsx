@@ -5,7 +5,7 @@ import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 
 const NAV = {
-  Receptionist:  [{ to: '/checkin', label: 'Check In' }, { to: '/add-member', label: 'Add Member' }, { to: '/contacts', label: 'Contacts' }],
+  Receptionist:  [{ to: '/checkin', label: 'Check In' }, { to: '/members', label: 'Members' }, { to: '/add-member', label: 'Add Member' }, { to: '/contacts', label: 'Contacts' }],
   Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
 
   'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPackages, getSalesUsers, createMember, searchAllMembers } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
-import { Input, Select, Btn, Spinner } from './ui';
+import { Input, Select, Btn, Spinner, Avatar } from './ui';
 
 const STATUS_DOT = {
   active:  '#16a34a',
@@ -272,9 +272,7 @@ export default function GlobalSearch() {
                       cursor: 'pointer', transition: 'background 0.1s',
                     }}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: 'var(--navy)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
-                      {m.name?.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'}
-                    </div>
+                    <Avatar name={m.name} size="sm" photo={m.photo} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>

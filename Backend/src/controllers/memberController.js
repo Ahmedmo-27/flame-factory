@@ -916,7 +916,7 @@ const getTodayCheckIns = async (req, res) => {
             .populate("subscriptions.package", "name activityType duration")
             .populate("assignedSales", "name")
             .populate("userlog.createdBy", "name role")
-            .select("name systemId memberId phones status subscriptions assignedSales userlog");
+            .select("name systemId memberId phones status subscriptions assignedSales userlog photo");
 
         // Extract today's check-in entries with member info
         const checkIns = [];
@@ -934,6 +934,7 @@ const getTodayCheckIns = async (req, res) => {
                             memberId:  member.memberId,
                             phones:    member.phones,
                             status:    member.status,
+                            photo:     member.photo,
                             package:   member.subscriptions?.at(-1)?.package ?? null,
                             assignedSales: member.assignedSales,
                         }
@@ -1280,6 +1281,65 @@ const uploadNationalId = async (req, res) => {
 
         res.json({ message: "National ID uploaded", nationalId: member.nationalId });
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ─── Upload Profile Photo (Receptionist + Accountant) ─────────────────────────
+const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+
+const uploadProfilePhoto = async (req, res) => {
+    try {
+        if (!["Receptionist", "Accountant"].includes(req.user.role)) {
+            return res.status(403).json({ message: "Only receptionists and accountants can upload profile photos" });
+        }
+
+        const identifier = req.params.memberId;
+        const member = await findMemberByIdentifier(identifier);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: "Profile photo is required" });
+        }
+
+        let photoFileName;
+        try {
+            const mime = await assertAllowedUpload(req.file.path);
+            if (!IMAGE_MIMES.has(mime)) {
+                fs.unlink(req.file.path, () => {});
+                return res.status(400).json({ message: "Profile photo must be an image (jpeg, png, gif, webp)" });
+            }
+            photoFileName = path.basename(req.file.filename || req.file.path);
+        } catch (err) {
+            fs.unlink(req.file.path, () => {});
+            return res.status(err.statusCode || 400).json({ message: err.message });
+        }
+
+        // Remove previous photo file if present
+        if (member.photo) {
+            const oldName = path.basename(member.photo);
+            const oldPath = path.join(__dirname, "../../uploads", oldName);
+            fs.unlink(oldPath, () => {});
+        }
+
+        member.photo = photoFileName;
+        await member.save();
+
+        await writeAudit({
+            action: "member_photo_uploaded",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "member",
+            targetId: member._id,
+            meta: { photo: photoFileName },
+            req,
+        });
+
+        res.json({ message: "Profile photo uploaded", photo: member.photo });
+    } catch (error) {
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
         res.status(500).json({ message: error.message });
     }
 };
@@ -1742,6 +1802,7 @@ module.exports = {
     assignPackage,
     getTodayCheckIns,
     uploadNationalId,
+    uploadProfilePhoto,
     blockMember,
     unblockMember,
     sessionCheckIn_for_couch,

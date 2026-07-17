@@ -63,7 +63,7 @@ function AppRoutes() {
 
       {/* Receptionist / Owner */}
       <Route path="/members" element={
-        <PrivateRoute roles={['Owner', 'Sales Manager', 'Accountant', 'Coach Manager']}>
+        <PrivateRoute roles={['Owner', 'Sales Manager', 'Accountant', 'Coach Manager', 'Receptionist']}>
           <Members />
         </PrivateRoute>
       } />

@@ -29,20 +29,18 @@ export default function SalesMembers() {
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getAllMembers({ all: 'true' });
-      const allMembers = res.data.members ?? [];
-      setMembers(allMembers);
-      // Calculate stats client-side
-      setStats({
-        total:   allMembers.length,
-        active:  allMembers.filter(m => m.status === 'active').length,
-        frozen:  allMembers.filter(m => m.status === 'frozen').length,
-        expired: allMembers.filter(m => m.status === 'expired').length,
-        guest:   allMembers.filter(m => m.status === 'guest').length,
+      const res = await getAllMembers({
+        page,
+        limit: PAGE_SIZE,
+        status: filter,
+        search: debouncedSearch || undefined,
       });
+      setMembers(res.data.members ?? []);
+      setPagination(res.data.pagination ?? { page: 1, totalPages: 1, total: 0, limit: PAGE_SIZE });
+      if (res.data.stats) setStats(res.data.stats);
     } catch { toast.error('Failed to load data.'); }
     finally { setLoading(false); }
-  }, []);
+  }, [page, filter, debouncedSearch]);
 
   const fetchMeta = useCallback(async () => {
     try {
@@ -59,18 +57,7 @@ export default function SalesMembers() {
   useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
-  // Client-side filtering
-  const filtered = members.filter(m => {
-    if (filter !== 'all' && m.status !== filter) return false;
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      if (!m.name?.toLowerCase().includes(q) && !m.phones?.includes(q) && !String(m.systemId).includes(q)) return false;
-    }
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = members;
 
   return (
     <Layout>
@@ -126,10 +113,10 @@ export default function SalesMembers() {
           </Table>
           {!loading && (
             <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={filtered.length}
-              pageSize={PAGE_SIZE}
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              pageSize={pagination.limit ?? PAGE_SIZE}
               onPageChange={setPage}
             />
           )}

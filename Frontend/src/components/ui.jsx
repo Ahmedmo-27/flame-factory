@@ -752,18 +752,20 @@ export function Avatar({ name = '', size = 'md', photo = null, style: ex = {} })
 
 // ── Pagination ────────────────────────────────────────────────────────────────
 export function Pagination({ page, totalPages, total, pageSize, onPageChange }) {
-  if (!totalPages || totalPages <= 1) return null;
+  if (!total || total < 1) return null;
 
-  const start = ((page - 1) * pageSize) + 1;
-  const end = Math.min(page * pageSize, total);
+  const pages = Math.max(1, totalPages || 1);
+  const size = pageSize || 20;
+  const start = ((page - 1) * size) + 1;
+  const end = Math.min(page * size, total);
 
   return (
     <div className="pagination-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
       <span style={{ fontSize: 12, color: 'var(--t4)' }}>{start}–{end} of {total}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Btn variant="outline" size="xs" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>← Prev</Btn>
-        <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page} / {totalPages}</span>
-        <Btn variant="outline" size="xs" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next →</Btn>
+        <span style={{ fontSize: 12, color: 'var(--t3)', padding: '0 8px' }}>{page} / {pages}</span>
+        <Btn variant="outline" size="xs" disabled={page >= pages} onClick={() => onPageChange(page + 1)}>Next →</Btn>
       </div>
     </div>
   );

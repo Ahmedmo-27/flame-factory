@@ -4,6 +4,7 @@ import usePageTitle from '../hooks/usePageTitle';
 import Layout from '../components/Layout';
 import { PageHeader, Card, Spinner, EmptyState, Avatar } from '../components/ui';
 import { getReceptionists } from '../api/endpoints';
+import { WhatsAppBtn } from '../utils/whatsapp';
 
 const ROLE_ORDER = ['Receptionist', 'Sales', 'Sales Manager', 'Coach', 'Coach Manager'];
 const ROLE_ICONS = {
@@ -73,13 +74,14 @@ export default function ReceptionContacts() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)' }}>{r.name}</div>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <a href={`tel:${r.mobile_number}`} style={{
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                        <a href={r.mobile_number ? `tel:${r.mobile_number}` : undefined} style={{
                           fontSize: 14, fontWeight: 700, color: 'var(--blue)',
                           textDecoration: 'none', fontFamily: 'monospace',
                         }}>
                           {r.mobile_number || '—'}
                         </a>
+                        {r.mobile_number && <WhatsAppBtn phone={r.mobile_number} />}
                       </div>
                     </div>
                   ))}

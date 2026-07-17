@@ -132,16 +132,18 @@ export default function ProfilePhotoUpload({ member, user, onUploaded }) {
   };
 
   if (!canUpload) {
-    return <Avatar name={member.name} size="lg" photo={member.photo} />;
+    return <Avatar name={member.name} size="profile" photo={member.photo} />;
   }
+
+  const PHOTO_SIZE = 120;
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={member.photo ? 'Change profile photo' : 'Add profile photo'}
-        aria-label={member.photo ? 'Change profile photo' : 'Add profile photo'}
+        title={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
+        aria-label={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
         style={{
           position: 'relative',
           padding: 0,
@@ -153,26 +155,56 @@ export default function ProfilePhotoUpload({ member, user, onUploaded }) {
         }}
       >
         {member.photo ? (
-          <Avatar name={member.name} size="lg" photo={member.photo} />
+          <Avatar name={member.name} size="profile" photo={member.photo} />
         ) : (
           <div style={{
-            width: 48, height: 48, borderRadius: '50%',
+            width: PHOTO_SIZE,
+            height: PHOTO_SIZE,
+            borderRadius: '50%',
             border: '2px dashed var(--border-md)',
             background: 'var(--bg)',
             color: 'var(--t3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <CameraIcon size={20} />
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: 14,
+            boxSizing: 'border-box',
+            transition: 'border-color 0.12s, background 0.12s, color 0.12s',
+          }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'var(--navy)';
+              e.currentTarget.style.background = 'var(--card)';
+              e.currentTarget.style.color = 'var(--navy)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border-md)';
+              e.currentTarget.style.background = 'var(--bg)';
+              e.currentTarget.style.color = 'var(--t3)';
+            }}
+          >
+            <CameraIcon size={28} />
+            <span style={{
+              fontSize: 11,
+              fontWeight: 600,
+              lineHeight: 1.3,
+              textAlign: 'center',
+              maxWidth: 90,
+            }}>
+              Click here to add a new profile picture
+            </span>
           </div>
         )}
         <span style={{
-          position: 'absolute', right: -2, bottom: -2,
-          width: 18, height: 18, borderRadius: '50%',
+          position: 'absolute', right: 2, bottom: 2,
+          width: 28, height: 28, borderRadius: '50%',
           background: 'var(--navy)', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: '2px solid var(--card)',
+          boxShadow: '0 1px 4px rgba(15,23,42,0.2)',
         }}>
-          <CameraIcon size={10} />
+          <CameraIcon size={14} />
         </span>
       </button>
 

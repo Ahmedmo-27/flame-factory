@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Avatar, Btn, Modal, Spinner } from './ui';
-import { uploadMemberPhoto } from '../api/endpoints';
+import { deleteMemberPhoto, uploadMemberPhoto } from '../api/endpoints';
 
 const CAN_UPLOAD = ['Receptionist', 'Accountant'];
 
@@ -18,6 +18,7 @@ export default function ProfilePhotoUpload({ member, user, onUploaded }) {
   const canUpload = CAN_UPLOAD.includes(user?.role);
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [streamReady, setStreamReady] = useState(false);
   const [captured, setCaptured] = useState(null); // { blob, url }
@@ -131,6 +132,20 @@ export default function ProfilePhotoUpload({ member, user, onUploaded }) {
     startCamera();
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this profile picture?')) return;
+    setDeleting(true);
+    try {
+      await deleteMemberPhoto(member.systemId);
+      toast.success('Profile photo deleted');
+      onUploaded?.();
+    } catch (err) {
+      toast.error(err.response?.data?.message ?? 'Could not delete profile photo');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!canUpload) {
     return <Avatar name={member.name} size="profile" photo={member.photo} />;
   }
@@ -139,74 +154,114 @@ export default function ProfilePhotoUpload({ member, user, onUploaded }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
-        aria-label={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
-        style={{
-          position: 'relative',
-          padding: 0,
-          border: 'none',
-          background: 'none',
-          cursor: 'pointer',
-          borderRadius: '50%',
-          flexShrink: 0,
-        }}
-      >
-        {member.photo ? (
-          <Avatar name={member.name} size="profile" photo={member.photo} />
-        ) : (
-          <div style={{
-            width: PHOTO_SIZE,
-            height: PHOTO_SIZE,
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={deleting}
+          title={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
+          aria-label={member.photo ? 'Change profile photo' : 'Click here to add a new profile picture'}
+          style={{
+            position: 'relative',
+            padding: 0,
+            border: 'none',
+            background: 'none',
+            cursor: deleting ? 'wait' : 'pointer',
             borderRadius: '50%',
-            border: '2px dashed var(--border-md)',
-            background: 'var(--bg)',
-            color: 'var(--t3)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: 14,
-            boxSizing: 'border-box',
-            transition: 'border-color 0.12s, background 0.12s, color 0.12s',
+            display: 'block',
           }}
-            onMouseEnter={e => {
-              e.currentTarget.style.borderColor = 'var(--navy)';
-              e.currentTarget.style.background = 'var(--card)';
-              e.currentTarget.style.color = 'var(--navy)';
+        >
+          {member.photo ? (
+            <Avatar
+              name={member.name}
+              size="profile"
+              photo={member.photo}
+              style={{ opacity: deleting ? 0.55 : 1 }}
+            />
+          ) : (
+            <div style={{
+              width: PHOTO_SIZE,
+              height: PHOTO_SIZE,
+              borderRadius: '50%',
+              border: '2px dashed var(--border-md)',
+              background: 'var(--bg)',
+              color: 'var(--t3)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: 14,
+              boxSizing: 'border-box',
+              transition: 'border-color 0.12s, background 0.12s, color 0.12s',
             }}
-            onMouseLeave={e => {
-              e.currentTarget.style.borderColor = 'var(--border-md)';
-              e.currentTarget.style.background = 'var(--bg)';
-              e.currentTarget.style.color = 'var(--t3)';
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'var(--navy)';
+                e.currentTarget.style.background = 'var(--card)';
+                e.currentTarget.style.color = 'var(--navy)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border-md)';
+                e.currentTarget.style.background = 'var(--bg)';
+                e.currentTarget.style.color = 'var(--t3)';
+              }}
+            >
+              <CameraIcon size={28} />
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1.3,
+                textAlign: 'center',
+                maxWidth: 90,
+              }}>
+                Click here to add a new profile picture
+              </span>
+            </div>
+          )}
+          <span style={{
+            position: 'absolute', right: 2, bottom: 2,
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'var(--navy)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid var(--card)',
+            boxShadow: '0 1px 4px rgba(15,23,42,0.2)',
+          }}>
+            <CameraIcon size={14} />
+          </span>
+        </button>
+
+        {member.photo && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Delete profile picture"
+            aria-label="Delete profile picture"
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: -8,
+              width: 24,
+              height: 24,
+              padding: 0,
+              borderRadius: '50%',
+              border: '2px solid var(--card)',
+              background: 'var(--red)',
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 700,
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: deleting ? 'wait' : 'pointer',
+              boxShadow: '0 1px 4px rgba(15,23,42,0.2)',
             }}
           >
-            <CameraIcon size={28} />
-            <span style={{
-              fontSize: 11,
-              fontWeight: 600,
-              lineHeight: 1.3,
-              textAlign: 'center',
-              maxWidth: 90,
-            }}>
-              Click here to add a new profile picture
-            </span>
-          </div>
+            {deleting ? <Spinner size="sm" /> : '×'}
+          </button>
         )}
-        <span style={{
-          position: 'absolute', right: 2, bottom: 2,
-          width: 28, height: 28, borderRadius: '50%',
-          background: 'var(--navy)', color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '2px solid var(--card)',
-          boxShadow: '0 1px 4px rgba(15,23,42,0.2)',
-        }}>
-          <CameraIcon size={14} />
-        </span>
-      </button>
+      </div>
 
       <input
         ref={fileRef}

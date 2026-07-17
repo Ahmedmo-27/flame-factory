@@ -1343,6 +1343,38 @@ const uploadProfilePhoto = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+const deleteProfilePhoto = async (req, res) => {
+    try {
+        const member = await findMemberByIdentifier(req.params.memberId);
+        if (!member) {
+            return res.status(404).json({ message: "Member not found" });
+        }
+        if (!member.photo) {
+            return res.status(404).json({ message: "Member does not have a profile photo" });
+        }
+
+        const photoName = path.basename(member.photo);
+        member.photo = null;
+        await member.save();
+
+        const photoPath = path.join(__dirname, "../../uploads", photoName);
+        fs.unlink(photoPath, () => {});
+
+        await writeAudit({
+            action: "member_photo_deleted",
+            actor: req.user.id,
+            actorRole: req.user.role,
+            targetType: "member",
+            targetId: member._id,
+            req,
+        });
+
+        res.json({ message: "Profile photo deleted", photo: null });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 ////////////////// deactivate alert////////////////////
 const deactivateAlert = async (req, res) => {
     try {
@@ -1803,6 +1835,7 @@ module.exports = {
     getTodayCheckIns,
     uploadNationalId,
     uploadProfilePhoto,
+    deleteProfilePhoto,
     blockMember,
     unblockMember,
     sessionCheckIn_for_couch,

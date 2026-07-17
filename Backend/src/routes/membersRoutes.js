@@ -36,6 +36,7 @@ const {
     getTodayCheckIns,
     uploadNationalId,
     uploadProfilePhoto,
+    deleteProfilePhoto,
     addAlert,
     deactivateAlert,
     blockMember,
@@ -95,6 +96,7 @@ router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockM
 router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadSingle("nationalIdFile"), uploadNationalId);
 router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadSingle("photoFile"), uploadProfilePhoto);
+router.delete("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), deleteProfilePhoto);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 

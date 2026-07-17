@@ -2,7 +2,8 @@ const express   = require("express");
 const router    = express.Router();
 const { protect, authorizeRoles }   = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
-const { uploadSingle } = require("../config/multer");
+const uploadLimiter = require("../middleware/uploadLimiter");
+const { uploadSingle, uploadSinglePhoto } = require("../config/multer");
 const validate  = require("../middleware/validate");
 const {
     createMemberSchema,
@@ -84,7 +85,7 @@ router.get("/:memberId", protect, (req, res, next) => {
 });
 
 router.post("/:memberId/notes", ...notesAccess, validate(addNoteSchema), addNote);
-router.post("/:memberId/invitations", ...inviteAccess, uploadSingle("idFile"), validate(invitationSchema), addInvitation);
+router.post("/:memberId/invitations", ...inviteAccess, uploadLimiter, uploadSingle("idFile"), validate(invitationSchema), addInvitation);
 router.put("/:memberId/sales-rep", protect, authorizeRoles("Sales Manager", "Owner"), switchSalesRep);
 router.post("/:memberId/alerts", protect, authorize("Receptionist", "Sales", "Sales Manager"), validate(addAlertSchema), addAlert);
 router.post("/:memberId/checkin", ...writeAccess, checkInMember);
@@ -94,9 +95,9 @@ router.patch("/:memberId/freeze", ...freezeAccess, validate(freezeMemberSchema),
 router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
 router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
-router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadSingle("nationalIdFile"), uploadNationalId);
-router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadSingle("photoFile"), uploadProfilePhoto);
-router.delete("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), deleteProfilePhoto);
+router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadLimiter, uploadSingle("nationalIdFile"), uploadNationalId);
+router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
+router.delete("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, deleteProfilePhoto);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 

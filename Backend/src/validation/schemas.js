@@ -30,7 +30,7 @@ const createMemberSchema = z.object({
     name: z.string().trim().min(1).max(120),
     phones: z.string().trim().min(5).max(40),
     nationalId: z.preprocess(emptyToNull, z.string().trim().max(40).nullable().optional()),
-    photo: z.preprocess(emptyToNull, z.string().max(500).nullable().optional()),
+    // photo is intentionally omitted — only set via PATCH /members/:id/photo
     gender: z.preprocess(emptyToNull, z.enum(["male", "female"]).nullable().optional()),
     birthdate: z.preprocess(emptyToNull, z.string().max(40).nullable().optional()),
     source: z.preprocess(emptyToNull, memberSource.nullable().optional()),

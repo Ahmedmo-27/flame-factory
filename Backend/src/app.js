@@ -5,6 +5,7 @@ const rateLimit = require("express-rate-limit");
 const path = require("path");
 const fs = require("fs");
 
+const Member = require("./models/Member");
 const userRoutes = require("./routes/userRoutes");
 const membersRoutes = require("./routes/membersRoutes");
 const salesRequestRoutes = require("./routes/salesRequestRoutes");
@@ -19,6 +20,7 @@ const sanitizeRequest = require("./middleware/sanitize");
 const { protect } = require("./middleware/authMiddleware");
 const authorize = require("./middleware/roleMiddleware");
 const { writeAudit } = require("./utils/audit");
+const { detectMimeFromFile, MIME_TO_EXT } = require("./utils/fileMagic");
 const coachRequestRoutes = require("./routes/coachRequestRoutes");
 
 
@@ -69,13 +71,49 @@ app.use("/api/requests", salesRequestRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/coach-requests", coachRequestRoutes);
 
-const uploadsDir = path.join(__dirname, "../uploads");
+const uploadsDir = path.resolve(__dirname, "../uploads");
+const uploadReadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many file requests, try again later" },
+});
+
+function idOf(value) {
+    return value?._id?.toString?.() || value?.toString?.() || null;
+}
+
+function isAssignedSales(member, user) {
+    return Boolean(idOf(member.assignedSales) && idOf(member.assignedSales) === user.id.toString());
+}
+
+function uploadTypeForMember(member, filename) {
+    if (member.photo === filename) return "profile_photo";
+    if (member.nationalId === filename) return "national_id";
+    if ((member.invitations || []).some((inv) => inv?.idFile === filename)) return "invitation_id";
+    return null;
+}
+
+function canAccessMemberUpload(user, member, type) {
+    const profileRoles = ["Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"];
+    if (!profileRoles.includes(user.role)) return false;
+
+    if (type === "profile_photo") return true;
+
+    const sensitiveFileRoles = ["Receptionist", "Owner", "Sales Manager", "Coach Manager", "Accountant"];
+    if (sensitiveFileRoles.includes(user.role)) return true;
+
+    return user.role === "Sales" && isAssignedSales(member, user);
+}
 
 /**
- * Invitation ID files are PII — require auth. Do not use public express.static.
+ * Uploaded files are PII — require auth and member ownership checks.
+ * Do not use public express.static for uploads.
  */
 app.get(
     "/uploads/:filename",
+    uploadReadLimiter,
     protect,
     authorize("Receptionist", "Owner", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"),
     async (req, res) => {
@@ -84,8 +122,28 @@ app.get(
             return res.status(400).json({ message: "Invalid filename" });
         }
 
-        const filePath = path.join(uploadsDir, safe);
-        if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+        const filePath = path.resolve(uploadsDir, safe);
+        if (path.dirname(filePath) !== uploadsDir || !fs.existsSync(filePath)) {
+            return res.status(404).json({ message: "File not found" });
+        }
+
+        const member = await Member.findOne({
+            $or: [
+                { photo: safe },
+                { nationalId: safe },
+                { "invitations.idFile": safe },
+            ],
+        })
+            .select("photo nationalId invitations.idFile assignedSales current_couch")
+            .lean();
+
+        const uploadType = member ? uploadTypeForMember(member, safe) : null;
+        if (!member || !uploadType || !canAccessMemberUpload(req.user, member, uploadType)) {
+            return res.status(404).json({ message: "File not found" });
+        }
+
+        const mime = await detectMimeFromFile(filePath);
+        if (!mime || !MIME_TO_EXT[mime]?.some((ext) => safe.toLowerCase().endsWith(ext))) {
             return res.status(404).json({ message: "File not found" });
         }
 
@@ -95,9 +153,14 @@ app.get(
             actorRole: req.user.role,
             targetType: "upload",
             targetId: safe,
+            meta: { memberId: member._id, uploadType },
             req,
         });
 
+        const headerName = safe.replace(/["\r\n]/g, "");
+        res.setHeader("Content-Type", mime);
+        res.setHeader("Content-Disposition", `${mime === "application/pdf" ? "attachment" : "inline"}; filename="${headerName}"`);
+        res.setHeader("X-Content-Type-Options", "nosniff");
         res.sendFile(filePath);
     }
 );

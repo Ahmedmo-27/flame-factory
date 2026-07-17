@@ -11,7 +11,7 @@ const { notifyMemberAssigned } = require("../utils/notificationService");
 const { parsePagination, buildPagination } = require("../utils/pagination");
 const { buildMemberListFilter, getMemberStatusStats } = require("../utils/memberFilters");
 const { isAssignedToRep, redactMemberForViewer } = require("../utils/memberPrivacy");
-const { assertAllowedUpload } = require("../utils/fileMagic");
+const { assertAllowedUpload, assertAllowedImage } = require("../utils/fileMagic");
 const { writeAudit } = require("../utils/audit");
 const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
 const { sanitizePlainText } = require("../utils/sanitizeText");
@@ -73,7 +73,7 @@ const findMember = async (id) => {
 const createMember = async (req, res) => {
     try {
         const {
-            name, phones, photo,
+            name, phones,
             gender, birthdate, source,
             packageId, assignedSales
         } = req.body;
@@ -84,7 +84,8 @@ const createMember = async (req, res) => {
             systemId,
             name,
             phones,
-            photo:         photo         || null,
+            // photo must only be set via dedicated upload endpoint
+            photo:         null,
             gender:        gender        || null,
             birthdate:     birthdate     || null,
             source:        source        || null,
@@ -1285,9 +1286,6 @@ const uploadNationalId = async (req, res) => {
     }
 };
 
-// ─── Upload Profile Photo (Receptionist + Accountant) ─────────────────────────
-const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
-
 const uploadProfilePhoto = async (req, res) => {
     try {
         if (!["Receptionist", "Accountant"].includes(req.user.role)) {
@@ -1306,11 +1304,7 @@ const uploadProfilePhoto = async (req, res) => {
 
         let photoFileName;
         try {
-            const mime = await assertAllowedUpload(req.file.path);
-            if (!IMAGE_MIMES.has(mime)) {
-                fs.unlink(req.file.path, () => {});
-                return res.status(400).json({ message: "Profile photo must be an image (jpeg, png, gif, webp)" });
-            }
+            await assertAllowedImage(req.file.path);
             photoFileName = path.basename(req.file.filename || req.file.path);
         } catch (err) {
             fs.unlink(req.file.path, () => {});

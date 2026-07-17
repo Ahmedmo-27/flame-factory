@@ -8,6 +8,20 @@ const ALLOWED = new Set([
     "application/pdf",
 ]);
 
+const IMAGE_ONLY = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+]);
+
+const MIME_TO_EXT = {
+    "image/jpeg": [".jpg", ".jpeg"],
+    "image/png": [".png"],
+    "image/gif": [".gif"],
+    "image/webp": [".webp"],
+    "application/pdf": [".pdf"],
+};
+
 /**
  * Detect MIME from magic bytes — do not trust client Content-Type or extension alone.
  */
@@ -47,4 +61,34 @@ async function assertAllowedUpload(filePath) {
     }
 }
 
-module.exports = { detectMimeFromBuffer, assertAllowedUpload, ALLOWED };
+/** Profile photos: jpeg/png/webp only (no GIF/PDF). */
+async function assertAllowedImage(filePath) {
+    const mime = await assertAllowedUpload(filePath);
+    if (!IMAGE_ONLY.has(mime)) {
+        const err = new Error("Profile photo must be an image (jpeg, png, webp)");
+        err.statusCode = 400;
+        throw err;
+    }
+    return mime;
+}
+
+async function detectMimeFromFile(filePath) {
+    const fd = await fs.promises.open(filePath, "r");
+    try {
+        const buf = Buffer.alloc(16);
+        await fd.read(buf, 0, 16, 0);
+        return detectMimeFromBuffer(buf);
+    } finally {
+        await fd.close();
+    }
+}
+
+module.exports = {
+    detectMimeFromBuffer,
+    detectMimeFromFile,
+    assertAllowedUpload,
+    assertAllowedImage,
+    ALLOWED,
+    IMAGE_ONLY,
+    MIME_TO_EXT,
+};

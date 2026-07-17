@@ -22,8 +22,8 @@ describe("uploads auth protection", () => {
         expect(res.json).toHaveBeenCalledWith({ message: "Not authorized, no token" });
     });
 
-    it("blocks staff roles that are not allowed to access uploads", () => {
-        const req = { user: { role: "Coach Manager" } };
+    it("blocks roles that are not allowed to access uploads", () => {
+        const req = { user: { role: "Unknown" } };
         const res = {
             status: vi.fn().mockReturnThis(),
             json: vi.fn(),
@@ -36,6 +36,7 @@ describe("uploads auth protection", () => {
             "Sales",
             "Sales Manager",
             "Coach",
+            "Coach Manager",
             "Accountant"
         );
 
@@ -59,6 +60,7 @@ describe("uploads auth protection", () => {
             "Sales",
             "Sales Manager",
             "Coach",
+            "Coach Manager",
             "Accountant"
         );
 

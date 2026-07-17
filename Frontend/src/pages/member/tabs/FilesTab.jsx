@@ -1,18 +1,44 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Btn, Spinner, EmptyState } from '../../../components/ui';
 import { uploadNationalId } from '../../../api/endpoints';
-import { apiOrigin } from '../../../api/axios';
+import { fetchProtectedUploadBlobUrl } from '../../../api/axios';
 
 export default function FilesTab({ member, user, onRefresh }) {
   const isAccountant = user?.role === 'Accountant';
   const [uploading, setUploading] = useState(false);
+  const [nationalIdUrl, setNationalIdUrl] = useState(null);
   const fileRef = useRef(null);
 
   const nationalIdFile = member.nationalId;
-  const nationalIdUrl  = nationalIdFile
-    ? `${apiOrigin}/${nationalIdFile.replace(/\\/g, '/')}`
-    : null;
+
+  useEffect(() => {
+    if (!nationalIdFile) {
+      setNationalIdUrl(null);
+      return undefined;
+    }
+
+    let active = true;
+    let objectUrl = null;
+
+    fetchProtectedUploadBlobUrl(nationalIdFile)
+      .then((url) => {
+        if (!active) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setNationalIdUrl(url);
+      })
+      .catch(() => {
+        if (active) setNationalIdUrl(null);
+      });
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [nationalIdFile]);
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];

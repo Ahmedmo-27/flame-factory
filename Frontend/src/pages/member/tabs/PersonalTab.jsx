@@ -42,16 +42,14 @@ export default function PersonalTab({ member, user, onRefresh }) {
   const canAssign = user?.role === 'Sales Manager' || user?.role === 'Owner' ||
     (user?.role === 'Receptionist' && !member.assignedSales);
 
-  // Phone visibility: Sales Manager always, Sales only if assigned to this member, Receptionist/Owner always
+  // Phone visibility: Sales Manager always, Sales only if assigned, Receptionist/Owner/Accountant always
   const isSalesManager = user?.role === 'Sales Manager';
   const isAssignedSales = user?.role === 'Sales' && member.assignedSales?._id === user?._id;
-  const isReceptionist = user?.role === 'Receptionist';
-  const isNonSalesRole = ['Owner', 'Accountant'].includes(user?.role);
-  // If user has canViewPhones === false, they cannot see phone numbers (hide button)
-  const phonePrivacyRestricted = user?.canViewPhones === false;
-  const canSeePhone = !phonePrivacyRestricted && (isSalesManager || isAssignedSales || isReceptionist);
-  // Owner/Accountant see phone directly, no button needed — unless restricted
-  const showPhoneDirectly = !phonePrivacyRestricted && isNonSalesRole;
+  // Sales-only privacy flag — Receptionists are never restricted
+  const phonePrivacyRestricted = user?.role === 'Sales' && user?.canViewPhones === false;
+  const canSeePhone = !phonePrivacyRestricted && (isSalesManager || isAssignedSales);
+  // Receptionist, Owner, Accountant see phone directly
+  const showPhoneDirectly = ['Receptionist', 'Owner', 'Accountant'].includes(user?.role);
   const hasUsablePhone = Boolean(member.phones && member.phones !== 'hidden' && toWhatsAppUrl(member.phones));
 
   const openAssign = async () => {

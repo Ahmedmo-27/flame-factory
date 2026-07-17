@@ -213,13 +213,6 @@ function ReceptionistCard({ member, onClick }) {
           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', background: 'var(--bg)', border: '1px solid var(--border)', padding: '1px 7px', borderRadius: 4 }}>
             🖥️ Receptionist
           </span>
-          <span style={{
-            fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
-            background: member.canViewPhones !== false ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-            color: member.canViewPhones !== false ? 'var(--green)' : 'var(--red)',
-          }}>
-            {member.canViewPhones !== false ? '🔓 Phones visible' : '🔒 Phones hidden'}
-          </span>
         </div>
       </div>
     </div>

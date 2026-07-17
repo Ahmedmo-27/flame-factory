@@ -956,8 +956,8 @@ const updatePhonePrivacy = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (!["Receptionist", "Sales"].includes(user.role)) {
-            return res.status(400).json({ message: "Phone privacy can only be updated for Receptionists and Sales Representatives" });
+        if (user.role !== "Sales") {
+            return res.status(400).json({ message: "Phone privacy can only be updated for Sales Representatives. Receptionists always see phone numbers." });
         }
 
         const { canViewPhones } = req.body;

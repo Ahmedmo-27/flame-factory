@@ -21,7 +21,8 @@ function formatUserResponse(user) {
         base.abilities = resolveAbilities(user);
     }
 
-    if (user.role === "Receptionist" || user.role === "Sales") {
+    // Phone privacy toggle applies to Sales only — Receptionists always see phones
+    if (user.role === "Sales") {
         base.canViewPhones = user.canViewPhones ?? true;
     }
 

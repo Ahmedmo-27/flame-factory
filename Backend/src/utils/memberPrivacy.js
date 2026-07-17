@@ -39,15 +39,7 @@ function redactMemberForViewer(memberObj, user) {
         };
     }
 
-    if (user.role === "Receptionist") {
-        if (user.canViewPhones === false) {
-            return {
-                ...memberObj,
-                phones: "hidden",
-            };
-        }
-        return memberObj;
-    }
+    // Receptionist always receives full phone numbers (no canViewPhones gate)
 
     if (user.role === "Coach") {
         const coachId = getCoachId(memberObj);

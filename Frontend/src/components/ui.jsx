@@ -1,4 +1,4 @@
-// ─── FlamFactory UI — sharp, data-dense design system ────────────────────────
+// ─── Flame Factory UI — sharp, data-dense design system ────────────────────────
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, Children, useCallback } from 'react';
 import { createPortal } from 'react-dom';

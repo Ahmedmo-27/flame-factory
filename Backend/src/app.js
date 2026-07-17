@@ -56,7 +56,7 @@ const globalLimiter = rateLimit({
 app.use("/api", globalLimiter);
 
 app.get("/", (req, res) => {
-    res.send("FlamFactory API is running");
+    res.send("Flame Factory API is running");
 });
 
 app.use("/api/users", userRoutes);

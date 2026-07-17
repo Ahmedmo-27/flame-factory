@@ -3,6 +3,35 @@ import toast from 'react-hot-toast';
 import { Card, CardHeader, Btn, Modal, Select, Spinner, InfoRow, Badge, fmtDate } from '../../../components/ui';
 import { assignSales, getSalesUsers } from '../../../api/endpoints';
 
+/** Build a wa.me link from a stored phone (local EG numbers or international). */
+function toWhatsAppUrl(phone) {
+  if (!phone || phone === 'hidden') return null;
+  let digits = String(phone).replace(/\D/g, '');
+  if (!digits) return null;
+  // 00-prefix international
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  // Already Egypt country code
+  if (digits.startsWith('20') && digits.length >= 12) return `https://wa.me/${digits}`;
+  // Local format e.g. 01012345678 / 0599123456 → drop leading 0, add +20
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  return `https://wa.me/20${digits}`;
+}
+
+function WhatsAppBtn({ phone, size = 'xs', fullWidth = false }) {
+  const url = toWhatsAppUrl(phone);
+  if (!url) return null;
+  return (
+    <Btn
+      variant="success"
+      size={size}
+      fullWidth={fullWidth}
+      onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+    >
+      Chat on WhatsApp
+    </Btn>
+  );
+}
+
 export default function PersonalTab({ member, user, onRefresh }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showPhone, setShowPhone]   = useState(false);
@@ -23,6 +52,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
   const canSeePhone = !phonePrivacyRestricted && (isSalesManager || isAssignedSales || isReceptionist);
   // Owner/Accountant see phone directly, no button needed — unless restricted
   const showPhoneDirectly = !phonePrivacyRestricted && isNonSalesRole;
+  const hasUsablePhone = Boolean(member.phones && member.phones !== 'hidden' && toWhatsAppUrl(member.phones));
 
   const openAssign = async () => {
     try { const res = await getSalesUsers(); setSalesUsers(res.data.salesUsers ?? []); setSelected(member.assignedSales?._id ?? ''); }
@@ -38,6 +68,26 @@ export default function PersonalTab({ member, user, onRefresh }) {
     finally { setLoading(false); }
   };
 
+  const phoneValue = (() => {
+    if (showPhoneDirectly) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'monospace' }}>{member.phones}</span>
+          {hasUsablePhone && <WhatsAppBtn phone={member.phones} />}
+        </div>
+      );
+    }
+    if (canSeePhone) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Btn variant="outline" size="xs" onClick={() => setShowPhone(true)}>Show Number</Btn>
+          {hasUsablePhone && <WhatsAppBtn phone={member.phones} />}
+        </div>
+      );
+    }
+    return <span style={{ color: 'var(--t4)' }}>Hidden</span>;
+  })();
+
   return (
     <>
       <Card>
@@ -45,13 +95,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
           {canAssign && <Btn variant="outline" size="sm" onClick={openAssign}>Assign Sales Rep</Btn>}
         </CardHeader>
         <InfoRow label="Full Name"         value={member.name} />
-        <InfoRow label="Phone"             value={
-          showPhoneDirectly
-            ? member.phones
-            : canSeePhone
-              ? <Btn variant="outline" size="xs" onClick={() => setShowPhone(true)}>Show Number</Btn>
-              : <span style={{ color: 'var(--t4)' }}>Hidden</span>
-        } />
+        <InfoRow label="Phone"             value={phoneValue} />
         <InfoRow label="Gender"            value={member.gender} />
         <InfoRow label="Birthdate"         value={fmtDate(member.birthdate)} />
         <InfoRow label="Source"            value={member.source} />
@@ -77,9 +121,10 @@ export default function PersonalTab({ member, user, onRefresh }) {
           <p style={{ fontSize: 11, color: 'var(--t4)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
             {member.name}
           </p>
-          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--t1)', letterSpacing: '1px', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--t1)', letterSpacing: '1px', fontFamily: 'monospace', marginBottom: hasUsablePhone ? 16 : 0 }}>
             {member.phones}
           </p>
+          {hasUsablePhone && <WhatsAppBtn phone={member.phones} size="sm" />}
         </div>
       </Modal>
     </>

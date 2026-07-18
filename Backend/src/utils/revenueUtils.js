@@ -48,18 +48,22 @@ function getCurrentPackage(member) {
  * Money collected for a subscription.
  * Always prefer pricePaid (payment record), then packageSnapshot.price.
  * Never use the live catalog package.price — catalog edits must not rewrite history.
+ * Any refundAmount stored on the subscription is subtracted from the final price.
  */
 function subscriptionSalePrice(sub) {
     if (!sub) return 0;
+    let price = 0;
     if (sub.pricePaid != null && sub.pricePaid !== "") {
-        return Number(sub.pricePaid) || 0;
+        price = Number(sub.pricePaid) || 0;
+    } else if (sub.packageSnapshot?.price != null) {
+        price = Number(sub.packageSnapshot.price) || 0;
+    } else {
+        // Legacy rows only: last resort when no payment snapshot exists
+        const resolved = resolveSubscriptionPackage(sub);
+        price = Number(resolved?.price) || 0;
     }
-    if (sub.packageSnapshot?.price != null) {
-        return Number(sub.packageSnapshot.price) || 0;
-    }
-    // Legacy rows only: last resort when no payment snapshot exists
-    const resolved = resolveSubscriptionPackage(sub);
-    return Number(resolved?.price) || 0;
+    const refund = Number(sub.refundAmount) || 0;
+    return Math.max(0, price - refund);
 }
 
 function memberPrice(member) {

@@ -114,3 +114,10 @@ export const createRequest       = (memberId)   =>
   api.post('/requests', { memberId });
 export const updateRequestStatus = (id, status) =>
   api.put(`/requests/${id}/status`, { status });
+
+// ── Owner ─────────────────────────────────────────────────────────────────────
+export const changeUserRole = (id, new_role) =>
+  api.get(`/users/changerole/${id}/${encodeURIComponent(new_role)}`);
+export const getAllUsers = () => api.get('/users/receptionists');
+export const refundMember = (id, refund_amount, reason) =>
+  api.post(`/members/${id}/refund`, { memberID: id, refund_amount, reason });

@@ -208,7 +208,8 @@ function PackagesContent({ member, user, onRefresh }) {
 
   const isSalesManager = user?.role === 'Sales Manager';
   const isAccountant = user?.role === 'Accountant';
-  const canAddPackage = isSalesManager || isAccountant;
+  const isOwner = user?.role === 'Owner';
+  const canAddPackage = isSalesManager || isAccountant || isOwner;
   const memberKey = member.systemId ?? member._id;
 
   const fetchPending = useCallback(async () => {
@@ -422,6 +423,7 @@ function PackagesContent({ member, user, onRefresh }) {
           pending={pending}
           isSalesManager={isSalesManager}
           isAccountant={isAccountant}
+          isOwner={isOwner}
           onSuccess={() => { setShowAddPackage(false); fetchPending(); onRefresh?.(); }}
           onReview={(id, status) => setConfirm({ id, status: status === 'declined' ? 'rejected' : status })}
         />
@@ -500,7 +502,7 @@ function PackageFormFields({ form, set, readOnly, makeException, allEditable }) 
   );
 }
 
-function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAccountant, onSuccess, onReview }) {
+function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAccountant, isOwner, onSuccess, onReview }) {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [makeException, setMakeException] = useState(false);
@@ -646,8 +648,8 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
     }
   };
 
-  // Accountant: review pending request or assign directly
-  if (isAccountant) {
+  // Accountant or Owner: review pending request or assign directly
+  if (isAccountant || isOwner) {
     if (pending) {
       return (
         <Modal open={open} onClose={onClose} title="Add Package — Review Request" size="lg"

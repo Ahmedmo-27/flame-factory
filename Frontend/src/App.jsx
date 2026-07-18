@@ -30,6 +30,9 @@ import CoachTransfers     from './pages/coach/CoachTransfers';
 import CoachTargets       from './pages/coach/CoachTargets';
 import CoachProfile       from './pages/coach/CoachProfile';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
+import OwnerDashboard     from './pages/owner/OwnerDashboard';
+import OwnerTeams         from './pages/owner/OwnerTeams';
+import OwnerUserProfile   from './pages/owner/OwnerUserProfile';
 import CheckIn            from './pages/CheckIn';
 import AddMember          from './pages/AddMember';
 import ReceptionContacts  from './pages/ReceptionContacts';
@@ -47,6 +50,7 @@ function PrivateRoute({ children, roles }) {
 function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'Owner') return <Navigate to="/owner/dashboard" replace />;
   if (['Sales', 'Sales Manager'].includes(user.role)) return <Navigate to="/sales/dashboard" replace />;
   if (['Coach', 'Coach Manager'].includes(user.role)) return <Navigate to="/coach/dashboard" replace />;
   if (user.role === 'Accountant') return <Navigate to="/accounting/dashboard" replace />;
@@ -225,6 +229,23 @@ function AppRoutes() {
       <Route path="/contacts" element={
         <PrivateRoute>
           <ReceptionContacts />
+        </PrivateRoute>
+      } />
+
+      {/* Owner routes */}
+      <Route path="/owner/dashboard" element={
+        <PrivateRoute roles={['Owner']}>
+          <OwnerDashboard />
+        </PrivateRoute>
+      } />
+      <Route path="/owner/teams" element={
+        <PrivateRoute roles={['Owner']}>
+          <OwnerTeams />
+        </PrivateRoute>
+      } />
+      <Route path="/owner/teams/:id" element={
+        <PrivateRoute roles={['Owner']}>
+          <OwnerUserProfile />
         </PrivateRoute>
       } />
 

@@ -395,9 +395,11 @@ function PackagesContent({ member, user, onRefresh }) {
           <CardHeader title={`Subscription History (${subs.length})`} />
         </div>
         {!subs.length ? <EmptyState message="No subscriptions on record" /> :
-          <Table headers={['Sub #', 'Package', 'Activity', 'Duration', 'Created At', 'Start', 'End', 'Price', 'Discount', 'Exception', 'Renewal']}>
-            {[...subs].reverse().map((s, i) => (
-              <tr key={s._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
+          <Table headers={['Sub #', 'Package', 'Activity', 'Duration', 'Created At', 'Start', 'End', 'Price', 'Discount', 'Exception', 'Renewal', 'Refund']}>
+            {[...subs].reverse().map((s, i) => {
+              const isRefunded = s.refundAmount > 0;
+              return (
+              <tr key={s._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)', background: isRefunded ? 'var(--red-bg)' : 'transparent' }}>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{s.subscriptionId ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{purchasedPkg(s)?.name ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{purchasedPkg(s)?.activityType ?? '—'}</td>
@@ -405,12 +407,40 @@ function PackagesContent({ member, user, onRefresh }) {
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDateTime(s.createdAt)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.startDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.endDate)}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>EGP {s.pricePaid}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700 }}>
+                  {isRefunded ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ textDecoration: 'line-through', color: 'var(--t4)', fontWeight: 400 }}>EGP {s.pricePaid}</span>
+                      <span style={{ color: 'var(--green)' }}>EGP {s.pricePaid - s.refundAmount}</span>
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--green)' }}>EGP {s.pricePaid}</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.discountPercent ? `${s.discountPercent}%` : '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{purchasedPkg(s)?.hasException ? 'Yes' : '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.isRenewal ? 'Yes' : '—'}</td>
+                <td style={{ padding: '10px 14px' }}>
+                  {isRefunded ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 700,
+                        background: 'var(--red-bg)', color: 'var(--red)',
+                        border: '1px solid var(--red-bd)',
+                        padding: '2px 8px', borderRadius: 4,
+                      }}>
+                        ↩ Refunded
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>−EGP {s.refundAmount}</span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>—</span>
+                  )}
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </Table>
         }
       </Card>

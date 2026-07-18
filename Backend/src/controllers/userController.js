@@ -16,7 +16,9 @@ const {
     buildMonthlyMap,
     memberPrice,
     getCurrentSubscription,
+    subscriptionSalePrice,
 } = require("../utils/revenueUtils");
+const { resolveSubscriptionPackage } = require("../utils/packageSnapshot");
 
 const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
 const GENERIC_LOGIN_FAILURE = "Invalid email or password";
@@ -301,7 +303,7 @@ const getSalesManagerRevenue = async (req, res) => {
             if (!member.subscriptions?.length) return;
 
             member.subscriptions.forEach((sub) => {
-                const price = sub.pricePaid || sub.package?.price || 0;
+                const price = subscriptionSalePrice(sub);
                 if (!price) return;
 
                 // startDate is the actual sale date — never use createdAt for revenue
@@ -657,7 +659,8 @@ const getSubscriptionsByDate = async (req, res) => {
                         subscription: {
                             _id:             sub._id,
                             subscriptionId:  sub.subscriptionId,
-                            package:         sub.package,
+                            package:         resolveSubscriptionPackage(sub),
+                            packageSnapshot: sub.packageSnapshot || null,
                             startDate:       sub.startDate,
                             endDate:         sub.endDate,
                             pricePaid:       sub.pricePaid,
@@ -732,7 +735,8 @@ const getSalesMySubscriptions = async (req, res) => {
                         subscription: {
                             _id:             sub._id,
                             subscriptionId:  sub.subscriptionId,
-                            package:         sub.package,
+                            package:         resolveSubscriptionPackage(sub),
+                            packageSnapshot: sub.packageSnapshot || null,
                             startDate:       sub.startDate,
                             endDate:         sub.endDate,
                             pricePaid:       sub.pricePaid,

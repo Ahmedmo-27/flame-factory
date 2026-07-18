@@ -16,12 +16,13 @@ const { writeAudit } = require("../utils/audit");
 const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
 const { sanitizePlainText } = require("../utils/sanitizeText");
 const { validateNoOverlappingSubscription } = require("../utils/subscriptionUtils");
+const { buildPackageSnapshot, resolveSubscriptionPackage } = require("../utils/packageSnapshot");
 const mongoose = require("mongoose");
 
-// ─── Helper: get current package from last subscription ───────────────────────
+// ─── Helper: get purchased package terms from last subscription ───────────────
 const getCurrentPackage = (member) => {
     if (!member.subscriptions || !member.subscriptions.length) return null;
-    return member.subscriptions[member.subscriptions.length - 1].package;
+    return resolveSubscriptionPackage(member.subscriptions[member.subscriptions.length - 1]);
 };
 
 // ─── Helper: validate sales assignee ─────────────────────────────────────────
@@ -111,6 +112,7 @@ const createMember = async (req, res) => {
                 subscriptions: [{
                     subscriptionId,
                     package:         pkg._id,
+                    packageSnapshot: buildPackageSnapshot(pkg),
                     startDate,
                     endDate,
                     pricePaid:       pkg.price,
@@ -1127,6 +1129,12 @@ const assignPackage = async (req, res) => {
 
         let packageToAssign = basePkg._id;
         let packageName = basePkg.name;
+        let snapshotSource = {
+            ...terms,
+            hasException: false,
+            free_pt_sessions: basePkg.free_pt_sessions || 0,
+            description: basePkg.description ?? null,
+        };
 
         if (packageTermsDiffer(basePkg, terms)) {
             const exceptionPkg = await Package.create({
@@ -1145,6 +1153,7 @@ const assignPackage = async (req, res) => {
             });
             packageToAssign = exceptionPkg._id;
             packageName = exceptionPkg.name;
+            snapshotSource = exceptionPkg;
         }
 
         const currentSub = member.subscriptions?.at(-1);
@@ -1190,6 +1199,7 @@ const assignPackage = async (req, res) => {
         member.subscriptions.push({
             subscriptionId,
             package: packageToAssign,
+            packageSnapshot: buildPackageSnapshot(snapshotSource),
             startDate: start,
             endDate,
             pricePaid: Number(pricePaid),

@@ -9,6 +9,7 @@ const {
 } = require("../utils/notificationService");
 const { parsePagination, buildPagination } = require("../utils/pagination");
 const { writeAudit } = require("../utils/audit");
+const { buildPackageSnapshot } = require("../utils/packageSnapshot");
 
 const calcEndDate = (startDate, duration) => {
     const end = new Date(startDate);
@@ -63,6 +64,7 @@ const applyApprovedException = async (request, reviewerId) => {
 
     let packageId;
     let packageName;
+    let snapshotSource;
 
     if (request.hasException) {
         const exceptionPkg = await buildExceptionPackage(
@@ -72,10 +74,24 @@ const applyApprovedException = async (request, reviewerId) => {
         );
         packageId = exceptionPkg._id;
         packageName = exceptionPkg.name;
+        snapshotSource = exceptionPkg;
     } else {
         packageId = request.basePackage;
         const basePkg = await Package.findById(request.basePackage);
         packageName = basePkg?.name ?? request.name;
+        // Snapshot approved request terms (not live catalog) so later catalog edits are ignored
+        snapshotSource = {
+            name: request.name,
+            activityType: request.activityType,
+            duration: request.duration,
+            price: request.price,
+            freezeLimitDays: request.freezeLimitDays,
+            invitationLimit: request.invitationLimit,
+            renewalDiscountPercent: request.renewalDiscountPercent,
+            description: request.description,
+            hasException: false,
+            free_pt_sessions: basePkg?.free_pt_sessions || 0,
+        };
     }
 
     const startDate = request.startDate ? new Date(request.startDate) : new Date();
@@ -86,6 +102,7 @@ const applyApprovedException = async (request, reviewerId) => {
     const subscription = {
         subscriptionId,
         package: packageId,
+        packageSnapshot: buildPackageSnapshot(snapshotSource),
         startDate,
         endDate,
         pricePaid: request.pricePaid,

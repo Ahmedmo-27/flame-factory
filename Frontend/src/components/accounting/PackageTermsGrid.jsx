@@ -27,8 +27,10 @@ function ExceptionFlag() {
 export default function PackageTermsGrid({ data, title, showEndDate = false }) {
   if (!data) return null;
 
-  const hasException = data.hasException ?? data.package?.hasException;
-  const pkg = data.package ?? data;
+  // Prefer purchase-time snapshot so catalog edits never rewrite payment history
+  const snap = data.packageSnapshot;
+  const hasException = data.hasException ?? snap?.hasException ?? data.package?.hasException;
+  const pkg = snap ?? data.package ?? data;
   const name = data.name ?? pkg?.name;
   const activityType = data.activityType ?? pkg?.activityType;
   const duration = data.duration ?? pkg?.duration;

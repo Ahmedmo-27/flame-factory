@@ -257,16 +257,18 @@ function PackagesContent({ member, user, onRefresh }) {
     }
   };
 
+  const purchasedPkg = (sub) => sub?.packageSnapshot ?? sub?.package;
+
   const subs    = member.subscriptions ?? [];
   // Show the currently active subscription (startDate <= now <= endDate), fallback to last one
   const now = new Date();
   const activeSub = subs.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || subs.at(-1);
   const lastSub = activeSub;
-  const pkg     = lastSub?.package;
+  const pkg     = purchasedPkg(lastSub);
 
   // Find upcoming/scheduled package (start date is in the future)
   const upcomingSub = subs.find(s => new Date(s.startDate) > now);
-  const upcomingPkg = upcomingSub?.package;
+  const upcomingPkg = purchasedPkg(upcomingSub);
 
   const details = pkg ? [
     { label: 'Package',          value: pkg.name },
@@ -396,15 +398,15 @@ function PackagesContent({ member, user, onRefresh }) {
             {[...subs].reverse().map((s, i) => (
               <tr key={s._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{s.subscriptionId ?? '—'}</td>
-                <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{s.package?.name ?? '—'}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.package?.activityType ?? '—'}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{s.package?.duration ?? '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{purchasedPkg(s)?.name ?? '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{purchasedPkg(s)?.activityType ?? '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{purchasedPkg(s)?.duration ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDateTime(s.createdAt)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.startDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(s.endDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>EGP {s.pricePaid}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.discountPercent ? `${s.discountPercent}%` : '—'}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.package?.hasException ? 'Yes' : '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{purchasedPkg(s)?.hasException ? 'Yes' : '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{s.isRenewal ? 'Yes' : '—'}</td>
               </tr>
             ))}

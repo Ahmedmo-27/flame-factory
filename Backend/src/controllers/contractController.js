@@ -3,6 +3,7 @@ const PackageExceptionRequest = require("../models/PackageExceptionRequest");
 const User = require("../models/User");
 const { parsePagination, buildPagination } = require("../utils/pagination");
 const { isSameDay } = require("../utils/revenueUtils");
+const { resolveSubscriptionPackage } = require("../utils/packageSnapshot");
 
 const FINANCE_ROLES = ["Accountant", "Owner"];
 
@@ -98,6 +99,7 @@ const getContracts = async (req, res) => {
                 const addedAt = sub.createdAt ?? sub.startDate;
                 if (!inDateRange(addedAt, dateFrom, dateTo)) return;
 
+                const purchasedPkg = resolveSubscriptionPackage(sub);
                 contracts.push({
                     _id: sub._id,
                     subscriptionId: sub.subscriptionId,
@@ -108,13 +110,14 @@ const getContracts = async (req, res) => {
                         memberId: member.memberId,
                         status: member.status,
                     },
-                    package: sub.package,
+                    package: purchasedPkg,
+                    packageSnapshot: sub.packageSnapshot || null,
                     startDate: sub.startDate,
                     endDate: sub.endDate,
                     pricePaid: sub.pricePaid,
                     discountPercent: sub.discountPercent,
                     isRenewal: sub.isRenewal,
-                    hasException: sub.package?.hasException ?? false,
+                    hasException: purchasedPkg?.hasException ?? false,
                     createdAt: addedAt,
                     approvedBy: meta.approvedBy,
                     salesManager: meta.salesManager,

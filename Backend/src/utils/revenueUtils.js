@@ -31,6 +31,8 @@ function buildMonthlyMap(monthsBack, now = new Date()) {
     return monthlyMap;
 }
 
+const { resolveSubscriptionPackage } = require("./packageSnapshot");
+
 function getCurrentSubscription(member) {
     const subs = member.subscriptions;
     if (!subs?.length) return null;
@@ -39,13 +41,12 @@ function getCurrentSubscription(member) {
 
 function getCurrentPackage(member) {
     const sub = getCurrentSubscription(member);
-    if (!sub?.package) return null;
-    return typeof sub.package === "object" ? sub.package : null;
+    return resolveSubscriptionPackage(sub);
 }
 
 function memberPrice(member) {
     const sub = getCurrentSubscription(member);
-    if (sub?.pricePaid) return sub.pricePaid;
+    if (sub?.pricePaid != null) return sub.pricePaid;
     const pkg = getCurrentPackage(member);
     return pkg?.price || 0;
 }

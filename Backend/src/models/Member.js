@@ -94,6 +94,28 @@ const invitationSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Frozen package terms at purchase time — catalog Package edits must not rewrite these
+const packageSnapshotSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    activityType: {
+        type: String,
+        enum: ["gym", "crossfit", "box", "mma", "kickboxing", "calisthenics"],
+        default: "gym"
+    },
+    duration: {
+        type: String,
+        enum: ["1 month", "3 months", "6 months", "1 year"],
+        required: true
+    },
+    price: { type: Number, required: true },
+    freezeLimitDays: { type: Number, default: 0 },
+    invitationLimit: { type: Number, default: 0 },
+    renewalDiscountPercent: { type: Number, default: 0, min: 0, max: 100 },
+    description: { type: String, default: null },
+    hasException: { type: Boolean, default: false },
+    free_pt_sessions: { type: Number, default: 0 }
+}, { _id: false });
+
 const subscriptionSchema = new mongoose.Schema({
     subscriptionId: {
         type: Number
@@ -104,6 +126,11 @@ const subscriptionSchema = new mongoose.Schema({
         ref: "Package",
         required: true
     },
+    // Immutable copy of package characteristics at the moment of purchase/payment
+    packageSnapshot: {
+        type: packageSnapshotSchema,
+        default: null
+    },
     startDate: {
         type: Date,
         required: true
@@ -112,6 +139,7 @@ const subscriptionSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    // Immutable amount collected for this subscription (payment record)
     pricePaid: {
         type: Number,
         required: true

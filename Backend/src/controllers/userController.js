@@ -195,8 +195,8 @@ const getSalesUsers = async (req, res) => {
 const getReceptionists = async (req, res) => {
     try {
         const staff = await User.find(
-            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager"] } },
-            "name mobile_number role _id"
+            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"] } },
+            "name mobile_number role _id email createdAt"
         ).sort({ role: 1, name: 1 });
 
         res.json({ receptionists: staff });
@@ -989,6 +989,58 @@ const updatePhonePrivacy = async (req, res) => {
     }
 };
 
+
+const getTeamsPage = async (req, res) => {
+    try {
+        if (req.user.role !== "Owner") {
+            return res.status(403).json({
+                message: "Only the owner can view this page"
+            });
+        }
+
+        const users = await db.User.find();
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "There are no users to view"
+            });
+        }
+
+        const sales = users.filter(
+            user => user.type === "Sales manager" || user.type === "Sales"
+        );
+
+        const coach = users.filter(
+            user => user.type === "Coach manager" || user.type === "Coach"
+        );
+
+        const acc = users.filter(
+            user => user.type === "Accountant"
+        );
+
+        const rece = users.filter(
+            user => user.type === "Receptionist"
+        );
+
+        res.status(200).json({
+            sales,
+            coach,
+            acc,
+            rece
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
+const changeAuthorities=async (req,res)=>{
+
+};
 module.exports = {
     registerUser,
     loginUser,
@@ -1013,4 +1065,5 @@ module.exports = {
     updateCoachRepAbilities,
     getCoachTeam,
     getCoachProfile,
+    getTeamsPage,
 };

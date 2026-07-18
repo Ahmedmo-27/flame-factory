@@ -1819,6 +1819,73 @@ const getTodayCoachTransfers = async (req, res) => {
     }
 };
 
+
+const refund = async (req, res) => {
+    try {
+        const { memberID, refund_amount, reason } = req.body;
+
+        if (!memberID) {
+            return res.status(400).json({
+                message: "Please enter the member ID"
+            });
+        }
+
+        if (refund_amount == null || refund_amount <= 0) {
+            return res.status(400).json({
+                message: "Please enter a valid refund amount"
+            });
+        }
+
+        const member = await Member.findById(memberID);
+
+        if (!member) {
+            return res.status(404).json({
+                message: "Invalid member ID"
+            });
+        }
+
+        if (member.subscriptions.length === 0) {
+            return res.status(400).json({
+                message: "Member has no subscriptions"
+            });
+        }
+
+        const lastSubscription = member.subscriptions[member.subscriptions.length - 1];
+
+        if (refund_amount > lastSubscription.pricePaid) {
+            return res.status(400).json({
+                message: "Refund amount exceeds the amount paid"
+            });
+        }
+
+        // Store refund on the subscription — subscriptionSalePrice() subtracts it automatically
+        // so all revenue calculations (getSalesManagerRevenue, getSalesRevenue, etc.) reflect the deduction
+        lastSubscription.refundAmount = (lastSubscription.refundAmount || 0) + Number(refund_amount);
+        lastSubscription.refundReason = reason || null;
+        lastSubscription.refundedBy   = req.user.id;
+        lastSubscription.refundedAt   = new Date();
+        lastSubscription.refunded=1;
+        member.status = "guest";
+
+
+
+        await member.save();
+
+        res.status(200).json({
+            message: "Amount refunded successfully",
+            refundAmount: lastSubscription.refundAmount,
+            member,
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1848,5 +1915,6 @@ module.exports = {
     switchCoach,
     bulkTransferCoach,
     getTodayCoachTransfers,
-    addPT_sessions
+    addPT_sessions,
+    refund,
 };

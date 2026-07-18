@@ -197,6 +197,53 @@ describe("purchased package immutability (purchase → catalog edit)", () => {
         expect(currentPkg.invitationLimit).toBe(2);
     });
 
+    it("freeze remaining days still use purchased allowance after catalog freeze increase", () => {
+        // Member already used 3 freeze days against original 10-day allowance
+        oldMember.freezeDaysUsed = 3;
+
+        applyCatalogUpdate(catalogPkg, { freezeLimitDays: 30 });
+        syncLiveRefsFromCatalog([oldMember], catalogPkg);
+
+        const currentPkg = getCurrentPackage(oldMember);
+        const freezeDaysRemaining = (currentPkg?.freezeLimitDays || 0) - oldMember.freezeDaysUsed;
+
+        // Must remain 7 (10 - 3), not 27 (30 - 3) from the new catalog
+        expect(currentPkg.freezeLimitDays).toBe(10);
+        expect(freezeDaysRemaining).toBe(7);
+        expect(oldMember.subscriptions[0].package.freezeLimitDays).toBe(30);
+    });
+
+    it("invitation remaining slots still use purchased allowance after catalog invitation increase", () => {
+        oldMember.invitationsUsed = 1;
+
+        applyCatalogUpdate(catalogPkg, { invitationLimit: 10 });
+        syncLiveRefsFromCatalog([oldMember], catalogPkg);
+
+        const currentPkg = getCurrentPackage(oldMember);
+        const invitationsRemaining = (currentPkg?.invitationLimit || 0) - oldMember.invitationsUsed;
+
+        // Must remain 1 (2 - 1), not 9 (10 - 1) from the new catalog
+        expect(currentPkg.invitationLimit).toBe(2);
+        expect(invitationsRemaining).toBe(1);
+        expect(oldMember.subscriptions[0].package.invitationLimit).toBe(10);
+    });
+
+    it("rejects a freeze request that exceeds purchased freeze allowance even if catalog was raised", () => {
+        oldMember.freezeDaysUsed = 8; // 2 days left on original 10
+
+        applyCatalogUpdate(catalogPkg, { freezeLimitDays: 40 });
+        syncLiveRefsFromCatalog([oldMember], catalogPkg);
+
+        const currentPkg = getCurrentPackage(oldMember);
+        const allowedDays = currentPkg?.freezeLimitDays || 0;
+        const remainingDays = allowedDays - oldMember.freezeDaysUsed;
+        const requestedDays = 5; // would pass against live 40, must fail against purchased 10
+
+        expect(remainingDays).toBe(2);
+        expect(requestedDays > remainingDays).toBe(true);
+        expect(requestedDays <= (oldMember.subscriptions[0].package.freezeLimitDays - oldMember.freezeDaysUsed)).toBe(true);
+    });
+
     it("new purchases after a price change use the new price; old members stay on old pricePaid", () => {
         applyCatalogUpdate(catalogPkg, { price: 5000 });
         syncLiveRefsFromCatalog([oldMember, anotherOldMember], catalogPkg);

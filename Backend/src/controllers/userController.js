@@ -16,6 +16,7 @@ const {
     buildMonthlyMap,
     memberPrice,
     getCurrentSubscription,
+    subscriptionSalePrice,
 } = require("../utils/revenueUtils");
 const { resolveSubscriptionPackage } = require("../utils/packageSnapshot");
 
@@ -302,7 +303,7 @@ const getSalesManagerRevenue = async (req, res) => {
             if (!member.subscriptions?.length) return;
 
             member.subscriptions.forEach((sub) => {
-                const price = sub.pricePaid ?? sub.packageSnapshot?.price ?? sub.package?.price ?? 0;
+                const price = subscriptionSalePrice(sub);
                 if (!price) return;
 
                 // startDate is the actual sale date — never use createdAt for revenue

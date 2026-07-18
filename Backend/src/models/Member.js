@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { boolean } = require("zod");
 
 const noteSchema = new mongoose.Schema({
     text: {
@@ -166,6 +167,28 @@ const subscriptionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         default: null
+    },
+    // Refund — stored here so subscriptionSalePrice() deducts it automatically from all revenue calculations
+    refundAmount: {
+        type: Number,
+        default: 0
+    },
+    refundReason: {
+        type: String,
+        default: null
+    },
+    refundedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
+    },
+    refundedAt: {
+        type: Date,
+        default: null
+    },
+    refunded:{
+        type: boolean,
+        default:0
     }
 }, { timestamps: true });
 

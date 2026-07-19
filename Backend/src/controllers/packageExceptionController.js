@@ -40,7 +40,7 @@ const generateSubscriptionId = async () => {
     return result[0].maxId + 1;
 };
 
-const buildExceptionPackage = async (request, memberId, userId) => {
+const buildExceptionPackage = async (request, memberId, userId, freePtSessions = 0) => {
     return Package.create({
         name: request.name,
         activityType: request.activityType,
@@ -55,12 +55,16 @@ const buildExceptionPackage = async (request, memberId, userId) => {
         basedOn: request.basePackage,
         forMember: memberId,
         createdBy: userId,
+        free_pt_sessions: freePtSessions,
     });
 };
 
 const applyApprovedException = async (request, reviewerId) => {
     const member = await Member.findById(request.member);
     if (!member) throw new Error("Member not found");
+
+    const basePkg = await Package.findById(request.basePackage);
+    const freePtSessions = basePkg?.free_pt_sessions || 0;
 
     let packageId;
     let packageName;
@@ -70,14 +74,14 @@ const applyApprovedException = async (request, reviewerId) => {
         const exceptionPkg = await buildExceptionPackage(
             request,
             member._id,
-            request.proposedBy
+            request.proposedBy,
+            freePtSessions
         );
         packageId = exceptionPkg._id;
         packageName = exceptionPkg.name;
         snapshotSource = exceptionPkg;
     } else {
         packageId = request.basePackage;
-        const basePkg = await Package.findById(request.basePackage);
         packageName = basePkg?.name ?? request.name;
         // Snapshot approved request terms (not live catalog) so later catalog edits are ignored
         snapshotSource = {
@@ -90,7 +94,7 @@ const applyApprovedException = async (request, reviewerId) => {
             renewalDiscountPercent: request.renewalDiscountPercent,
             description: request.description,
             hasException: false,
-            free_pt_sessions: basePkg?.free_pt_sessions || 0,
+            free_pt_sessions: freePtSessions,
         };
     }
 
@@ -98,6 +102,7 @@ const applyApprovedException = async (request, reviewerId) => {
     const endDate = calcEndDate(startDate, request.duration);
     const subscriptionId = await generateSubscriptionId();
     const hadSubscription = member.subscriptions?.length > 0;
+    const startsNowOrPast = startDate <= new Date();
 
     const subscription = {
         subscriptionId,
@@ -118,10 +123,13 @@ const applyApprovedException = async (request, reviewerId) => {
     }
 
     member.isMember = true;
-    member.status = "active";
+    if (startsNowOrPast) {
+        member.status = "active";
+        member.freezeDaysUsed = 0;
+        member.invitationsUsed = 0;
+    }
     member.subscriptions.push(subscription);
-    member.freezeDaysUsed = 0;
-    member.invitationsUsed = 0;
+    member.PT_sessions = (member.PT_sessions || 0) + freePtSessions;
     member.userlog.push({
         type: hadSubscription ? "renewal" : "other",
         text: request.hasException
@@ -204,18 +212,25 @@ const createException = async (req, res) => {
         });
 
         const accountants = await User.find({ role: "Accountant" }).select("_id");
-        await Promise.all(
-            accountants.map((acct) =>
-                notifyPackageExceptionPending({
-                    recipientId: acct._id,
-                    member,
-                    actorId: req.user.id,
-                    requestId: request._id,
-                    salesManagerName: proposer?.name,
-                    packageName,
-                })
-            )
-        );
+        try {
+            await Promise.all(
+                accountants.map((acct) =>
+                    notifyPackageExceptionPending({
+                        recipientId: acct._id,
+                        member,
+                        actorId: req.user.id,
+                        requestId: request._id,
+                        salesManagerName: proposer?.name,
+                        packageName,
+                        hasException: isException,
+                        message: notificationMessage,
+                    })
+                )
+            );
+        } catch (notifyError) {
+            // Request is already saved — don't fail the submit if notifications fail
+            console.error("Failed to notify accountants of package request:", notifyError.message);
+        }
 
         const populated = await PackageExceptionRequest.findById(request._id)
             .populate("member", "name systemId memberId")
@@ -262,7 +277,15 @@ const updateExceptionStatus = async (req, res) => {
         }
 
         if (status === "accepted") {
-            await applyApprovedException(request, req.user.id);
+            try {
+                await applyApprovedException(request, req.user.id);
+            } catch (applyError) {
+                // Revert so the accountant can retry after the underlying issue is fixed
+                await PackageExceptionRequest.findByIdAndUpdate(request._id, {
+                    $set: { status: "pending", reviewedBy: null, reviewNote: null },
+                });
+                throw applyError;
+            }
         }
 
         await writeAudit({

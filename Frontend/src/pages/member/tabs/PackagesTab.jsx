@@ -438,12 +438,16 @@ function PackagesContent({ member, user, onRefresh }) {
           </CardHeader>
           <Alert type="warning">
             {pending.notificationMessage ||
-              `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`}
+              (pending.hasException
+                ? `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`
+                : `${pending.proposedBy?.name} requested package ${pending.name} for member ${member.name}`)}
           </Alert>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 12 }}>
-            This package has <strong>hasException</strong> enabled and is waiting for accountant approval before it is added to this member&apos;s profile.
+            {pending.hasException
+              ? 'This request includes custom exception terms and is waiting for accountant approval before it is added to this member\'s profile.'
+              : 'This package request is waiting for accountant approval before it is added to this member\'s profile.'}
           </div>
-          <PackageFormFields form={requestToForm(pending)} readOnly makeException />
+          <PackageFormFields form={requestToForm(pending)} readOnly makeException={!!pending.hasException} />
           {pending.reason && (
             <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t2)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px' }}>
               <span style={{ fontWeight: 700, color: 'var(--t4)', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.4px' }}>Reason: </span>
@@ -812,7 +816,7 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
     setLoading(true);
     try {
       await createPackageException({
-        memberId: member.systemId ?? member._id,
+        memberId: String(member.systemId ?? member._id),
         basePackageId: form.basePackageId,
         hasException: makeException,
         name: form.name,
@@ -875,12 +879,15 @@ function AddPackageModal({ open, onClose, member, pending, isSalesManager, isAcc
           footer={<Btn variant="ghost" size="sm" onClick={onClose}>Close</Btn>}>
           <Alert type="warning">
             {pending.notificationMessage ||
-              `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`}
+              (pending.hasException
+                ? `${pending.proposedBy?.name} added package ${pending.name} with exception to member ${member.name}`
+                : `${pending.proposedBy?.name} requested package ${pending.name} for member ${member.name}`)}
           </Alert>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 16 }}>
             Proposed by <strong>{pending.proposedBy?.name}</strong> · Based on <strong>{pending.basePackage?.name}</strong>
+            {pending.hasException ? ' · Exception terms' : ' · Standard catalog request'}
           </div>
-          <PackageFormFields form={requestToForm(pending)} readOnly makeException />
+          <PackageFormFields form={requestToForm(pending)} readOnly makeException={!!pending.hasException} />
           {pending.reason && (
             <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t2)' }}>
               <strong>Reason:</strong> {pending.reason}

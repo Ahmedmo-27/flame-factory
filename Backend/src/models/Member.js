@@ -187,8 +187,8 @@ const subscriptionSchema = new mongoose.Schema({
         default: null
     },
     refunded:{
-        type: boolean,
-        default:0
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 
@@ -365,8 +365,8 @@ blockedAt: {
             default: null
         },
         refunded:{
-            type: boolean,
-            default:0
+            type: Boolean,
+            default: false
         }
     }],
 

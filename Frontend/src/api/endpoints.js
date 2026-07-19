@@ -121,3 +121,5 @@ export const changeUserRole = (id, new_role) =>
 export const getAllUsers = () => api.get('/users/receptionists');
 export const refundMember = (id, refund_amount, reason) =>
   api.post(`/members/${id}/refund`, { memberID: id, refund_amount, reason });
+export const refundPTSessions = (id, refund_amount, reason) =>
+  api.post(`/members/${id}/refund_pt`, { memberID: id, refund_amount, reason });

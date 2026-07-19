@@ -1885,6 +1885,60 @@ const refund = async (req, res) => {
     }
 };
 
+const refundPT_Sessions = async (req, res) => {
+    try {
+        const { memberID, refund_amount, reason } = req.body;
+
+        if (!memberID) {
+            return res.status(400).json({ message: "Please enter the member ID" });
+        }
+
+        if (refund_amount == null || refund_amount <= 0) {
+            return res.status(400).json({ message: "Please enter a valid refund amount" });
+        }
+
+        const member = await Member.findById(memberID);
+        if (!member) {
+            return res.status(404).json({ message: "Invalid member ID" });
+        }
+
+        if (member.pt_subscriptions.length === 0) {
+            return res.status(400).json({ message: "Member has no PT subscriptions" });
+        }
+
+        const lastSub = member.pt_subscriptions[member.pt_subscriptions.length - 1];
+        const alreadyRefunded = lastSub.refundAmount || 0;
+        const maxRefundable   = lastSub.pricePaid - alreadyRefunded;
+
+        if (refund_amount > maxRefundable) {
+            return res.status(400).json({
+                message: `Refund amount exceeds the refundable amount. Max refundable: ${maxRefundable} EGP`
+            });
+        }
+
+        lastSub.refundAmount = alreadyRefunded + Number(refund_amount);
+        lastSub.refundReason = reason || null;
+        lastSub.refundedBy   = req.user.id;
+        lastSub.refundedAt   = new Date();
+        lastSub.refunded     = true;
+        // member.userlog.push({
+        //     type: "other",
+        //     text: `PT sessions refund of ${refund_amount} EGP issued${reason ? `: ${reason}` : ""}`,
+        //     createdBy: req.user.id,
+        // });
+
+        await member.save();
+
+        res.status(200).json({
+            message: "PT sessions refund issued successfully",
+            refundAmount: lastSub.refundAmount,
+            member,
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
 
 module.exports = {
     createMember,
@@ -1917,4 +1971,5 @@ module.exports = {
     getTodayCoachTransfers,
     addPT_sessions,
     refund,
+    refundPT_Sessions
 };

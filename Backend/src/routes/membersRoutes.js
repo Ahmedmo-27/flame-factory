@@ -44,6 +44,7 @@ const {
     unblockMember,
     addPT_sessions,
     refund,
+    refundPT_Sessions
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -112,4 +113,5 @@ router.get("/by/:memberId", ...readAccess, getMemberById);
 
 router.post("/:memberId/pt-sessions", protect, authorizeRoles("Owner", "Accountant"), addPT_sessions);
 router.post("/:memberId/refund", protect, authorizeRoles("Owner","Accountant"), refund);
+router.post("/:memberId/refund_pt", protect, authorizeRoles("Owner","Accountant"), refundPT_Sessions);
 module.exports = router;

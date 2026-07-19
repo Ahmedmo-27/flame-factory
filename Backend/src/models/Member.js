@@ -347,6 +347,27 @@ blockedAt: {
         pricePaid: { type: Number, default: 0 },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         createdAt: { type: Date, default: Date.now },
+        refundAmount: {
+            type: Number,
+            default: 0
+        },
+        refundReason: {
+            type: String,
+            default: null
+        },
+        refundedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+        refundedAt: {
+            type: Date,
+            default: null
+        },
+        refunded:{
+            type: boolean,
+            default:0
+        }
     }],
 
     notes:       [noteSchema],

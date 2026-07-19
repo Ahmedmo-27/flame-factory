@@ -150,11 +150,6 @@ export default function MemberProfile() {
               {checkingIn ? <Spinner size="sm" /> : 'Check In'}
             </Btn>
           )}
-          {member && ['Owner', 'Accountant'].includes(user?.role) && member.subscriptions?.length > 0 && (
-            <Btn variant="outline" size="sm" onClick={() => setShowRefundModal(true)}>
-              💸 Refund
-            </Btn>
-          )}
           {member && user?.role === 'Sales Manager' && (
             member.isBlocked
               ? <Btn variant="outline" size="sm" onClick={handleUnblock} disabled={blocking}>

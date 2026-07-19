@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, Badge, Table, EmptyState, fmtDate, fmtDateTime, Btn, Modal, Input, Select, Spinner, ConfirmDialog, Switch, Alert } from '../../../components/ui';
-import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage, addPTSessions } from '../../../api/endpoints';
+import { getPackages, getMemberPendingException, createPackageException, updatePackageExceptionStatus, assignPackage, createPackage, addPTSessions, refundMember, refundPTSessions } from '../../../api/endpoints';
+import api from '../../../api/axios';
 import CatalogPackageForm, { EMPTY_PACKAGE_FORM, validatePackageForm, packageFormToPayload } from '../../../components/PackageForm';
 import PackageAcceptModal from '../../../components/accounting/PackageAcceptModal';
 
@@ -54,15 +55,25 @@ function PTSessionsContent({ member, user, onRefresh }) {
   const [pricePaid, setPricePaid] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const canAdd = ['Owner', 'Accountant'].includes(user?.role);
 
-  const totalSessions = member.PT_sessions ?? 0;
-  const usedSessions = member.used_PT_sessions ?? 0;
-  const remaining = totalSessions - usedSessions;
-  const ptStart = member.PT_sessions_startDate;
-  const ptEnd = member.PT_sessions_expDate;
+  // PT refund
+  const [showPTRefundModal, setShowPTRefundModal] = useState(false);
+  const [ptRefundAmount, setPTRefundAmount]       = useState('');
+  const [ptRefundReason, setPTRefundReason]       = useState('');
+  const [ptRefunding, setPTRefunding]             = useState(false);
+
+  const canAdd = ['Owner', 'Accountant'].includes(user?.role);
+  const canRefund = ['Owner', 'Accountant'].includes(user?.role);
+
   const ptSubs = member.pt_subscriptions ?? [];
   const latestSub = ptSubs.at(-1);
+  // Consider sessions "active" only if the last PT subscription is not refunded
+  const isLatestRefunded = latestSub?.refunded === true || (latestSub?.refundAmount ?? 0) > 0;
+  const totalSessions = isLatestRefunded ? 0 : (member.PT_sessions ?? 0);
+  const usedSessions  = isLatestRefunded ? 0 : (member.used_PT_sessions ?? 0);
+  const remaining     = totalSessions - usedSessions;
+  const ptStart = member.PT_sessions_startDate;
+  const ptEnd   = member.PT_sessions_expDate;
 
   const handleAdd = async () => {
     const num = Number(sessions);
@@ -89,6 +100,22 @@ function PTSessionsContent({ member, user, onRefresh }) {
     } finally { setLoading(false); }
   };
 
+  const handlePTRefund = async () => {
+    const amount = Number(ptRefundAmount);
+    if (!amount || amount <= 0) { toast.error('Enter a valid refund amount'); return; }
+    setPTRefunding(true);
+    try {
+      const res = await refundPTSessions(member._id, amount, ptRefundReason.trim() || undefined);
+      toast.success(res.data.message ?? 'PT sessions refund issued successfully');
+      setShowPTRefundModal(false);
+      setPTRefundAmount('');
+      setPTRefundReason('');
+      onRefresh?.();
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'PT refund failed.');
+    } finally { setPTRefunding(false); }
+  };
+
   const activeDetails = totalSessions > 0 ? [
     { label: 'Total Sessions', value: totalSessions },
     { label: 'Used', value: usedSessions },
@@ -107,9 +134,14 @@ function PTSessionsContent({ member, user, onRefresh }) {
       {/* Active Sessions Card */}
       <Card>
         <CardHeader title="Active Private Sessions">
-          {canAdd && (
-            <Btn size="xs" onClick={() => setShowAddModal(true)}>+ Add Sessions</Btn>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {canRefund && (member.pt_subscriptions?.length ?? 0) > 0 && (
+              <Btn variant="outline" size="xs" onClick={() => setShowPTRefundModal(true)}>💸 Refund</Btn>
+            )}
+            {canAdd && (
+              <Btn size="xs" onClick={() => setShowAddModal(true)}>+ Add Sessions</Btn>
+            )}
+          </div>
         </CardHeader>
 
         {totalSessions === 0
@@ -134,19 +166,49 @@ function PTSessionsContent({ member, user, onRefresh }) {
           <CardHeader title={`Session History (${ptSubs.length})`} />
         </div>
         {!ptSubs.length ? <EmptyState message="No session records yet" /> :
-          <Table headers={['#', 'Sessions', 'Duration', 'Start', 'Expiry', 'Price Paid', 'Coach', 'Date Added']}>
-            {[...ptSubs].reverse().map((sub, i) => (
-              <tr key={sub._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)' }}>
+          <Table headers={['#', 'Sessions', 'Duration', 'Start', 'Expiry', 'Price Paid', 'Coach', 'Date Added', 'Refund']}>
+            {[...ptSubs].reverse().map((sub, i) => {
+              const isPTRefunded = sub.refunded === true || (sub.refundAmount ?? 0) > 0;
+              return (
+              <tr key={sub._id ?? i} className="tbl-row" style={{ borderBottom: '1px solid var(--border)', background: isPTRefunded ? 'var(--red-bg)' : 'transparent' }}>
                 <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--t4)', fontFamily: 'monospace' }}>{ptSubs.length - i}</td>
                 <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{sub.sessions}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{sub.durationMonths} month{sub.durationMonths !== 1 ? 's' : ''}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.startDate)}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{fmtDate(sub.endDate)}</td>
-                <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>{sub.pricePaid ? `EGP ${sub.pricePaid}` : '—'}</td>
+                <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700 }}>
+                  {isPTRefunded ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ textDecoration: 'line-through', color: 'var(--t4)', fontWeight: 400 }}>{sub.pricePaid ? `EGP ${sub.pricePaid}` : '—'}</span>
+                      <span style={{ color: 'var(--green)' }}>EGP {(sub.pricePaid ?? 0) - (sub.refundAmount ?? 0)}</span>
+                    </div>
+                  ) : (
+                    <span style={{ color: 'var(--green)' }}>{sub.pricePaid ? `EGP ${sub.pricePaid}` : '—'}</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{member.current_couch?.name ?? '—'}</td>
                 <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{fmtDateTime(sub.createdAt)}</td>
+                <td style={{ padding: '10px 14px' }}>
+                  {isPTRefunded ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 700,
+                        background: 'var(--red-bg)', color: 'var(--red)',
+                        border: '1px solid var(--red-bd)',
+                        padding: '2px 8px', borderRadius: 4,
+                      }}>↩ Refunded</span>
+                      {sub.refundAmount > 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600 }}>−EGP {sub.refundAmount}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--t4)' }}>—</span>
+                  )}
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </Table>
         }
       </Card>
@@ -193,6 +255,61 @@ function PTSessionsContent({ member, user, onRefresh }) {
           />
         </div>
       </Modal>
+
+      {/* PT Refund Modal */}
+      <Modal open={showPTRefundModal} onClose={() => !ptRefunding && setShowPTRefundModal(false)} title="Refund Private Sessions" size="sm"
+        footer={<>
+          <Btn variant="ghost" size="sm" onClick={() => setShowPTRefundModal(false)} disabled={ptRefunding}>Cancel</Btn>
+          <Btn variant="danger" size="sm" onClick={handlePTRefund} disabled={ptRefunding}>
+            {ptRefunding ? <Spinner size="sm" /> : 'Confirm Refund'}
+          </Btn>
+        </>}
+      >
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
+          Refund will be recorded against the last PT subscription for <strong>{member.name}</strong>.
+        </p>
+        {(() => {
+          const lastPTSub = member.pt_subscriptions?.at(-1);
+          const pricePaidVal = lastPTSub?.pricePaid ?? 0;
+          const alreadyRefunded = lastPTSub?.refundAmount ?? 0;
+          const maxRefund = pricePaidVal - alreadyRefunded;
+          return (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Price Paid</span>
+                <span style={{ fontWeight: 700 }}>{pricePaidVal} EGP</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Sessions</span>
+                <span style={{ fontWeight: 700 }}>{lastPTSub?.sessions ?? 0}</span>
+              </div>
+              {alreadyRefunded > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Already Refunded</span>
+                  <span style={{ color: 'var(--red)', fontWeight: 700 }}>{alreadyRefunded} EGP</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Max Refundable</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>{maxRefund} EGP</span>
+              </div>
+            </div>
+          );
+        })()}
+        <Input
+          label="Refund Amount (EGP) *"
+          type="number" min="1"
+          value={ptRefundAmount}
+          onChange={e => setPTRefundAmount(e.target.value)}
+          placeholder="Enter amount to refund"
+        />
+        <Input
+          label="Reason (optional)"
+          value={ptRefundReason}
+          onChange={e => setPTRefundReason(e.target.value)}
+          placeholder="e.g. Member cancelled sessions"
+        />
+      </Modal>
     </div>
   );
 }
@@ -206,10 +323,17 @@ function PackagesContent({ member, user, onRefresh }) {
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Refund package
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount]       = useState('');
+  const [refundReason, setRefundReason]       = useState('');
+  const [refunding, setRefunding]             = useState(false);
+
   const isSalesManager = user?.role === 'Sales Manager';
   const isAccountant = user?.role === 'Accountant';
   const isOwner = user?.role === 'Owner';
   const canAddPackage = isSalesManager || isAccountant || isOwner;
+  const canRefund = isOwner || isAccountant;
   const memberKey = member.systemId ?? member._id;
 
   const fetchPending = useCallback(async () => {
@@ -225,6 +349,22 @@ function PackagesContent({ member, user, onRefresh }) {
   }, [memberKey]);
 
   useEffect(() => { fetchPending(); }, [fetchPending]);
+
+  const handleRefundPackage = async () => {
+    const amount = Number(refundAmount);
+    if (!amount || amount <= 0) { toast.error('Enter a valid refund amount'); return; }
+    setRefunding(true);
+    try {
+      const res = await refundMember(member._id, amount, refundReason.trim() || undefined);
+      toast.success(res.data.message ?? 'Refund issued successfully');
+      setShowRefundModal(false);
+      setRefundAmount('');
+      setRefundReason('');
+      onRefresh?.();
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Refund failed.');
+    } finally { setRefunding(false); }
+  };
 
   const handleReview = async () => {
     if (!confirm) return;
@@ -321,9 +461,14 @@ function PackagesContent({ member, user, onRefresh }) {
 
       <Card>
         <CardHeader title="Active Package">
-          {canAddPackage && !loadingPending && !member.isBlocked && (
-            <Btn size="xs" onClick={() => setShowAddPackage(true)}>{isSalesManager ? '+ Request Package' : '+ Add Package'}</Btn>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {canRefund && (member.subscriptions?.length ?? 0) > 0 && (
+              <Btn variant="outline" size="xs" onClick={() => setShowRefundModal(true)}>💸 Refund</Btn>
+            )}
+            {canAddPackage && !loadingPending && !member.isBlocked && (
+              <Btn size="xs" onClick={() => setShowAddPackage(true)}>{isSalesManager ? '+ Request Package' : '+ Add Package'}</Btn>
+            )}
+          </div>
         </CardHeader>
 
         {/* Blocked overlay */}
@@ -444,6 +589,50 @@ function PackagesContent({ member, user, onRefresh }) {
           </Table>
         }
       </Card>
+
+      {/* Refund Package Modal */}
+      <Modal open={showRefundModal} onClose={() => !refunding && setShowRefundModal(false)} title="Refund Package" size="sm"
+        footer={<>
+          <Btn variant="ghost" size="sm" onClick={() => setShowRefundModal(false)} disabled={refunding}>Cancel</Btn>
+          <Btn variant="danger" size="sm" onClick={handleRefundPackage} disabled={refunding}>
+            {refunding ? <Spinner size="sm" /> : 'Confirm Refund'}
+          </Btn>
+        </>}
+      >
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
+          Refund will be deducted from the last subscription's revenue. Member status will be set back to <strong>guest</strong>.
+        </p>
+        {(() => {
+          const lastSub = member.subscriptions?.at(-1);
+          const pricePaid = lastSub?.pricePaid ?? 0;
+          const alreadyRefunded = lastSub?.refundAmount ?? 0;
+          const maxRefund = pricePaid - alreadyRefunded;
+          return (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Price Paid</span>
+                <span style={{ fontWeight: 700 }}>{pricePaid} EGP</span>
+              </div>
+              {alreadyRefunded > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Already Refunded</span>
+                  <span style={{ color: 'var(--red)', fontWeight: 700 }}>{alreadyRefunded} EGP</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Max Refundable</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>{maxRefund} EGP</span>
+              </div>
+            </div>
+          );
+        })()}
+        <Input label="Refund Amount (EGP) *" type="number" min="1"
+          value={refundAmount} onChange={e => setRefundAmount(e.target.value)}
+          placeholder="Enter amount to refund" />
+        <Input label="Reason (optional)"
+          value={refundReason} onChange={e => setRefundReason(e.target.value)}
+          placeholder="e.g. Member cancelled" />
+      </Modal>
 
       {showAddPackage && (
         <AddPackageModal

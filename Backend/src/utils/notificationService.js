@@ -34,22 +34,33 @@ async function notifyMemberAssigned({ recipientId, member, actorId }) {
     });
 }
 
-async function notifyPackageExceptionPending({ recipientId, member, actorId, requestId, salesManagerName, packageName }) {
+async function notifyPackageExceptionPending({
+    recipientId,
+    member,
+    actorId,
+    requestId,
+    salesManagerName,
+    packageName,
+    hasException = true,
+    message: customMessage,
+}) {
     if (!recipientId || !member) return null;
 
     const memberName = member.name || "a member";
     const managerName = salesManagerName || "A sales manager";
     const pkgName = packageName || "a package";
-    const message = `${managerName} added package ${pkgName} with exception to member ${memberName}`;
+    const message = customMessage || (hasException
+        ? `${managerName} added package ${pkgName} with exception to member ${memberName}`
+        : `${managerName} requested package ${pkgName} for member ${memberName}`);
 
     return Notification.create({
         recipient: recipientId,
         type: "package_exception_pending",
-        title: "Package exception pending approval",
+        title: hasException ? "Package exception pending approval" : "Package request pending approval",
         message,
         member: member._id,
         createdBy: actorId || null,
-        metadata: { requestId: requestId?.toString() },
+        metadata: { requestId: requestId?.toString(), hasException: Boolean(hasException) },
     });
 }
 

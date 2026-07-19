@@ -1864,7 +1864,7 @@ const refund = async (req, res) => {
         lastSubscription.refundReason = reason || null;
         lastSubscription.refundedBy   = req.user.id;
         lastSubscription.refundedAt   = new Date();
-        lastSubscription.refunded=1;
+        lastSubscription.refunded     = true;
         member.status = "guest";
 
 

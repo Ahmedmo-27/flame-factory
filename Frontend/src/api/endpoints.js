@@ -111,7 +111,7 @@ export const getContracts = (params) => api.get('/accounting/contracts', { param
 // ── Sales Requests ────────────────────────────────────────────────────────────
 export const getRequests         = (params) => api.get('/requests', { params });
 export const createRequest       = (memberId)   =>
-  api.post('/requests', { memberId });
+  api.post('/requests', { memberId: String(memberId) });
 export const updateRequestStatus = (id, status) =>
   api.put(`/requests/${id}/status`, { status });
 

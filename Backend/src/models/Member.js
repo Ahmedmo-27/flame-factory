@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { boolean } = require("zod");
 
 const noteSchema = new mongoose.Schema({
     text: {
@@ -186,9 +185,9 @@ const subscriptionSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    refunded:{
-        type: boolean,
-        default:0
+    refunded: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 
@@ -364,9 +363,9 @@ blockedAt: {
             type: Date,
             default: null
         },
-        refunded:{
-            type: boolean,
-            default:0
+        refunded: {
+            type: Boolean,
+            default: false
         }
     }],
 

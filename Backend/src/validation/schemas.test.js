@@ -1,4 +1,4 @@
-const { assignPackageSchema, addNoteSchema } = require("./schemas");
+const { assignPackageSchema, addNoteSchema, createExceptionSchema, salesRequestSchema } = require("./schemas");
 
 const basePayload = {
     packageId: "507f1f77bcf86cd799439011",
@@ -25,5 +25,33 @@ describe("addNoteSchema", () => {
         });
         expect(result.success).toBe(true);
         expect(result.data.text).toBe('alert("xss")Hello');
+    });
+});
+
+describe("memberId coercion for request schemas", () => {
+    const basePackageId = "507f1f77bcf86cd799439011";
+
+    it("createExceptionSchema accepts numeric systemId", () => {
+        const result = createExceptionSchema.safeParse({
+            memberId: 105,
+            basePackageId,
+            hasException: false,
+            name: "Gym",
+            pricePaid: 500,
+        });
+        expect(result.success).toBe(true);
+        expect(result.data.memberId).toBe("105");
+    });
+
+    it("salesRequestSchema accepts numeric systemId", () => {
+        const result = salesRequestSchema.safeParse({ memberId: 100 });
+        expect(result.success).toBe(true);
+        expect(result.data.memberId).toBe("100");
+    });
+
+    it("salesRequestSchema still accepts string systemId", () => {
+        const result = salesRequestSchema.safeParse({ memberId: "100" });
+        expect(result.success).toBe(true);
+        expect(result.data.memberId).toBe("100");
     });
 });

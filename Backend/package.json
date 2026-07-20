@@ -8,7 +8,8 @@
     "build": "node --check server.js",
     "seed": "node src/seed.js",
     "test": "vitest --run",
-    "simulate:package-immutability": "node scripts/simulate-package-price-immutability.js"
+    "simulate:package-immutability": "node scripts/simulate-package-price-immutability.js",
+    "simulate:sales-role": "node scripts/simulate-sales-role-scenarios.js"
   },
   "keywords": [],
   "author": "",

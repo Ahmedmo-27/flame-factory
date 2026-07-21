@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPackages, getSalesUsers, createMember, searchAllMembers } from '../api/endpoints';
+import { searchAllMembers } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext';
-import { Input, Select, Btn, Spinner, Avatar } from './ui';
+import { Avatar } from './ui';
+import AddMemberModal from './AddMemberModal';
 
 const STATUS_DOT = {
   active:  '#16a34a',
@@ -319,120 +320,13 @@ export default function GlobalSearch() {
 
       {/* Add Person Modal */}
       {showAdd && (
-        <AddPersonModal
-          initialName=""
-          initialPhone={activeField === 'phone' ? phoneQuery.trim() : ''}
+        <AddMemberModal
+          open={showAdd}
           onClose={() => { setShowAdd(false); setPhoneQuery(''); setIdQuery(''); }}
-          onSuccess={(systemId) => { setShowAdd(false); setPhoneQuery(''); setIdQuery(''); navigate(`/members/${systemId}`); }}
+          onSuccess={(systemId) => { setShowAdd(false); setPhoneQuery(''); setIdQuery(''); if (systemId) navigate(`/members/${systemId}`); }}
+          initialPhone={activeField === 'phone' ? phoneQuery.trim() : ''}
         />
       )}
-    </div>
-  );
-}
-
-// ── Add Person Modal (inline, no import needed) ───────────────────────────────
-function AddPersonModal({ initialName, initialPhone, onClose, onSuccess }) {
-  const [packages,  setPackages]  = useState([]);
-  const [sales,     setSales]     = useState([]);
-  const [form, setForm] = useState({
-    name: initialName || '', phones: initialPhone || '',
-    gender: '', birthdate: '', source: '', assignedSales: '',
-  });
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  useEffect(() => {
-    Promise.all([getPackages({ limit: 100 }), getSalesUsers()])
-      .then(([pRes, sRes]) => {
-        setPackages(pRes.data.packages ?? []);
-        setSales(sRes.data.salesUsers ?? []);
-      }).catch(() => {});
-  }, []);
-
-  const validate = () => {
-    const e = {};
-    if (!form.name.trim())   e.name   = 'Name is required';
-    if (!form.phones.trim()) e.phones = 'Phone is required';
-    setErrors(e);
-    return !Object.keys(e).length;
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      const res = await createMember({
-        name: form.name.trim(), phones: form.phones.trim(),
-        gender:        form.gender        || null,
-        birthdate:     form.birthdate     || null,
-        source:        form.source        || null,
-        assignedSales: form.assignedSales || null,
-      });
-      onSuccess(res.data.member.systemId);
-    } catch (e) {
-      setErrors({ form: e.response?.data?.message || 'Failed to add person.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const SOURCES = ['Social media', 'Walk in', 'Word of mouth', 'referral', 'sales call', 'data entry', 'others'];
-
-  return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 300,
-      background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 8, border: '1px solid var(--border)',
-        width: '100%', maxWidth: 540, maxHeight: '90svh', overflowY: 'auto',
-        boxShadow: '0 8px 40px rgba(15,23,42,0.18)',
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Add New Person</h2>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', color: 'var(--t3)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '16px 18px' }}>
-          {errors.form && (
-            <div style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid var(--red-bd)', borderLeft: '3px solid var(--red)', padding: '9px 12px', borderRadius: 6, fontSize: 13, marginBottom: 14 }}>
-              {errors.form}
-            </div>
-          )}
-
-          <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-            <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} placeholder="Full name" />
-            <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} placeholder="Phone number" />
-            <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
-              <option value="">— Select —</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </Select>
-            <Input label="Birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)} />
-            <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
-              <option value="">— Select —</option>
-              {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-            </Select>
-          </div>
-
-          <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
-            <option value="">— None —</option>
-            {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
-          </Select>
-        </div>
-
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Btn variant="ghost" size="sm" onClick={onClose} disabled={loading}>Cancel</Btn>
-          <Btn size="sm" onClick={handleSubmit} disabled={loading}>
-            {loading ? <Spinner size="sm" /> : 'Add Person'}
-          </Btn>
-        </div>
-      </div>
     </div>
   );
 }

@@ -64,6 +64,7 @@ export const blockMember       = (id, reason) =>
 export const unblockMember     = (id) =>
   api.patch(`/members/${id}/unblock`);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
+export const checkInByBarcode  = (identifier) => api.post('/members/check-in', { identifier });
 export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
 export const uploadMemberPhoto = (id, formData) =>
   api.patch(`/members/${id}/photo`, formData, {

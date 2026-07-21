@@ -344,7 +344,7 @@ function SearchableSelect({
     >
       {!filtered.length ? (
         <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
-          {query.trim() ? 'No matches' : 'No packages available'}
+          {query.trim() ? 'No matches' : 'No options available'}
         </div>
       ) : filtered.map((opt, i) => {
         const active = i === cursor;

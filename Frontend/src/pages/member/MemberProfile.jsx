@@ -7,6 +7,7 @@ import Layout from '../../components/Layout';
 import { PageHeader, Tabs, Badge, Btn, Spinner, Skeleton, Modal, Input } from '../../components/ui';
 import { getMemberProfile, checkInMember, blockMember, unblockMember } from '../../api/endpoints';
 import ProfilePhotoUpload from '../../components/ProfilePhotoUpload';
+import Barcode from 'react-barcode';
 import PersonalTab    from './tabs/PersonalTab';
 import PackagesTab    from './tabs/PackagesTab';
 import CallCenterTab  from './tabs/CallCenterTab';
@@ -273,6 +274,11 @@ function ProfileHeader({ member, stats, user, onPhotoUploaded }) {
             </div>
           ))}
         </div>
+        {member.barcode && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, display: 'inline-block' }}>
+            <Barcode value={member.barcode} width={1.5} height={40} fontSize={12} margin={4} displayValue={true} />
+          </div>
+        )}
       </div>
     </div>
   );

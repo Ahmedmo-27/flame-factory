@@ -163,6 +163,14 @@ const memberSchema = new mongoose.Schema({
         sparse: true,
     },
 
+    // Barcode string for card/keytag scanning. Generated from memberId.
+    barcode: {
+        type: String,
+        unique: true,
+        sparse: true,
+        index: true,
+    },
+
     // true = has an active or past subscription, false = guest only
     isMember: {
         type: Boolean,

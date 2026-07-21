@@ -16,6 +16,7 @@ const { writeAudit } = require("../utils/audit");
 const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
 const { sanitizePlainText } = require("../utils/sanitizeText");
 const { validateNoOverlappingSubscription } = require("../utils/subscriptionUtils");
+const { generateBarcode } = require("../utils/barcodeHelper");
 const mongoose = require("mongoose");
 
 // ─── Helper: get current package from last subscription ───────────────────────
@@ -106,6 +107,7 @@ const createMember = async (req, res) => {
 
             Object.assign(personData, {
                 memberId,
+                barcode: generateBarcode(memberId),
                 isMember: true,
                 status:   "active",
                 subscriptions: [{
@@ -160,6 +162,7 @@ async function createMemberRecord(personData, maxAttempts = 5) {
                 personData.systemId = await generateSystemId();
                 if (personData.memberId != null) {
                     personData.memberId = await generateMemberId();
+                    personData.barcode = generateBarcode(personData.memberId);
                 }
                 if (personData.subscriptions?.length) {
                     personData.subscriptions[0].subscriptionId = await generateSubscriptionId();
@@ -1180,6 +1183,10 @@ const assignPackage = async (req, res) => {
 
         if (!member.memberId) {
             member.memberId = await generateMemberId();
+            member.barcode = generateBarcode(member.memberId);
+        }
+        if (!member.barcode && member.memberId) {
+            member.barcode = generateBarcode(member.memberId);
         }
 
         member.isMember = true;

@@ -17,8 +17,6 @@ import ManagePackages     from './pages/sales/ManagePackages';
 import TargetDashboard    from './pages/sales/TargetDashboard';
 import SalesSubscriptions from './pages/sales/SalesSubscriptions';
 import SalesCallCenter    from './pages/sales/SalesCallCenter';
-import CallCenter         from './pages/sales/CallCenter';
-import Transfer           from './pages/sales/Transfer';
 import PackageRequests    from './pages/accounting/PackageRequests';
 import ContractHistory    from './pages/accounting/ContractHistory';
 import CoachDashboard     from './pages/coach/CoachDashboard';
@@ -31,7 +29,8 @@ import CoachTargets       from './pages/coach/CoachTargets';
 import CoachProfile       from './pages/coach/CoachProfile';
 import AccountantDashboard from './pages/accounting/AccountantDashboard';
 import CheckIn            from './pages/CheckIn';
-import AddMember          from './pages/AddMember';
+import CallCenter         from './pages/sales/CallCenter';
+import Transfer           from './pages/sales/Transfer';
 import ReceptionContacts  from './pages/ReceptionContacts';
 import NotFound       from './pages/NotFound';
 
@@ -79,13 +78,6 @@ function AppRoutes() {
       <Route path="/checkin" element={
         <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager', 'Sales']}>
           <CheckIn />
-        </PrivateRoute>
-      } />
-
-      {/* Add Member */}
-      <Route path="/add-member" element={
-        <PrivateRoute roles={['Receptionist', 'Owner', 'Sales Manager']}>
-          <AddMember />
         </PrivateRoute>
       } />
 

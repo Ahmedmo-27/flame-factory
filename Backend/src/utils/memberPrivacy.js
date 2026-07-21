@@ -23,7 +23,7 @@ function getCoachId(memberObj) {
 function redactMemberForViewer(memberObj, user) {
     if (!memberObj || !user) return memberObj;
 
-    if (user.role === "Sales") {
+    if (user.role === "Sales" || user.role === "Receptionist") {
         if (user.canViewPhones === false) {
             return {
                 ...memberObj,
@@ -31,6 +31,9 @@ function redactMemberForViewer(memberObj, user) {
                 nationalId: null,
             };
         }
+    }
+
+    if (user.role === "Sales") {
         if (isAssignedToRep(memberObj, user.id)) return memberObj;
         return {
             ...memberObj,
@@ -39,7 +42,7 @@ function redactMemberForViewer(memberObj, user) {
         };
     }
 
-    // Receptionist always receives full phone numbers (no canViewPhones gate)
+    // Receptionist with canViewPhones=true sees full phone numbers
 
     if (user.role === "Coach") {
         const coachId = getCoachId(memberObj);

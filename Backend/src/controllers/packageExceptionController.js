@@ -3,6 +3,7 @@ const Package = require("../models/Package");
 const Member = require("../models/Member");
 const User = require("../models/User");
 const { findMemberByIdentifier } = require("../utils/memberLookup");
+const { generateBarcode } = require("../utils/barcodeHelper");
 const {
     notifyPackageExceptionPending,
     notifyPackageExceptionResolved,
@@ -98,6 +99,9 @@ const applyApprovedException = async (request, reviewerId) => {
 
     if (!member.memberId) {
         member.memberId = await generateMemberId();
+    }
+    if (!member.barcode && member.memberId) {
+        member.barcode = generateBarcode(member.memberId);
     }
 
     member.isMember = true;

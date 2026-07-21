@@ -59,6 +59,12 @@ router.post("/", ...writeAccess, validate(createMemberSchema), createMember);
 router.post("/bulk-transfer-sales", protect, authorizeRoles("Sales Manager", "Owner"), bulkTransferSalesReps);
 router.post("/bulk-transfer-coach", protect, authorizeRoles("Coach Manager", "Owner"), bulkTransferCoach);
 
+// Body-based check-in for barcode scanners: POST /members/check-in { identifier: "FF000105" }
+router.post("/check-in", ...writeAccess, (req, res, next) => {
+    req.params.memberId = req.body.identifier;
+    checkInMember(req, res, next);
+});
+
 router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager", "Coach", "Coach Manager"].includes(req.user.role)) {
         return getMembers(req, res, next);

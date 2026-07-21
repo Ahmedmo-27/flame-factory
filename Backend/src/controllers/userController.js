@@ -1038,9 +1038,57 @@ const getTeamsPage = async (req, res) => {
 };
 
 
-const changeAuthorities=async (req,res)=>{
+const changeAuthorities = async (req, res) => {
+    try {
+        if (req.user.role !== "Owner") {
+            return res.status(403).json({
+                message: "Only the Owner can change the authorities of users"
+            });
+        }
 
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const {
+            canViewPhones,
+            canCommentOnMembers,
+            canRequestAssignment,
+            canRequestTakeover
+        } = req.body;
+
+        if (canViewPhones !== undefined)
+            user.canViewPhones = Boolean(canViewPhones);
+
+        if (canCommentOnMembers !== undefined)
+            user.abilities.canCommentOnMembers = Boolean(canCommentOnMembers);
+
+        if (canRequestAssignment !== undefined)
+            user.abilities.canRequestAssignment = Boolean(canRequestAssignment);
+
+        if (canRequestTakeover !== undefined)
+            user.abilities.canRequestTakeover = Boolean(canRequestTakeover);
+
+        await user.save();
+
+        return res.status(200).json({
+            message: "User authorities updated successfully",
+            user: formatUserResponse(user),
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
 };
+
+
 module.exports = {
     registerUser,
     loginUser,
@@ -1066,4 +1114,5 @@ module.exports = {
     getCoachTeam,
     getCoachProfile,
     getTeamsPage,
+    changeAuthorities,
 };

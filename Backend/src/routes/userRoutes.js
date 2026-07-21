@@ -25,6 +25,7 @@ const {
     updateStaffMobile,
     getReceptionistTeam,
     getTeamsPage,
+    changeAuthorities,
 } = require("../controllers/userController");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 const loginLimiter = require("../middleware/loginLimiter");
@@ -63,6 +64,6 @@ router.get("/receptionist-team", protect, authorizeRoles("Sales Manager", "Owner
 router.get("/changerole/:id/:new_role", protect, authorizeRoles("Owner"), change_Role);
 router.get("/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getUserById);
 router.get("/allTeams",protect,authorizeRoles("Owner"),getTeamsPage);
-
+router.patch("/:id/changeAuthorities",protect,authorizeRoles("Owner"),changeAuthorities);
 
 module.exports = router;

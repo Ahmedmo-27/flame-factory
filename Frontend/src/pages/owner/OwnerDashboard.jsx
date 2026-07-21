@@ -130,10 +130,6 @@ export default function OwnerDashboard() {
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
               <StatCard label="Total Members"    value={members.length}   color="brand"    onClick={() => navigate('/members')} />
-              <StatCard label="Active"           value={activeMembers}    color="success"  onClick={() => navigate('/members')} />
-              <StatCard label="Frozen"           value={frozenMembers}    color="info" />
-              <StatCard label="Expired"          value={expiredMembers}   color="danger" />
-              <StatCard label="Guests"           value={guestMembers}     color="default" />
               <StatCard label="Today's Revenue"  value={`${fmt(revenue?.todayRevenue ?? 0)} EGP`} color="success" onClick={() => navigate('/sales/targets')} />
               <StatCard label="This Month"       value={`${fmt(monthRevenue)} EGP`}             color="brand"   onClick={() => navigate('/sales/targets')} />
               <StatCard label="Pending Packages" value={pendingCount}     color={pendingCount > 0 ? 'warning' : 'default'} onClick={() => navigate('/accounting/package-requests')} />

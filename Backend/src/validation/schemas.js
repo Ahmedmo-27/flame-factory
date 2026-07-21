@@ -5,6 +5,12 @@ const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid id");
 const emptyToNull = (v) => (v === "" || v === undefined ? null : v);
 const nullableObjectId = z.preprocess(emptyToNull, objectId.nullable().optional());
 
+/** Accept systemId/memberId as number or string (frontend often sends numeric systemId). */
+const memberIdInput = z.preprocess(
+    (v) => (typeof v === "number" && Number.isFinite(v) ? String(v) : v),
+    z.union([objectId, z.string().trim().min(1).max(40)])
+);
+
 const plainText = (maxLen) =>
     z.string()
         .trim()
@@ -76,7 +82,7 @@ const assignPackageSchema = z.object({
 });
 
 const createExceptionSchema = z.object({
-    memberId: z.union([objectId, z.string().trim().min(1).max(40)]),
+    memberId: memberIdInput,
     basePackageId: objectId,
     hasException: z.preprocess(
         (v) => v === true || v === "true" || v === 1 || v === "1",
@@ -102,7 +108,7 @@ const exceptionStatusSchema = z.object({
 });
 
 const salesRequestSchema = z.object({
-    memberId: z.union([objectId, z.string().trim().min(1).max(40)]),
+    memberId: memberIdInput,
 });
 
 const salesRequestStatusSchema = z.object({

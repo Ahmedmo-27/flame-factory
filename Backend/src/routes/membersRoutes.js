@@ -43,6 +43,8 @@ const {
     blockMember,
     unblockMember,
     addPT_sessions,
+    refund,
+    refundPT_Sessions
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -100,7 +102,7 @@ router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, validate(freezeMemberSchema), freezeMember);
 router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
-router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
+router.post("/:memberId/package", protect, authorize("Accountant", "Owner"), validate(assignPackageSchema), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadLimiter, uploadSingle("nationalIdFile"), uploadNationalId);
 router.patch("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
 router.delete("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, deleteProfilePhoto);
@@ -116,4 +118,6 @@ router.get("/by/:memberId", ...readAccess, getMemberById);
 
 
 router.post("/:memberId/pt-sessions", protect, authorizeRoles("Owner", "Accountant"), addPT_sessions);
+router.post("/:memberId/refund", protect, authorizeRoles("Owner","Accountant"), refund);
+router.post("/:memberId/refund_pt", protect, authorizeRoles("Owner","Accountant"), refundPT_Sessions);
 module.exports = router;

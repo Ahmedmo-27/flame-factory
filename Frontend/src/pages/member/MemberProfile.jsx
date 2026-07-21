@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
 import { PageHeader, Tabs, Badge, Btn, Spinner, Skeleton, Modal, Input } from '../../components/ui';
-import { getMemberProfile, checkInMember, blockMember, unblockMember } from '../../api/endpoints';
+import { getMemberProfile, checkInMember, blockMember, unblockMember, refundMember } from '../../api/endpoints';
 import ProfilePhotoUpload from '../../components/ProfilePhotoUpload';
 import Barcode from 'react-barcode';
 import PersonalTab    from './tabs/PersonalTab';
@@ -44,6 +44,12 @@ export default function MemberProfile() {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockReason, setBlockReason]       = useState('');
   const [blocking, setBlocking]             = useState(false);
+
+  // Refund
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount]       = useState('');
+  const [refundReason, setRefundReason]       = useState('');
+  const [refunding, setRefunding]             = useState(false);
 
   usePageTitle(data?.member?.name ?? 'Profile');
 
@@ -107,6 +113,21 @@ export default function MemberProfile() {
       fetchProfile();
     } catch (e) { toast.error(e.response?.data?.message ?? 'Failed to unblock member.'); }
     finally { setBlocking(false); }
+  };
+
+  const handleRefund = async () => {
+    const amount = Number(refundAmount);
+    if (!amount || amount <= 0) { toast.error('Enter a valid refund amount'); return; }
+    setRefunding(true);
+    try {
+      const res = await refundMember(member._id, amount, refundReason.trim() || undefined);
+      toast.success(res.data.message ?? 'Refund issued successfully');
+      setShowRefundModal(false);
+      setRefundAmount('');
+      setRefundReason('');
+      fetchProfile();
+    } catch (e) { toast.error(e.response?.data?.message ?? 'Refund failed.'); }
+    finally { setRefunding(false); }
   };
 
   const member = data?.member;
@@ -179,6 +200,58 @@ export default function MemberProfile() {
           </>
         )}
       </div>
+
+      {/* ── Refund Modal ────────────────────────────────────────── */}
+      <Modal open={showRefundModal} onClose={() => !refunding && setShowRefundModal(false)} title="Issue Refund" size="sm"
+        footer={<>
+          <Btn variant="ghost" size="sm" onClick={() => setShowRefundModal(false)} disabled={refunding}>Cancel</Btn>
+          <Btn variant="danger" size="sm" onClick={handleRefund} disabled={refunding}>
+            {refunding ? <Spinner size="sm" /> : 'Confirm Refund'}
+          </Btn>
+        </>}
+      >
+        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
+          Refund will be deducted from the member's last subscription revenue. Member status will be set back to <strong>guest</strong>.
+        </p>
+        {member && (() => {
+          const lastSub = member.subscriptions?.at(-1);
+          const pricePaid = lastSub?.pricePaid ?? 0;
+          const alreadyRefunded = lastSub?.refundAmount ?? 0;
+          const maxRefund = pricePaid - alreadyRefunded;
+          return (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', marginBottom: 14, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Price Paid</span>
+                <span style={{ color: 'var(--t1)', fontWeight: 700 }}>{pricePaid} EGP</span>
+              </div>
+              {alreadyRefunded > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Already Refunded</span>
+                  <span style={{ color: 'var(--red)', fontWeight: 700 }}>{alreadyRefunded} EGP</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+                <span style={{ color: 'var(--t4)', fontWeight: 600 }}>Max Refundable</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>{maxRefund} EGP</span>
+              </div>
+            </div>
+          );
+        })()}
+        <Input
+          label="Refund Amount (EGP) *"
+          type="number"
+          min="1"
+          value={refundAmount}
+          onChange={e => setRefundAmount(e.target.value)}
+          placeholder="Enter amount to refund"
+        />
+        <Input
+          label="Reason (optional)"
+          value={refundReason}
+          onChange={e => setRefundReason(e.target.value)}
+          placeholder="e.g. Member cancelled, duplicate payment"
+        />
+      </Modal>
 
       {/* ── Block Modal ─────────────────────────────────────────── */}
       <Modal open={showBlockModal} onClose={() => setShowBlockModal(false)} title="Block Member" size="sm"

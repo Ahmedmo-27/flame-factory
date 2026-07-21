@@ -228,6 +228,18 @@ async function seed() {
       update.subscriptions = [{
         subscriptionId: seed.membershipId,
         package: pkg._id,
+        packageSnapshot: {
+          name: pkg.name,
+          activityType: pkg.activityType,
+          duration: pkg.duration,
+          price: pkg.price,
+          freezeLimitDays: pkg.freezeLimitDays || 0,
+          invitationLimit: pkg.invitationLimit || 0,
+          renewalDiscountPercent: pkg.renewalDiscountPercent || 0,
+          description: pkg.description ?? null,
+          hasException: false,
+          free_pt_sessions: pkg.free_pt_sessions || 0,
+        },
         startDate,
         endDate: calcEndDate(startDate, pkg.duration),
         pricePaid: pkg.price,

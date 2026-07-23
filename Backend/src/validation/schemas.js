@@ -148,7 +148,23 @@ const createWhatsAppTemplateSchema = z.object({
     type: z.string().trim().min(1).max(60),
     introText: optionalText(2000),
     bodyText: optionalText(4000),
+    introTextAr: optionalText(2000),
+    bodyTextAr: optionalText(4000),
     includeLiveData: z.preprocess(
+        (v) => {
+            if (v === undefined || v === null || v === "") return undefined;
+            if (v === true || v === "true" || v === 1 || v === "1") return true;
+            if (v === false || v === "false" || v === 0 || v === "0") return false;
+            return Boolean(v);
+        },
+        z.boolean().optional()
+    ),
+    defaultPackageIds: z.array(objectId).optional(),
+    defaultDiscountPercent: z.coerce.number().min(0).max(100).optional(),
+    allowedRoles: z.array(z.enum([
+        "Owner", "Sales Manager", "Sales", "Receptionist", "Accountant",
+    ])).optional(),
+    isDefault: z.preprocess(
         (v) => {
             if (v === undefined || v === null || v === "") return undefined;
             if (v === true || v === "true" || v === 1 || v === "1") return true;
@@ -161,6 +177,12 @@ const createWhatsAppTemplateSchema = z.object({
 
 const updateWhatsAppTemplateSchema = createWhatsAppTemplateSchema.partial().extend({
     isActive: z.boolean().optional(),
+});
+
+const logWhatsAppTemplateSendSchema = z.object({
+    memberId: z.union([objectId, z.string().trim().min(1).max(40)]).optional().nullable(),
+    memberName: z.string().trim().max(120).optional().nullable(),
+    templateId: objectId.optional().nullable(),
 });
 
 module.exports = {
@@ -180,4 +202,5 @@ module.exports = {
     updatePackageSchema,
     createWhatsAppTemplateSchema,
     updateWhatsAppTemplateSchema,
+    logWhatsAppTemplateSendSchema,
 };

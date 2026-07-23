@@ -19,6 +19,7 @@ const auditLogSchema = new mongoose.Schema({
             "sales_abilities_updated",
             "upload_accessed",
             "phone_privacy_updated",
+            "whatsapp_template_sent",
         ],
     },
     actor: {

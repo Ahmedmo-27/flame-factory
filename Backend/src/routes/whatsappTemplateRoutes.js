@@ -6,15 +6,24 @@ const validate = require("../middleware/validate");
 const {
     createWhatsAppTemplateSchema,
     updateWhatsAppTemplateSchema,
+    logWhatsAppTemplateSendSchema,
 } = require("../validation/schemas");
 const {
     createTemplate,
     getTemplates,
     updateTemplate,
     deleteTemplate,
+    logTemplateSend,
 } = require("../controllers/whatsappTemplateController");
 
 router.get("/", protect, getTemplates);
+
+router.post(
+    "/log-send",
+    protect,
+    validate(logWhatsAppTemplateSendSchema),
+    logTemplateSend
+);
 
 router.post(
     "/",

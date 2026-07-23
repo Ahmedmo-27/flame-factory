@@ -98,6 +98,7 @@ export const getWhatsAppTemplates    = (params) => api.get('/whatsapp-templates'
 export const createWhatsAppTemplate  = (data) => api.post('/whatsapp-templates', data);
 export const updateWhatsAppTemplate  = (id, data) => api.patch(`/whatsapp-templates/${id}`, data);
 export const deleteWhatsAppTemplate  = (id) => api.delete(`/whatsapp-templates/${id}`);
+export const logWhatsAppTemplateSend = (data) => api.post('/whatsapp-templates/log-send', data);
 
 export const assignPackage       = (id, data) =>
   api.post(`/members/${id}/package`, data);

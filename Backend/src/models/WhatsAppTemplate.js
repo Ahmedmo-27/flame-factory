@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 
+const SENDABLE_ROLES = [
+    "Owner",
+    "Sales Manager",
+    "Sales",
+    "Receptionist",
+    "Accountant",
+];
+
 const whatsAppTemplateSchema = new mongoose.Schema(
     {
         name: {
@@ -28,10 +36,47 @@ const whatsAppTemplateSchema = new mongoose.Schema(
             trim: true,
         },
 
-        // For packages/discounts: append live catalog / renewal discount lines
+        introTextAr: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        bodyTextAr: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        // For packages/discounts: append live catalog / discount lines
         includeLiveData: {
             type: Boolean,
             default: true,
+        },
+
+        // Default package ids suggested when composing (packages / discounts)
+        defaultPackageIds: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Package",
+        }],
+
+        // Default discount % for discounts templates (sender can change at send time)
+        defaultDiscountPercent: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+
+        // Empty = visible to all roles that can send; otherwise only listed roles
+        allowedRoles: [{
+            type: String,
+            enum: SENDABLE_ROLES,
+        }],
+
+        isDefault: {
+            type: Boolean,
+            default: false,
         },
 
         isActive: {
@@ -49,3 +94,4 @@ const whatsAppTemplateSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("WhatsAppTemplate", whatsAppTemplateSchema);
+module.exports.SENDABLE_ROLES = SENDABLE_ROLES;

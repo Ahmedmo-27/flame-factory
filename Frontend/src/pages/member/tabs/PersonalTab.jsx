@@ -121,6 +121,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
         onClose={() => setShowTemplate(false)}
         phone={member.phones}
         memberName={member.name}
+        memberId={member._id || member.systemId}
       />
     </>
   );

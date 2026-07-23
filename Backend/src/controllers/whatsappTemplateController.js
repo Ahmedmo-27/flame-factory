@@ -4,13 +4,16 @@ const { writeAudit } = require("../utils/audit");
 
 const MANAGER_ROLES = new Set(["Owner", "Sales Manager", "Accountant"]);
 
+// Unicode escapes keep emojis correct even if the source file encoding is not UTF-8
+const WAVE = "\uD83D\uDC4B"; // 👋
+
 const STARTER_TEMPLATES = [
     {
         name: "Our packages",
         type: "packages",
-        introText: "Hi {{name}}! 👋\nHere are Flame Factory's current membership packages:",
+        introText: `Hi {{name}}! ${WAVE}\nHere are Flame Factory's current membership packages:`,
         bodyText: "Tell me which package you prefer and I’ll help you get started.",
-        introTextAr: "مرحباً {{name}}! 👋\nهذه باقات العضوية الحالية في Flame Factory:",
+        introTextAr: `مرحباً {{name}}! ${WAVE}\nهذه باقات العضوية الحالية في Flame Factory:`,
         bodyTextAr: "أخبرني أي باقة تفضل وسأساعدك على البدء.",
         includeLiveData: true,
         isDefault: true,
@@ -18,9 +21,9 @@ const STARTER_TEMPLATES = [
     {
         name: "Special discount",
         type: "discounts",
-        introText: "Hi {{name}}! 👋\nI have a special discount for you:",
+        introText: `Hi {{name}}! ${WAVE}\nI have a special discount for you:`,
         bodyText: "This offer is available for a limited time — reply if you’d like to lock it in.",
-        introTextAr: "مرحباً {{name}}! 👋\nلدي خصم خاص لك:",
+        introTextAr: `مرحباً {{name}}! ${WAVE}\nلدي خصم خاص لك:`,
         bodyTextAr: "هذا العرض متاح لفترة محدودة — رد عليّ إذا حابب تثبّته.",
         includeLiveData: true,
         defaultDiscountPercent: 50,

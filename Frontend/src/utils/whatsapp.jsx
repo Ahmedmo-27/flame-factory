@@ -1,22 +1,29 @@
 import { Btn } from '../components/ui';
 
-/** Build a wa.me link from a stored phone (local EG numbers or international). */
+/** Encode message text for WhatsApp deep links (keeps emoji/Arabic intact). */
+function encodeWhatsAppText(text) {
+  // encodeURIComponent is UTF-8 safe; also fix broken leftover replacement chars
+  return encodeURIComponent(String(text).replace(/\uFFFD/g, '').trim());
+}
+
+/** Build a wa.me / api.whatsapp.com link from a stored phone. */
 export function toWhatsAppUrl(phone, text) {
   if (!phone || phone === 'hidden') return null;
   let digits = String(phone).replace(/\D/g, '');
   if (!digits) return null;
   if (digits.startsWith('00')) digits = digits.slice(2);
-  let url;
-  if (digits.startsWith('20') && digits.length >= 12) {
-    url = `https://wa.me/${digits}`;
-  } else {
-    if (digits.startsWith('0')) digits = digits.slice(1);
-    url = `https://wa.me/20${digits}`;
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (!digits.startsWith('20')) digits = `20${digits}`;
+
+  const encoded = text != null && String(text).trim()
+    ? encodeWhatsAppText(text)
+    : '';
+
+  // api.whatsapp.com handles Unicode (emoji) more reliably than wa.me on some desktops
+  if (encoded) {
+    return `https://api.whatsapp.com/send?phone=${digits}&text=${encoded}`;
   }
-  if (text != null && String(text).trim()) {
-    return `${url}?text=${encodeURIComponent(String(text).trim())}`;
-  }
-  return url;
+  return `https://wa.me/${digits}`;
 }
 
 /** Replace {{name}} and {{firstName}} with the member's full name. */
@@ -24,6 +31,7 @@ export function applyWhatsAppPlaceholders(text, memberName) {
   if (!text) return '';
   const name = String(memberName || '').trim() || 'there';
   return String(text)
+    .replace(/\uFFFD/g, '')
     .replace(/\{\{\s*name\s*\}\}/gi, name)
     .replace(/\{\{\s*firstName\s*\}\}/gi, name);
 }

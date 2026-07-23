@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import usePageTitle from '../../hooks/usePageTitle';
 import Layout from '../../components/Layout';
@@ -13,11 +13,25 @@ import {
 import { composeWhatsAppTemplateMessage } from '../../utils/whatsapp';
 
 const PAGE_SIZE = 15;
-const BUILTIN_TYPES = [
-  { value: 'packages', label: 'Packages' },
-  { value: 'discounts', label: 'Discounts' },
-];
 const ROLE_OPTIONS = ['Owner', 'Sales Manager', 'Sales', 'Receptionist', 'Accountant'];
+
+const TYPE_CARDS = [
+  {
+    value: 'packages',
+    title: 'Packages list',
+    desc: 'Share gym packages and prices with a member.',
+  },
+  {
+    value: 'discounts',
+    title: 'Discount offer',
+    desc: 'Offer a % off on one package. The new price is calculated automatically.',
+  },
+  {
+    value: 'custom',
+    title: 'Other message',
+    desc: 'Write any free message (welcome, follow-up, reminder…).',
+  },
+];
 
 const EMPTY_FORM = {
   name: '',
@@ -29,9 +43,28 @@ const EMPTY_FORM = {
   bodyTextAr: '',
   includeLiveData: true,
   defaultPackageIds: [],
-  defaultDiscountPercent: 15,
+  defaultDiscountPercent: 50,
   allowedRoles: [],
   isDefault: false,
+};
+
+const tipBox = {
+  background: '#eff6ff',
+  border: '1px solid #bfdbfe',
+  borderRadius: 8,
+  padding: '10px 12px',
+  fontSize: 12,
+  color: '#1e40af',
+  lineHeight: 1.45,
+};
+
+const stepLabel = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.4px',
+  textTransform: 'uppercase',
+  color: 'var(--t4)',
+  marginBottom: 8,
 };
 
 function resolveType(form) {
@@ -44,8 +77,8 @@ function isBuiltinType(type) {
 }
 
 function typeLabel(type) {
-  if (type === 'packages') return 'Packages';
-  if (type === 'discounts') return 'Discounts';
+  if (type === 'packages') return 'Packages list';
+  if (type === 'discounts') return 'Discount offer';
   return type ? type.charAt(0).toUpperCase() + type.slice(1) : '—';
 }
 
@@ -53,19 +86,31 @@ function previewSnippet(template, packages) {
   const pkgIds = (template.defaultPackageIds || []).map((p) => String(p._id ?? p));
   const msg = composeWhatsAppTemplateMessage(template, packages, {
     memberName: 'Ahmed',
-    selectedPackageIds: pkgIds.length ? pkgIds : undefined,
-    discountPercent: template.defaultDiscountPercent,
+    selectedPackageIds: pkgIds.length ? pkgIds : (packages[0] ? [String(packages[0]._id)] : []),
+    discountPercent: template.defaultDiscountPercent || 50,
   });
   if (!msg) return '—';
-  return msg.length > 80 ? `${msg.slice(0, 80)}…` : msg;
+  return msg.length > 90 ? `${msg.slice(0, 90)}…` : msg;
+}
+
+function insertNameToken(text) {
+  const token = '{{name}}';
+  if (!text) return `Hi ${token}! `;
+  if (text.includes(token) || text.includes('{{firstName}}')) return text;
+  return `${text.trim()} ${token}`.trim();
 }
 
 function TemplateForm({ form, onChange, errors, packages }) {
   const set = (key, value) => onChange({ ...form, [key]: value });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const builtin = form.typeMode !== 'custom';
 
   const togglePackage = (id) => {
     const sid = String(id);
+    if (form.typeMode === 'discounts') {
+      set('defaultPackageIds', [sid]);
+      return;
+    }
     const next = form.defaultPackageIds.includes(sid)
       ? form.defaultPackageIds.filter((x) => x !== sid)
       : [...form.defaultPackageIds, sid];
@@ -79,172 +124,313 @@ function TemplateForm({ form, onChange, errors, packages }) {
     set('allowedRoles', next);
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Input
-        label="Template name"
-        value={form.name}
-        onChange={(e) => set('name', e.target.value)}
-        error={errors.name}
-        placeholder="e.g. Summer packages offer"
-      />
-      <Select
-        label="Type"
-        value={form.typeMode}
-        onChange={(e) => set('typeMode', e.target.value)}
-        error={errors.type}
-      >
-        {BUILTIN_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>{t.label}</option>
-        ))}
-        <option value="custom">Custom type…</option>
-      </Select>
-      {form.typeMode === 'custom' && (
-        <Input
-          label="Custom type name"
-          value={form.customType}
-          onChange={(e) => set('customType', e.target.value)}
-          error={errors.customType}
-          placeholder="e.g. welcome, follow-up"
-        />
-      )}
+  const livePreview = useMemo(() => composeWhatsAppTemplateMessage(
+    {
+      type: resolveType(form) || form.typeMode,
+      introText: form.introText,
+      bodyText: form.bodyText,
+      introTextAr: form.introTextAr,
+      bodyTextAr: form.bodyTextAr,
+      includeLiveData: form.includeLiveData,
+      defaultDiscountPercent: form.defaultDiscountPercent,
+    },
+    packages,
+    {
+      memberName: 'Ahmed Hassan',
+      selectedPackageIds: form.defaultPackageIds.length
+        ? form.defaultPackageIds
+        : (form.typeMode === 'discounts' && packages[0] ? [String(packages[0]._id)] : undefined),
+      discountPercent: form.defaultDiscountPercent,
+    }
+  ), [form, packages]);
 
-      {builtin && (
-        <>
-          <Textarea
-            label="Intro text (EN) — use {{name}} / {{firstName}}"
-            value={form.introText}
-            onChange={(e) => set('introText', e.target.value)}
-            rows={2}
-            placeholder="Hi {{firstName}}! …"
-          />
-          <Textarea
-            label={form.typeMode === 'discounts' ? 'Discount pitch / body (EN)' : 'Outro / notes (EN)'}
-            value={form.bodyText}
-            onChange={(e) => set('bodyText', e.target.value)}
-            rows={3}
-          />
-          <Textarea
-            label="Intro text (AR)"
-            value={form.introTextAr}
-            onChange={(e) => set('introTextAr', e.target.value)}
-            rows={2}
-            placeholder="Optional Arabic intro…"
-          />
-          <Textarea
-            label={form.typeMode === 'discounts' ? 'Discount pitch (AR)' : 'Outro (AR)'}
-            value={form.bodyTextAr}
-            onChange={(e) => set('bodyTextAr', e.target.value)}
-            rows={2}
-          />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer' }}>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={tipBox}>
+        A template is a ready-made WhatsApp message. Staff pick it on a member profile, edit if needed, then open WhatsApp with the message filled in.
+      </div>
+
+      <div>
+        <div style={stepLabel}>Step 1 — What is this message for?</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {TYPE_CARDS.map((card) => {
+            const active = form.typeMode === card.value;
+            return (
+              <button
+                key={card.value}
+                type="button"
+                onClick={() => set('typeMode', card.value)}
+                style={{
+                  textAlign: 'left',
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${active ? '#2563eb' : 'var(--border)'}`,
+                  background: active ? '#eff6ff' : '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: active ? '#1d4ed8' : 'var(--t1)' }}>
+                  {card.title}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 3 }}>{card.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+        {form.typeMode === 'custom' && (
+          <div style={{ marginTop: 10 }}>
+            <Input
+              label="Name this message type"
+              value={form.customType}
+              onChange={(e) => set('customType', e.target.value)}
+              error={errors.customType}
+              placeholder="e.g. Welcome, Follow-up, Reminder"
+              hint="A short label so staff can find it later"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={stepLabel}>Step 2 — Give it a clear title</div>
+        <Input
+          label="Template title"
+          value={form.name}
+          onChange={(e) => set('name', e.target.value)}
+          error={errors.name}
+          placeholder={
+            form.typeMode === 'discounts'
+              ? 'e.g. Summer 50% discount'
+              : form.typeMode === 'packages'
+                ? 'e.g. Current membership packages'
+                : 'e.g. Welcome new member'
+          }
+        />
+      </div>
+
+      <div>
+        <div style={stepLabel}>Step 3 — Write the message</div>
+        <div style={{ ...tipBox, marginBottom: 10, background: '#f8fafc', borderColor: 'var(--border)', color: 'var(--t2)' }}>
+          Tip: click <strong>Add member’s name</strong> where you want their name to appear. When sending, it becomes the real name automatically.
+        </div>
+
+        {builtin ? (
+          <>
+            <Textarea
+              label="Opening line"
+              value={form.introText}
+              onChange={(e) => set('introText', e.target.value)}
+              rows={3}
+              placeholder="Hi {{name}}! …"
+            />
+            <div style={{ marginTop: -6, marginBottom: 10 }}>
+              <Btn variant="outline" size="xs" onClick={() => set('introText', insertNameToken(form.introText))}>
+                Add member’s name
+              </Btn>
+            </div>
+            <Textarea
+              label={form.typeMode === 'discounts' ? 'Closing line (after the discount details)' : 'Closing line (after the package list)'}
+              value={form.bodyText}
+              onChange={(e) => set('bodyText', e.target.value)}
+              rows={3}
+              placeholder={
+                form.typeMode === 'discounts'
+                  ? 'This offer is available for a limited time…'
+                  : 'Tell me which package you prefer…'
+              }
+            />
+          </>
+        ) : (
+          <>
+            <Textarea
+              label="Full message"
+              value={form.bodyText}
+              onChange={(e) => set('bodyText', e.target.value)}
+              rows={6}
+              error={errors.bodyText}
+              placeholder="Write the full WhatsApp message…"
+            />
+            <div style={{ marginTop: -6 }}>
+              <Btn variant="outline" size="xs" onClick={() => set('bodyText', insertNameToken(form.bodyText))}>
+                Add member’s name
+              </Btn>
+            </div>
+          </>
+        )}
+      </div>
+
+      {form.typeMode === 'packages' && (
+        <div>
+          <div style={stepLabel}>Step 4 — Which packages to show by default?</div>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--t3)' }}>
+            Staff can still change this when sending. Leave empty to show all packages.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer', marginBottom: 8 }}>
             <input
               type="checkbox"
               checked={form.includeLiveData}
               onChange={(e) => set('includeLiveData', e.target.checked)}
             />
-            Include live {form.typeMode === 'packages' ? 'package list' : 'discounted package lines'} when sending
+            Automatically add package names and prices into the message
           </label>
-
           {form.includeLiveData && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', marginBottom: 6 }}>
-                Default packages (optional — sender can change)
-              </div>
-              <div style={{
-                maxHeight: 120, overflowY: 'auto', border: '1px solid var(--border)',
-                borderRadius: 6, padding: '8px 10px',
-              }}>
-                {(packages || []).map((p) => {
-                  const id = String(p._id);
-                  return (
-                    <label key={id} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '3px 0', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={form.defaultPackageIds.includes(id)}
-                        onChange={() => togglePackage(id)}
-                      />
-                      {p.name} — EGP {p.price}
-                    </label>
-                  );
-                })}
-              </div>
+            <div style={{
+              maxHeight: 130, overflowY: 'auto', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '8px 10px',
+            }}>
+              {(packages || []).map((p) => {
+                const id = String(p._id);
+                return (
+                  <label key={id} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.defaultPackageIds.includes(id)}
+                      onChange={() => togglePackage(id)}
+                    />
+                    {p.name} — {p.duration} — {Number(p.price).toLocaleString()} EGP
+                  </label>
+                );
+              })}
             </div>
           )}
-
-          {form.typeMode === 'discounts' && form.includeLiveData && (
-            <Input
-              label="Default discount %"
-              type="number"
-              min={0}
-              max={100}
-              value={form.defaultDiscountPercent}
-              onChange={(e) => set('defaultDiscountPercent', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-              hint="Applied to chosen packages when composing the message"
-              error={errors.defaultDiscountPercent}
-            />
-          )}
-        </>
+        </div>
       )}
 
-      {!builtin && (
-        <>
-          <Textarea
-            label="Message body (EN) — {{name}} / {{firstName}}"
-            value={form.bodyText}
-            onChange={(e) => set('bodyText', e.target.value)}
-            rows={5}
-            error={errors.bodyText}
+      {form.typeMode === 'discounts' && (
+        <div>
+          <div style={stepLabel}>Step 4 — Default discount settings</div>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--t3)' }}>
+            When someone sends this template, they will choose the package and percentage. You can set helpful defaults here.
+          </p>
+          <Input
+            label="Suggested discount %"
+            type="number"
+            min={1}
+            max={100}
+            value={form.defaultDiscountPercent}
+            onChange={(e) => set('defaultDiscountPercent', Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+            hint="Example: 50 means “price was 2000, now it’s 1000”"
+            error={errors.defaultDiscountPercent}
           />
-          <Textarea
-            label="Message body (AR)"
-            value={form.bodyTextAr}
-            onChange={(e) => set('bodyTextAr', e.target.value)}
-            rows={4}
-          />
-        </>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', margin: '10px 0 6px' }}>
+            Suggested package (optional)
+          </div>
+          <div style={{
+            maxHeight: 130, overflowY: 'auto', border: '1px solid var(--border)',
+            borderRadius: 6, padding: '8px 10px',
+          }}>
+            {(packages || []).map((p) => {
+              const id = String(p._id);
+              return (
+                <label key={id} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="defaultDiscountPkg"
+                    checked={form.defaultPackageIds[0] === id}
+                    onChange={() => togglePackage(id)}
+                  />
+                  {p.name} — {p.duration} — {Number(p.price).toLocaleString()} EGP
+                </label>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', marginBottom: 6 }}>
-          Visible to roles (empty = everyone who can send)
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {ROLE_OPTIONS.map((role) => (
-            <label key={role} style={{ display: 'flex', gap: 6, fontSize: 12, cursor: 'pointer', color: 'var(--t2)' }}>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            fontSize: 12, fontWeight: 600, color: '#2563eb',
+          }}
+        >
+          {showAdvanced ? 'Hide extra options' : 'Show extra options (Arabic, who can use it, default)'}
+        </button>
+        {showAdvanced && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {builtin && (
+              <>
+                <Textarea
+                  label="Opening line (Arabic)"
+                  value={form.introTextAr}
+                  onChange={(e) => set('introTextAr', e.target.value)}
+                  rows={2}
+                />
+                <Textarea
+                  label="Closing line (Arabic)"
+                  value={form.bodyTextAr}
+                  onChange={(e) => set('bodyTextAr', e.target.value)}
+                  rows={2}
+                />
+              </>
+            )}
+            {!builtin && (
+              <Textarea
+                label="Full message (Arabic)"
+                value={form.bodyTextAr}
+                onChange={(e) => set('bodyTextAr', e.target.value)}
+                rows={4}
+              />
+            )}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', marginBottom: 6 }}>
+                Who can use this template?
+              </div>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--t4)' }}>
+                Leave all unchecked so everyone with member WhatsApp access can use it.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {ROLE_OPTIONS.map((role) => (
+                  <label key={role} style={{ display: 'flex', gap: 6, fontSize: 12, cursor: 'pointer', color: 'var(--t2)' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.allowedRoles.includes(role)}
+                      onChange={() => toggleRole(role)}
+                    />
+                    {role}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={form.allowedRoles.includes(role)}
-                onChange={() => toggleRole(role)}
+                checked={form.isDefault}
+                onChange={(e) => set('isDefault', e.target.checked)}
               />
-              {role}
+              Open this template first when sending this type of message
             </label>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={form.isDefault}
-          onChange={(e) => set('isDefault', e.target.checked)}
-        />
-        Default template for this type (opens first when sending)
-      </label>
+      {livePreview && (
+        <div>
+          <div style={stepLabel}>Example of what staff will see</div>
+          <div style={{
+            border: '1px solid #bbf7d0', borderRadius: 8, padding: 12,
+            background: '#f0fdf4', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.45, color: 'var(--t1)',
+          }}>
+            {livePreview}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function validateForm(form) {
   const errs = {};
-  if (!form.name.trim()) errs.name = 'Name is required';
+  if (!form.name.trim()) errs.name = 'Please give this template a title';
   const type = resolveType(form);
-  if (!type) errs[form.typeMode === 'custom' ? 'customType' : 'type'] = 'Type is required';
+  if (!type) errs[form.typeMode === 'custom' ? 'customType' : 'type'] = 'Please choose a type';
   if (form.typeMode === 'custom' && !form.bodyText.trim() && !form.bodyTextAr.trim()) {
-    errs.bodyText = 'Message body is required for custom templates';
+    errs.bodyText = 'Please write the message';
   }
-  if (form.typeMode === 'discounts' && form.includeLiveData && !(Number(form.defaultDiscountPercent) > 0)) {
-    errs.defaultDiscountPercent = 'Set a default discount percentage';
+  if (form.typeMode === 'discounts' && !(Number(form.defaultDiscountPercent) > 0)) {
+    errs.defaultDiscountPercent = 'Enter a discount percentage (for example 50)';
   }
   return errs;
 }
@@ -278,7 +464,7 @@ function templateToForm(t) {
     bodyTextAr: t.bodyTextAr ?? '',
     includeLiveData: t.includeLiveData !== false,
     defaultPackageIds: (t.defaultPackageIds || []).map((p) => String(p._id ?? p)),
-    defaultDiscountPercent: Number(t.defaultDiscountPercent) || 0,
+    defaultDiscountPercent: Number(t.defaultDiscountPercent) || 50,
     allowedRoles: t.allowedRoles || [],
     isDefault: Boolean(t.isDefault),
   };
@@ -331,7 +517,7 @@ export default function ManageWhatsAppTemplates() {
     setCreating(true);
     try {
       await createWhatsAppTemplate(formToPayload(createForm));
-      toast.success('Template created');
+      toast.success('Template saved');
       setShowCreate(false);
       setCreateForm(EMPTY_FORM);
       setCreateErrors({});
@@ -369,7 +555,7 @@ export default function ManageWhatsAppTemplates() {
     setDeleting(true);
     try {
       await deleteWhatsAppTemplate(deleteTarget._id);
-      toast.success('Template deactivated');
+      toast.success('Template removed from the send list');
       setDeleteTarget(null);
       load();
     } catch (err) {
@@ -387,25 +573,33 @@ export default function ManageWhatsAppTemplates() {
           size="sm"
           onClick={() => { setCreateForm(EMPTY_FORM); setCreateErrors({}); setShowCreate(true); }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New Template
+          Create template
         </Btn>
       </PageHeader>
 
       <div className="page-wrap" style={{ paddingTop: 20, paddingBottom: 32 }}>
+        <div style={{
+          ...tipBox,
+          marginBottom: 16,
+        }}>
+          <strong>How this works:</strong> create ready messages here → on a member’s profile, click <em>Send a template message</em> → choose package/discount if needed → open WhatsApp with the text ready to send.
+        </div>
+
         <Card noPad>
-          <CardHeader title={`Templates (${pagination.total})`} />
+          <CardHeader title={`Saved templates (${pagination.total})`} />
           <Table
-            headers={['Name', 'Type', 'Default', 'Roles', 'Preview', 'Created', '']}
+            headers={['Title', 'Used for', 'Quick look', 'Created', '']}
             loading={loading}
             skeletonRows={4}
           >
             {!loading && templates.length === 0 && (
               <tr>
-                <td colSpan={7}>
-                  <EmptyState icon="💬" message="No templates yet" sub="Create a packages or discounts template above" />
+                <td colSpan={5}>
+                  <EmptyState
+                    icon="💬"
+                    message="No templates yet"
+                    sub="Create one for packages, discounts, or any other message"
+                  />
                 </td>
               </tr>
             )}
@@ -413,30 +607,25 @@ export default function ManageWhatsAppTemplates() {
               <tr
                 key={t._id}
                 style={{ borderBottom: '1px solid var(--border)', opacity: t.isActive ? 1 : 0.55 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
                 <td style={{ padding: '11px 14px', fontWeight: 600, color: 'var(--t1)', fontSize: 13 }}>
                   {t.name}
+                  {t.isDefault && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#2563eb', fontWeight: 600 }}>Suggested first</span>
+                  )}
                   {!t.isActive && (
                     <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--t4)', fontWeight: 500 }}>Inactive</span>
                   )}
                 </td>
-                <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--t2)', textTransform: 'capitalize' }}>
+                <td style={{ padding: '11px 14px', fontSize: 13, color: 'var(--t2)' }}>
                   {typeLabel(t.type)}
                   {t.type === 'discounts' && t.defaultDiscountPercent > 0 && (
-                    <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{t.defaultDiscountPercent}% default</div>
+                    <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
+                      Usually {t.defaultDiscountPercent}% off
+                    </div>
                   )}
                 </td>
-                <td style={{ padding: '11px 14px', fontSize: 13 }}>
-                  {t.isDefault
-                    ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>★ Yes</span>
-                    : <span style={{ color: 'var(--t4)' }}>—</span>}
-                </td>
-                <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--t3)' }}>
-                  {(t.allowedRoles || []).length ? t.allowedRoles.join(', ') : 'All'}
-                </td>
-                <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--t3)', whiteSpace: 'pre-wrap', maxWidth: 240 }}>
+                <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--t3)', whiteSpace: 'pre-wrap', maxWidth: 280 }}>
                   {previewSnippet(t, packages)}
                 </td>
                 <td style={{ padding: '11px 14px', color: 'var(--t4)', fontSize: 12 }}>{fmtDate(t.createdAt)}</td>
@@ -444,7 +633,7 @@ export default function ManageWhatsAppTemplates() {
                   <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                     <Btn variant="outline" size="xs" onClick={() => openEdit(t)}>Edit</Btn>
                     {t.isActive && (
-                      <Btn variant="danger" size="xs" onClick={() => setDeleteTarget(t)}>Delete</Btn>
+                      <Btn variant="danger" size="xs" onClick={() => setDeleteTarget(t)}>Remove</Btn>
                     )}
                   </div>
                 </td>
@@ -464,12 +653,12 @@ export default function ManageWhatsAppTemplates() {
       <Modal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="New WhatsApp Template"
-        size="md"
+        title="Create WhatsApp template"
+        size="lg"
         footer={<>
           <Btn variant="ghost" size="sm" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</Btn>
           <Btn variant="blue" size="sm" onClick={handleCreate} disabled={creating}>
-            {creating ? <Spinner size="sm" /> : 'Create Template'}
+            {creating ? <Spinner size="sm" /> : 'Save template'}
           </Btn>
         </>}
       >
@@ -479,12 +668,12 @@ export default function ManageWhatsAppTemplates() {
       <Modal
         open={Boolean(editTarget)}
         onClose={() => setEditTarget(null)}
-        title={`Edit — ${editTarget?.name ?? ''}`}
-        size="md"
+        title={`Edit template — ${editTarget?.name ?? ''}`}
+        size="lg"
         footer={<>
           <Btn variant="ghost" size="sm" onClick={() => setEditTarget(null)} disabled={editing}>Cancel</Btn>
           <Btn variant="blue" size="sm" onClick={handleEdit} disabled={editing}>
-            {editing ? <Spinner size="sm" /> : 'Save Changes'}
+            {editing ? <Spinner size="sm" /> : 'Save changes'}
           </Btn>
         </>}
       >
@@ -495,9 +684,9 @@ export default function ManageWhatsAppTemplates() {
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Deactivate Template"
-        message={`Deactivate "${deleteTarget?.name}"? It will no longer appear when sending template messages.`}
-        confirmLabel="Deactivate"
+        title="Remove template?"
+        message={`Remove "${deleteTarget?.name}" from the send list? Staff will no longer see it when messaging members.`}
+        confirmLabel="Remove"
         danger
         loading={deleting}
       />

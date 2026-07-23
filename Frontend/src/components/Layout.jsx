@@ -8,14 +8,14 @@ const NAV = {
   Receptionist:  [{ to: '/checkin', label: 'Check In' }, { to: '/members', label: 'Members' }, { to: '/contacts', label: 'Contacts' }],
   Sales:         [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/sales/members', label: 'Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/subscriptions', label: 'Subscriptions' }, { to: '/sales/my-callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
 
-  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/whatsapp-templates', label: 'WA Templates' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
-  Owner:         [{ to: '/owner/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/owner/teams', label: 'Teams' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contracts' }, { to: '/sales/targets', label: 'Revenue' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/whatsapp-templates', label: 'WA Templates' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
+  'Sales Manager': [{ to: '/sales/dashboard', label: 'Dashboard' }, { to: '/members', label: 'All Members' }, { to: '/sales/requests', label: 'Requests' }, { to: '/sales/team', label: 'Team' }, { to: '/sales/targets', label: 'Targets' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/staff', label: 'Staff' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/whatsapp-templates', label: 'WA Messages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
+  Owner:         [{ to: '/owner/dashboard', label: 'Dashboard' }, { to: '/members', label: 'Members' }, { to: '/owner/teams', label: 'Teams' }, { to: '/sales/requests', label: 'Requests' }, { to: '/accounting/contract-history', label: 'Contracts' }, { to: '/sales/targets', label: 'Revenue' }, { to: '/sales/transfer', label: 'Transfer' }, { to: '/sales/packages', label: 'Packages' }, { to: '/sales/whatsapp-templates', label: 'WA Messages' }, { to: '/sales/callcenter', label: 'Call Center' }, { to: '/checkin', label: 'Check In' }, { to: '/contacts', label: 'Contacts' }],
   Accountant:    [
     { to: '/accounting/dashboard', label: 'Dashboard' },
     { to: '/accounting/package-requests', label: 'Requests' },
     { to: '/accounting/contract-history', label: 'Contracts' },
     { to: '/sales/targets', label: 'Revenue' },
-    { to: '/sales/whatsapp-templates', label: 'WA Templates' },
+    { to: '/sales/whatsapp-templates', label: 'WA Messages' },
     { to: '/members', label: 'Members' },
     { to: '/sales/team', label: 'Team' },
     { to: '/contacts', label: 'Contacts' },

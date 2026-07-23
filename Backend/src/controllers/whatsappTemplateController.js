@@ -8,32 +8,60 @@ const STARTER_TEMPLATES = [
     {
         name: "Our packages",
         type: "packages",
-        introText: "Hi {{firstName}}! Here are our current packages:",
-        bodyText: "Let me know which one works for you.",
-        introTextAr: "مرحباً {{firstName}}! هذه باقاتنا الحالية:",
-        bodyTextAr: "أخبرني أي باقة تناسبك.",
+        introText: "Hi {{name}}! 👋\nHere are Flame Factory's current membership packages:",
+        bodyText: "Tell me which package you prefer and I’ll help you get started.",
+        introTextAr: "مرحباً {{name}}! 👋\nهذه باقات العضوية الحالية في Flame Factory:",
+        bodyTextAr: "أخبرني أي باقة تفضل وسأساعدك على البدء.",
         includeLiveData: true,
         isDefault: true,
     },
     {
         name: "Special discount",
         type: "discounts",
-        introText: "Hi {{firstName}}! We have a special offer for you:",
-        bodyText: "This discount is available for a limited time.",
-        introTextAr: "مرحباً {{firstName}}! لدينا عرض خاص لك:",
-        bodyTextAr: "هذا الخصم متاح لفترة محدودة.",
+        introText: "Hi {{name}}! 👋\nI have a special discount for you:",
+        bodyText: "This offer is available for a limited time — reply if you’d like to lock it in.",
+        introTextAr: "مرحباً {{name}}! 👋\nلدي خصم خاص لك:",
+        bodyTextAr: "هذا العرض متاح لفترة محدودة — رد عليّ إذا حابب تثبّته.",
         includeLiveData: true,
-        defaultDiscountPercent: 15,
+        defaultDiscountPercent: 50,
         isDefault: true,
     },
 ];
 
 async function ensureStarterTemplates(createdBy) {
-    const count = await WhatsAppTemplate.countDocuments();
-    if (count > 0) return;
-    await WhatsAppTemplate.insertMany(
-        STARTER_TEMPLATES.map((t) => ({ ...t, createdBy, isActive: true, allowedRoles: [] }))
-    );
+    for (const starter of STARTER_TEMPLATES) {
+        const existing = await WhatsAppTemplate.findOne({ name: starter.name, type: starter.type });
+        if (existing) {
+            await WhatsAppTemplate.updateOne(
+                { _id: existing._id },
+                {
+                    $set: {
+                        introText: starter.introText,
+                        bodyText: starter.bodyText,
+                        introTextAr: starter.introTextAr,
+                        bodyTextAr: starter.bodyTextAr,
+                        includeLiveData: starter.includeLiveData,
+                        defaultDiscountPercent: starter.defaultDiscountPercent ?? existing.defaultDiscountPercent ?? 0,
+                        isActive: true,
+                    },
+                }
+            );
+        } else {
+            if (starter.isDefault) {
+                await WhatsAppTemplate.updateMany(
+                    { type: starter.type, isDefault: true },
+                    { $set: { isDefault: false } }
+                );
+            }
+            await WhatsAppTemplate.create({
+                ...starter,
+                createdBy,
+                isActive: true,
+                allowedRoles: [],
+                defaultPackageIds: [],
+            });
+        }
+    }
 }
 
 function normalizePackageIds(ids) {
@@ -108,9 +136,8 @@ const createTemplate = async (req, res) => {
 const getTemplates = async (req, res) => {
     try {
         const isManager = MANAGER_ROLES.has(req.user.role);
-        if (isManager && req.query.all === "true") {
-            await ensureStarterTemplates(req.user.id);
-        }
+        // Keep starter copy in sync for all callers (send modal + manage page)
+        await ensureStarterTemplates(req.user.id);
 
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50 });
         let filter;

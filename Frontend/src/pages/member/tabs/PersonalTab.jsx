@@ -44,7 +44,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
     <>
       <WhatsAppBtn phone={member.phones} />
       <Btn variant="outline" size="xs" onClick={() => setShowTemplate(true)}>
-        Send a template message
+        Send ready message
       </Btn>
     </>
   ) : null;
@@ -109,7 +109,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <WhatsAppBtn phone={member.phones} size="sm" />
               <Btn variant="outline" size="sm" onClick={() => { setShowPhone(false); setShowTemplate(true); }}>
-                Send a template message
+                Send ready message
               </Btn>
             </div>
           )}

@@ -19,23 +19,17 @@ export function toWhatsAppUrl(phone, text) {
   return url;
 }
 
-function firstNameFrom(fullName) {
-  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
-  return parts[0] || '';
-}
-
-/** Replace {{name}} and {{firstName}} placeholders. */
+/** Replace {{name}} and {{firstName}} with the member's full name. */
 export function applyWhatsAppPlaceholders(text, memberName) {
   if (!text) return '';
-  const name = String(memberName || '').trim();
-  const first = firstNameFrom(name);
+  const name = String(memberName || '').trim() || 'there';
   return String(text)
-    .replace(/\{\{\s*name\s*\}\}/gi, name || 'there')
-    .replace(/\{\{\s*firstName\s*\}\}/gi, first || name || 'there');
+    .replace(/\{\{\s*name\s*\}\}/gi, name)
+    .replace(/\{\{\s*firstName\s*\}\}/gi, name);
 }
 
 function formatPackageLine(pkg) {
-  return `• ${pkg.name} — ${pkg.duration} — EGP ${Number(pkg.price).toLocaleString()}`;
+  return `• ${pkg.name} (${pkg.duration}) — ${Number(pkg.price).toLocaleString()} EGP`;
 }
 
 function discountedPrice(price, percent) {
@@ -44,11 +38,21 @@ function discountedPrice(price, percent) {
   return Math.round(p * (1 - pct / 100));
 }
 
+/** e.g. Premium Quarterly — price was 2000 EGP, now it's 1000 EGP (50% off) */
 function formatDiscountAppliedLine(pkg, percent) {
   const pct = Math.min(100, Math.max(0, Number(percent) || 0));
   const original = Number(pkg.price) || 0;
   const next = discountedPrice(original, pct);
-  return `• ${pkg.name} — was EGP ${original.toLocaleString()}, now EGP ${next.toLocaleString()} (${pct}% off)`;
+  return `${pkg.name} (${pkg.duration})\nPrice was ${original.toLocaleString()} EGP, now it's ${next.toLocaleString()} EGP (${pct}% off).`;
+}
+
+function formatDiscountBlock(selected, percent, lang) {
+  if (!selected.length || !(percent > 0)) return '';
+  const lines = selected.map((p) => formatDiscountAppliedLine(p, percent));
+  if (lang === 'ar') {
+    return `تفاصيل العرض:\n\n${lines.join('\n\n')}`;
+  }
+  return `Offer details:\n\n${lines.join('\n\n')}`;
 }
 
 function packageId(pkg) {
@@ -57,7 +61,7 @@ function packageId(pkg) {
 
 function filterSelectedPackages(packages, selectedPackageIds) {
   const catalog = Array.isArray(packages) ? packages : [];
-  if (!selectedPackageIds || selectedPackageIds.length === 0) return catalog;
+  if (!selectedPackageIds || selectedPackageIds.length === 0) return [];
   const set = new Set(selectedPackageIds.map(String));
   return catalog.filter((p) => set.has(packageId(p)));
 }
@@ -91,7 +95,9 @@ export function composeWhatsAppTemplateMessage(template, packages = [], options 
     const parts = [];
     if (intro) parts.push(intro);
     if (includeLive) {
-      const lines = selected.map(formatPackageLine);
+      const catalog = Array.isArray(packages) ? packages : [];
+      const list = selected.length ? selected : catalog;
+      const lines = list.map(formatPackageLine);
       if (lines.length) parts.push(lines.join('\n'));
     }
     if (body) parts.push(body);
@@ -99,24 +105,15 @@ export function composeWhatsAppTemplateMessage(template, packages = [], options 
   }
 
   if (type === 'discounts') {
+    const percent = options.discountPercent != null
+      ? Number(options.discountPercent)
+      : Number(template.defaultDiscountPercent) || 0;
     const parts = [];
     if (intro) parts.push(intro);
+    // Always include chosen package + recalculated price when sender picked them
+    const block = formatDiscountBlock(selected, percent, lang);
+    if (block) parts.push(block);
     if (body) parts.push(body);
-    if (includeLive) {
-      const percent = options.discountPercent != null
-        ? Number(options.discountPercent)
-        : Number(template.defaultDiscountPercent) || 0;
-      if (selected.length && percent > 0) {
-        const lines = selected.map((p) => formatDiscountAppliedLine(p, percent));
-        parts.push(`Special offer:\n${lines.join('\n')}`);
-      } else if (selected.length) {
-        // Fallback: show package renewal discounts if no % chosen
-        const lines = selected
-          .filter((p) => Number(p.renewalDiscountPercent) > 0)
-          .map((p) => `• ${p.name} — ${p.renewalDiscountPercent}% renewal discount`);
-        if (lines.length) parts.push(`Renewal offers:\n${lines.join('\n')}`);
-      }
-    }
     return parts.join('\n\n');
   }
 

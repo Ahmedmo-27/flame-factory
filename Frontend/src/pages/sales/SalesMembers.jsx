@@ -5,8 +5,9 @@ import { useAuth } from '../../context/AuthContext';
 import usePageTitle from '../../hooks/usePageTitle';
 import useDebounce from '../../hooks/useDebounce';
 import Layout from '../../components/Layout';
-import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../../components/ui';
-import { getAllMembers, createMember, getPackages, getSalesUsers } from '../../api/endpoints';
+import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Btn, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../../components/ui';
+import { getAllMembers } from '../../api/endpoints';
+import AddMemberModal from '../../components/AddMemberModal';
 
 const PAGE_SIZE = 20;
 
@@ -15,8 +16,6 @@ export default function SalesMembers() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [members,  setMembers]  = useState([]);
-  const [packages, setPackages] = useState([]);
-  const [sales,    setSales]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [filter,   setFilter]   = useState('all');
   const [search,   setSearch]   = useState('');
@@ -42,19 +41,7 @@ export default function SalesMembers() {
     finally { setLoading(false); }
   }, [page, filter, debouncedSearch]);
 
-  const fetchMeta = useCallback(async () => {
-    try {
-      const [pRes, sRes] = await Promise.all([
-        getPackages({ limit: 100 }),
-        getSalesUsers(),
-      ]);
-      setPackages(pRes.data.packages ?? []);
-      setSales(sRes.data.salesUsers ?? []);
-    } catch { /* silent */ }
-  }, []);
-
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
-  useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
   const paginated = members;
@@ -84,9 +71,9 @@ export default function SalesMembers() {
         ]} />
 
         <Card noPad>
-          <Table loading={loading} skeletonRows={8} headers={['ID', 'Name', 'Phone', 'Status', 'Package', 'Expires', '']}>
+          <Table loading={loading} skeletonRows={8} headers={['ID', 'Name', 'Status', 'Package', 'Expires', '']}>
             {!paginated.length && !loading
-              ? <tr><td colSpan={7}><EmptyState message="No members found" /></td></tr>
+              ? <tr><td colSpan={6}><EmptyState message="No members found" /></td></tr>
               : paginated.map(m => {
                   const sub = m.subscriptions?.at(-1);
                   const pkg = sub?.package;
@@ -100,7 +87,6 @@ export default function SalesMembers() {
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones}</td>
                       <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>{pkg ? `${pkg.name} · ${pkg.duration}` : '—'}</td>
                       <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{fmtDate(sub?.endDate)}</td>
@@ -123,49 +109,12 @@ export default function SalesMembers() {
         </Card>
       </div>
 
-      <AddGuestModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales}
-        currentUser={user} onSuccess={() => { setShowAdd(false); fetchMembers(); }} />
+      <AddMemberModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSuccess={() => { setShowAdd(false); fetchMembers(); }}
+        defaultSalesRep={user?._id}
+      />
     </Layout>
-  );
-}
-
-function AddGuestModal({ open, onClose, packages, sales, currentUser, onSuccess }) {
-  const init = { name: '', phones: '', gender: '', source: '', assignedSales: '' };
-  const [form, setForm] = useState(init);
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const validate = () => { const e = {}; if (!form.name.trim()) e.name = 'Required'; if (!form.phones.trim()) e.phones = 'Required'; setErrors(e); return !Object.keys(e).length; };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, source: form.source || null, assignedSales: form.assignedSales || currentUser?._id || null });
-      toast.success('Guest added!');
-      setForm(init); setErrors({}); onSuccess();
-    } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title="Add Guest / Member"
-      footer={<><Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn><Btn size="sm" onClick={handleSubmit} disabled={loading}>{loading ? <Spinner size="sm" /> : 'Add'}</Btn></>}>
-      <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-        <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
-        <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
-          <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
-        </Select>
-        <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
-          <option value="">— Select —</option>
-          {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-      </div>
-      <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
-        <option value="">— None —</option>
-        {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
-      </Select>
-    </Modal>
   );
 }

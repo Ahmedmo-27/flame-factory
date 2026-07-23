@@ -55,18 +55,23 @@ const createRequest = async (req, res) => {
         });
 
         const salesManagers = await User.find({ role: "Sales Manager" }).select("_id");
-        await Promise.all(
-            salesManagers.map((manager) =>
-                notifySalesRepRequestPending({
-                    recipientId: manager._id,
-                    member,
-                    actorId: req.user.id,
-                    requestId: newRequest._id,
-                    salesRepName: salesUser?.name,
-                    isTakeover,
-                })
-            )
-        );
+        try {
+            await Promise.all(
+                salesManagers.map((manager) =>
+                    notifySalesRepRequestPending({
+                        recipientId: manager._id,
+                        member,
+                        actorId: req.user.id,
+                        requestId: newRequest._id,
+                        salesRepName: salesUser?.name,
+                        isTakeover,
+                    })
+                )
+            );
+        } catch (notifyError) {
+            // Request is already saved — don't fail the submit if notifications fail
+            console.error("Failed to notify sales managers of assignment request:", notifyError.message);
+        }
 
         res.status(201).json({ message: "Request submitted successfully", request: newRequest });
     } catch (error) {
@@ -90,20 +95,25 @@ const updateRequestStatus = async (req, res) => {
         }
 
         if (status === "accepted") {
-            const member = await Member.findById(request.member);
-            if (member) {
-                member.assignedSales = request.requestedBy;
-                member.userlog.push({
-                    type: "assign",
-                    text: "Assigned via approved sales request",
-                    createdBy: req.user.id,
-                });
-                await member.save();
-                await notifyMemberAssigned({
-                    recipientId: request.requestedBy,
-                    member,
-                    actorId: req.user.id,
-                });
+            try {
+                const member = await Member.findById(request.member);
+                if (member) {
+                    member.assignedSales = request.requestedBy;
+                    member.userlog.push({
+                        type: "assign",
+                        text: "Assigned via approved sales request",
+                        createdBy: req.user.id,
+                    });
+                    await member.save();
+                    await notifyMemberAssigned({
+                        recipientId: request.requestedBy,
+                        member,
+                        actorId: req.user.id,
+                    });
+                }
+            } catch (applyError) {
+                await SalesRepRequest.findByIdAndUpdate(request._id, { $set: { status: "pending" } });
+                throw applyError;
             }
         }
 

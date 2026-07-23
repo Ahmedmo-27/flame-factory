@@ -24,6 +24,7 @@ const {
     updatePhonePrivacy,
     updateStaffMobile,
     getReceptionistTeam,
+    getTeamsPage,
 } = require("../controllers/userController");
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 const loginLimiter = require("../middleware/loginLimiter");
@@ -46,11 +47,11 @@ router.get("/sales-manager/revenue", protect, authorizeRoles("Sales Manager", "O
 router.get("/sales-manager/subscriptions", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSubscriptionsByDate);
 router.get("/my-subscriptions", protect, authorizeRoles("Sales"), getSalesMySubscriptions);
 router.get("/sales-reps", protect, authorizeRoles("Sales Manager", "Owner"), getSalesReps);
-router.get("/sales", protect, authorizeRoles("Sales Manager", "Owner", "Accountant", "Receptionist"), getSalesUsers);
+router.get("/sales", protect, authorizeRoles("Sales Manager", "Owner", "Accountant", "Receptionist", "Sales"), getSalesUsers);
 router.get("/receptionists", protect, getReceptionists);
 router.get("/team", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesTeam);
 router.get("/team/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getSalesProfile);
-router.get("/coach-team", protect, authorizeRoles("Coach Manager", "Owner", "Sales Manager", "Receptionist"), getCoachTeam);
+router.get("/coach-team", protect, authorizeRoles("Coach Manager", "Owner", "Sales Manager", "Receptionist", "Sales", "Accountant"), getCoachTeam);
 router.get("/coach-team/:id", protect, authorizeRoles("Coach Manager", "Owner"), getCoachProfile);
 router.post("/staff", protect, authorizeRoles("Sales Manager", "Owner", "Coach Manager"), createStaffUser);
 router.patch("/:id/target", protect, authorizeRoles("Sales Manager"), updateSalesRepTarget);
@@ -61,6 +62,7 @@ router.patch("/:id/mobile", protect, authorizeRoles("Sales Manager", "Owner"), u
 router.get("/receptionist-team", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getReceptionistTeam);
 router.get("/changerole/:id/:new_role", protect, authorizeRoles("Owner"), change_Role);
 router.get("/:id", protect, authorizeRoles("Sales Manager", "Owner", "Accountant"), getUserById);
+router.get("/allTeams",protect,authorizeRoles("Owner"),getTeamsPage);
 
 
 module.exports = router;

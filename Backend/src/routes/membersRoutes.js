@@ -43,6 +43,8 @@ const {
     blockMember,
     unblockMember,
     addPT_sessions,
+    refund,
+    refundPT_Sessions
 } = require("../controllers/memberController");
 
 // ── Role groups ───────────────────────────────────────────────────────────────
@@ -58,6 +60,12 @@ const inviteAccess = [protect, authorize("Receptionist", "Owner", "Sales", "Sale
 router.post("/", ...writeAccess, validate(createMemberSchema), createMember);
 router.post("/bulk-transfer-sales", protect, authorizeRoles("Sales Manager", "Owner"), bulkTransferSalesReps);
 router.post("/bulk-transfer-coach", protect, authorizeRoles("Coach Manager", "Owner"), bulkTransferCoach);
+
+// Body-based check-in for barcode scanners: POST /members/check-in { identifier: "FF000105" }
+router.post("/check-in", ...writeAccess, (req, res, next) => {
+    req.params.memberId = req.body.identifier;
+    checkInMember(req, res, next);
+});
 
 router.get("/", protect, (req, res, next) => {
     if (["Sales", "Sales Manager", "Coach", "Coach Manager"].includes(req.user.role)) {
@@ -94,10 +102,10 @@ router.patch("/:memberId/assign-sales", ...writeAccess, assignSalesman);
 router.patch("/:memberId/freeze", ...freezeAccess, validate(freezeMemberSchema), freezeMember);
 router.patch("/:memberId/block", protect, authorize("Sales Manager"), blockMember);
 router.patch("/:memberId/unblock", protect, authorize("Sales Manager"), unblockMember);
-router.post("/:memberId/package", protect, authorize("Accountant"), validate(assignPackageSchema), assignPackage);
+router.post("/:memberId/package", protect, authorize("Accountant", "Owner"), validate(assignPackageSchema), assignPackage);
 router.patch("/:memberId/national-id", protect, authorize("Accountant"), uploadLimiter, uploadSingle("nationalIdFile"), uploadNationalId);
-router.patch("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
-router.delete("/:memberId/photo", protect, authorize("Receptionist", "Accountant"), uploadLimiter, deleteProfilePhoto);
+router.patch("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, uploadSinglePhoto("photoFile"), uploadProfilePhoto);
+router.delete("/:memberId/photo", protect, authorize("Accountant"), uploadLimiter, deleteProfilePhoto);
 
 router.post("/PTcheckin", protect, authorizeRoles("Coach", "Coach Manager"), sessionCheckIn_for_couch);
 
@@ -110,4 +118,6 @@ router.get("/by/:memberId", ...readAccess, getMemberById);
 
 
 router.post("/:memberId/pt-sessions", protect, authorizeRoles("Owner", "Accountant"), addPT_sessions);
+router.post("/:memberId/refund", protect, authorizeRoles("Owner","Accountant"), refund);
+router.post("/:memberId/refund_pt", protect, authorizeRoles("Owner","Accountant"), refundPT_Sessions);
 module.exports = router;

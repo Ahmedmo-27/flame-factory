@@ -5,8 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import usePageTitle from '../hooks/usePageTitle';
 import useDebounce from '../hooks/useDebounce';
 import Layout from '../components/Layout';
-import { PageHeader, Card, CardHeader, StatCard, Table, Badge, FilterTabs, Modal, Input, Select, Btn, Spinner, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../components/ui';
-import { getAllMembers, createMember, getPackages, getSalesUsers } from '../api/endpoints';
+import { PageHeader, Card, StatCard, Table, Badge, FilterTabs, Btn, EmptyState, SearchInput, Avatar, fmtDate, Pagination } from '../components/ui';
+import { getAllMembers } from '../api/endpoints';
+import AddMemberModal from '../components/AddMemberModal';
 
 const PAGE_SIZE = 20;
 
@@ -15,8 +16,6 @@ export default function Members() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [members, setMembers]   = useState([]);
-  const [packages, setPackages] = useState([]);
-  const [sales, setSales]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState('all');
   const [search, setSearch]     = useState('');
@@ -43,19 +42,7 @@ export default function Members() {
     finally { setLoading(false); }
   }, [page, filter, debouncedSearch]);
 
-  const fetchMeta = useCallback(async () => {
-    try {
-      const [pRes, sRes] = await Promise.all([
-        getPackages({ limit: 100 }),
-        getSalesUsers(),
-      ]);
-      setPackages(pRes.data.packages ?? []);
-      setSales(sRes.data.salesUsers ?? []);
-    } catch { /* silent */ }
-  }, []);
-
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
-  useEffect(() => { fetchMeta(); }, [fetchMeta]);
   useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
 
   const paginated = members;
@@ -92,9 +79,9 @@ export default function Members() {
         {/* Table card */}
         <Card noPad>
           <Table loading={loading} skeletonRows={8}
-            headers={['ID', 'Name', 'Phone', 'Status', 'Package', 'Expires', 'Sales Rep', '']}>
+            headers={['ID', 'Name', 'Status', 'Package', 'Expires', 'Sales Rep', '']}>
             {!paginated.length && !loading
-              ? <tr><td colSpan={8}><EmptyState message="No members match your search" /></td></tr>
+              ? <tr><td colSpan={7}><EmptyState message="No members match your search" /></td></tr>
               : paginated.map(m => {
                   const sub = m.subscriptions?.at(-1);
                   const pkg = sub?.package;
@@ -111,7 +98,6 @@ export default function Members() {
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{m.name}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones ?? '—'}</td>
                       <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
                       <td style={{ padding: '10px 14px', fontSize: 12 }}>
                         {pkg ? <span style={{ color: 'var(--t1)', fontWeight: 500 }}>{pkg.name}<br /><span style={{ color: 'var(--t4)', fontSize: 11 }}>{pkg.activityType} · {pkg.duration}</span></span> : <span style={{ color: 'var(--t4)' }}>—</span>}
@@ -141,55 +127,7 @@ export default function Members() {
         </Card>
       </div>
 
-      {canAdd && <AddPersonModal open={showAdd} onClose={() => setShowAdd(false)} packages={packages} sales={sales} onSuccess={() => { setShowAdd(false); fetchMembers(); }} />}
+      {canAdd && <AddMemberModal open={showAdd} onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); fetchMembers(); }} />}
     </Layout>
-  );
-}
-
-function AddPersonModal({ open, onClose, packages, sales, onSuccess }) {
-  const init = { name: '', phones: '', gender: '', birthdate: '', source: '', assignedSales: '' };
-  const [form, setForm] = useState(init);
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const validate = () => {
-    const e = {};
-    if (!form.name.trim())   e.name   = 'Name is required';
-    if (!form.phones.trim()) e.phones = 'Phone is required';
-    setErrors(e); return !Object.keys(e).length;
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      await createMember({ name: form.name.trim(), phones: form.phones.trim(), gender: form.gender || null, birthdate: form.birthdate || null, source: form.source || null, assignedSales: form.assignedSales || null });
-      toast.success('Guest added!');
-      setForm(init); setErrors({}); onSuccess();
-    } catch (e) { toast.error(e.response?.data?.message || 'Failed.'); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title="Add Person"
-      footer={<><Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn><Btn size="sm" onClick={handleSubmit} disabled={loading}>{loading ? <Spinner size="sm" /> : 'Add'}</Btn></>}>
-      <div className="grid-2-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
-        <Input label="Full Name *" value={form.name} onChange={e => set('name', e.target.value)} error={errors.name} />
-        <Input label="Phone *" value={form.phones} onChange={e => set('phones', e.target.value)} error={errors.phones} />
-        <Select label="Gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
-          <option value="">— Select —</option><option value="male">Male</option><option value="female">Female</option>
-        </Select>
-        <Input label="Birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)} />
-        <Select label="Source" value={form.source} onChange={e => set('source', e.target.value)}>
-          <option value="">— Select —</option>
-          {['Social media','Walk in','Word of mouth','referral','sales call','data entry','others'].map(s => <option key={s} value={s}>{s}</option>)}
-        </Select>
-      </div>
-      <Select label="Assign Sales Rep" value={form.assignedSales} onChange={e => set('assignedSales', e.target.value)}>
-        <option value="">— None —</option>
-        {sales.map(s => <option key={s._id} value={s._id}>{s.name} ({s.role})</option>)}
-      </Select>
-    </Modal>
   );
 }

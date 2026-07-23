@@ -335,7 +335,7 @@ export default function SalesPersonProfile() {
                 {!filtered.length ? (
                   <EmptyState message="No members match this filter" />
                 ) : (
-                  <Table headers={[...(isManager ? [''] : []), 'ID', 'Name', 'Phone', 'Status', 'Package', 'Expires']}>
+                  <Table headers={[...(isManager ? [''] : []), 'ID', 'Name', 'Status', 'Package', 'Expires']}>
                     {filtered.map(m => {
                       const sub = m.subscriptions?.at(-1);
                       const pkg = sub?.package;
@@ -358,7 +358,6 @@ export default function SalesPersonProfile() {
                               <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
                             </div>
                           </td>
-                          <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t3)' }}>{m.phones}</td>
                           <td style={{ padding: '10px 14px' }}><Badge status={m.status} /></td>
                           <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--t2)' }}>
                             {pkg ? `${pkg.name} · ${pkg.duration}` : '—'}

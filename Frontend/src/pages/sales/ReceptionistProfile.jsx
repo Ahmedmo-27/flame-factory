@@ -7,7 +7,33 @@ import Layout from '../../components/Layout';
 import {
   PageHeader, Card, Btn, Spinner, Avatar, fmtDate, Skeleton,
 } from '../../components/ui';
-import { getUserById, updateStaffMobile } from '../../api/endpoints';
+import { getUserById, updateStaffMobile, updatePhonePrivacy } from '../../api/endpoints';
+
+// ── Toggle switch ─────────────────────────────────────────────────────────────
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        background: checked ? 'var(--green)' : 'var(--border-md)',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0,
+      }}
+    >
+      <span style={{
+        display: 'block', width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        position: 'absolute', top: 3,
+        left: checked ? 21 : 3,
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }} />
+    </button>
+  );
+}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ReceptionistProfile() {
@@ -22,6 +48,9 @@ export default function ReceptionistProfile() {
   // Mobile number edit
   const [mobileInput, setMobileInput] = useState('');
   const [savingMobile, setSavingMobile] = useState(false);
+
+  // Phone privacy
+  const [savingPhonePrivacy, setSavingPhonePrivacy] = useState(false);
 
   usePageTitle(user?.name ?? 'Receptionist Profile');
 
@@ -51,6 +80,19 @@ export default function ReceptionistProfile() {
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to update mobile');
     } finally { setSavingMobile(false); }
+  };
+
+  const handleTogglePhonePrivacy = async (value) => {
+    // Optimistic update
+    setUser(prev => ({ ...prev, canViewPhones: value }));
+    setSavingPhonePrivacy(true);
+    try {
+      await updatePhonePrivacy(id, value);
+      toast.success('Phone privacy updated');
+    } catch (e) {
+      setUser(prev => ({ ...prev, canViewPhones: !value }));
+      toast.error(e.response?.data?.message || 'Failed to update phone privacy');
+    } finally { setSavingPhonePrivacy(false); }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -112,6 +154,37 @@ export default function ReceptionistProfile() {
                   <Btn size="sm" onClick={handleSaveMobile} disabled={savingMobile}>
                     {savingMobile ? <Spinner size="sm" /> : 'Save'}
                   </Btn>
+                </div>
+              </Card>
+            )}
+            {/* ── Phone Privacy Toggle ─────────────────────────────── */}
+            {isManager && (
+              <Card>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>
+                  🔒 Phone Number Access
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--t4)', marginBottom: 16 }}>
+                  Control whether <strong>{user?.name}</strong> can view member phone numbers.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', marginBottom: 2 }}>
+                      Can View Phone Numbers
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--t4)' }}>Can view member phone numbers on profiles</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: (user?.canViewPhones !== false) ? 'var(--green)' : 'var(--red)' }}>
+                      {(user?.canViewPhones !== false) ? 'Enabled' : 'Disabled'}
+                    </span>
+                    {savingPhonePrivacy
+                      ? <Spinner size="sm" />
+                      : <Toggle
+                          checked={user?.canViewPhones !== false}
+                          onChange={val => handleTogglePhonePrivacy(val)}
+                        />
+                    }
+                  </div>
                 </div>
               </Card>
             )}

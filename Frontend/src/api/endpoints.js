@@ -64,6 +64,7 @@ export const blockMember       = (id, reason) =>
 export const unblockMember     = (id) =>
   api.patch(`/members/${id}/unblock`);
 export const checkInMember     = (id)       => api.post(`/members/${id}/checkin`);
+export const checkInByBarcode  = (identifier) => api.post('/members/check-in', { identifier });
 export const getTodayCheckIns  = ()         => api.get('/members/today-checkins');
 export const uploadMemberPhoto = (id, formData) =>
   api.patch(`/members/${id}/photo`, formData, {
@@ -117,6 +118,15 @@ export const getContracts = (params) => api.get('/accounting/contracts', { param
 // ── Sales Requests ────────────────────────────────────────────────────────────
 export const getRequests         = (params) => api.get('/requests', { params });
 export const createRequest       = (memberId)   =>
-  api.post('/requests', { memberId });
+  api.post('/requests', { memberId: String(memberId) });
 export const updateRequestStatus = (id, status) =>
   api.put(`/requests/${id}/status`, { status });
+
+// ── Owner ─────────────────────────────────────────────────────────────────────
+export const changeUserRole = (id, new_role) =>
+  api.get(`/users/changerole/${id}/${encodeURIComponent(new_role)}`);
+export const getAllUsers = () => api.get('/users/receptionists');
+export const refundMember = (id, refund_amount, reason) =>
+  api.post(`/members/${id}/refund`, { memberID: id, refund_amount, reason });
+export const refundPTSessions = (id, refund_amount, reason) =>
+  api.post(`/members/${id}/refund_pt`, { memberID: id, refund_amount, reason });

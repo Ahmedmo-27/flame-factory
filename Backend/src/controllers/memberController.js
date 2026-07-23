@@ -16,12 +16,14 @@ const { writeAudit } = require("../utils/audit");
 const { nextSystemId, nextMemberId, nextSubscriptionId, isDuplicateKeyError } = require("../utils/sequence");
 const { sanitizePlainText } = require("../utils/sanitizeText");
 const { validateNoOverlappingSubscription } = require("../utils/subscriptionUtils");
+const { buildPackageSnapshot, resolveSubscriptionPackage } = require("../utils/packageSnapshot");
+const { generateBarcode } = require("../utils/barcodeHelper");
 const mongoose = require("mongoose");
 
-// ─── Helper: get current package from last subscription ───────────────────────
+// ─── Helper: get purchased package terms from last subscription ───────────────
 const getCurrentPackage = (member) => {
     if (!member.subscriptions || !member.subscriptions.length) return null;
-    return member.subscriptions[member.subscriptions.length - 1].package;
+    return resolveSubscriptionPackage(member.subscriptions[member.subscriptions.length - 1]);
 };
 
 // ─── Helper: validate sales assignee ─────────────────────────────────────────
@@ -106,11 +108,13 @@ const createMember = async (req, res) => {
 
             Object.assign(personData, {
                 memberId,
+                barcode: generateBarcode(memberId),
                 isMember: true,
                 status:   "active",
                 subscriptions: [{
                     subscriptionId,
                     package:         pkg._id,
+                    packageSnapshot: buildPackageSnapshot(pkg),
                     startDate,
                     endDate,
                     pricePaid:       pkg.price,
@@ -160,6 +164,7 @@ async function createMemberRecord(personData, maxAttempts = 5) {
                 personData.systemId = await generateSystemId();
                 if (personData.memberId != null) {
                     personData.memberId = await generateMemberId();
+                    personData.barcode = generateBarcode(personData.memberId);
                 }
                 if (personData.subscriptions?.length) {
                     personData.subscriptions[0].subscriptionId = await generateSubscriptionId();
@@ -1127,6 +1132,12 @@ const assignPackage = async (req, res) => {
 
         let packageToAssign = basePkg._id;
         let packageName = basePkg.name;
+        let snapshotSource = {
+            ...terms,
+            hasException: false,
+            free_pt_sessions: basePkg.free_pt_sessions || 0,
+            description: basePkg.description ?? null,
+        };
 
         if (packageTermsDiffer(basePkg, terms)) {
             const exceptionPkg = await Package.create({
@@ -1145,6 +1156,7 @@ const assignPackage = async (req, res) => {
             });
             packageToAssign = exceptionPkg._id;
             packageName = exceptionPkg.name;
+            snapshotSource = exceptionPkg;
         }
 
         const currentSub = member.subscriptions?.at(-1);
@@ -1180,6 +1192,10 @@ const assignPackage = async (req, res) => {
 
         if (!member.memberId) {
             member.memberId = await generateMemberId();
+            member.barcode = generateBarcode(member.memberId);
+        }
+        if (!member.barcode && member.memberId) {
+            member.barcode = generateBarcode(member.memberId);
         }
 
         member.isMember = true;
@@ -1190,6 +1206,7 @@ const assignPackage = async (req, res) => {
         member.subscriptions.push({
             subscriptionId,
             package: packageToAssign,
+            packageSnapshot: buildPackageSnapshot(snapshotSource),
             startDate: start,
             endDate,
             pricePaid: Number(pricePaid),
@@ -1809,6 +1826,127 @@ const getTodayCoachTransfers = async (req, res) => {
     }
 };
 
+
+const refund = async (req, res) => {
+    try {
+        const { memberID, refund_amount, reason } = req.body;
+
+        if (!memberID) {
+            return res.status(400).json({
+                message: "Please enter the member ID"
+            });
+        }
+
+        if (refund_amount == null || refund_amount <= 0) {
+            return res.status(400).json({
+                message: "Please enter a valid refund amount"
+            });
+        }
+
+        const member = await Member.findById(memberID);
+
+        if (!member) {
+            return res.status(404).json({
+                message: "Invalid member ID"
+            });
+        }
+
+        if (member.subscriptions.length === 0) {
+            return res.status(400).json({
+                message: "Member has no subscriptions"
+            });
+        }
+
+        const lastSubscription = member.subscriptions[member.subscriptions.length - 1];
+
+        if (refund_amount > lastSubscription.pricePaid) {
+            return res.status(400).json({
+                message: "Refund amount exceeds the amount paid"
+            });
+        }
+
+        // Store refund on the subscription — subscriptionSalePrice() subtracts it automatically
+        // so all revenue calculations (getSalesManagerRevenue, getSalesRevenue, etc.) reflect the deduction
+        lastSubscription.refundAmount = (lastSubscription.refundAmount || 0) + Number(refund_amount);
+        lastSubscription.refundReason = reason || null;
+        lastSubscription.refundedBy   = req.user.id;
+        lastSubscription.refundedAt   = new Date();
+        lastSubscription.refunded     = true;
+        member.status = "guest";
+
+
+
+        await member.save();
+
+        res.status(200).json({
+            message: "Amount refunded successfully",
+            refundAmount: lastSubscription.refundAmount,
+            member,
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+const refundPT_Sessions = async (req, res) => {
+    try {
+        const { memberID, refund_amount, reason } = req.body;
+
+        if (!memberID) {
+            return res.status(400).json({ message: "Please enter the member ID" });
+        }
+
+        if (refund_amount == null || refund_amount <= 0) {
+            return res.status(400).json({ message: "Please enter a valid refund amount" });
+        }
+
+        const member = await Member.findById(memberID);
+        if (!member) {
+            return res.status(404).json({ message: "Invalid member ID" });
+        }
+
+        if (member.pt_subscriptions.length === 0) {
+            return res.status(400).json({ message: "Member has no PT subscriptions" });
+        }
+
+        const lastSub = member.pt_subscriptions[member.pt_subscriptions.length - 1];
+        const alreadyRefunded = lastSub.refundAmount || 0;
+        const maxRefundable   = lastSub.pricePaid - alreadyRefunded;
+
+        if (refund_amount > maxRefundable) {
+            return res.status(400).json({
+                message: `Refund amount exceeds the refundable amount. Max refundable: ${maxRefundable} EGP`
+            });
+        }
+
+        lastSub.refundAmount = alreadyRefunded + Number(refund_amount);
+        lastSub.refundReason = reason || null;
+        lastSub.refundedBy   = req.user.id;
+        lastSub.refundedAt   = new Date();
+        lastSub.refunded     = true;
+        // member.userlog.push({
+        //     type: "other",
+        //     text: `PT sessions refund of ${refund_amount} EGP issued${reason ? `: ${reason}` : ""}`,
+        //     createdBy: req.user.id,
+        // });
+
+        await member.save();
+
+        res.status(200).json({
+            message: "PT sessions refund issued successfully",
+            refundAmount: lastSub.refundAmount,
+            member,
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 module.exports = {
     createMember,
     getAllMembers,
@@ -1838,5 +1976,7 @@ module.exports = {
     switchCoach,
     bulkTransferCoach,
     getTodayCoachTransfers,
-    addPT_sessions
+    addPT_sessions,
+    refund,
+    refundPT_Sessions
 };

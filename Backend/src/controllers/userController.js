@@ -16,7 +16,9 @@ const {
     buildMonthlyMap,
     memberPrice,
     getCurrentSubscription,
+    subscriptionSalePrice,
 } = require("../utils/revenueUtils");
+const { resolveSubscriptionPackage } = require("../utils/packageSnapshot");
 
 const FINANCE_ROLES = ["Sales Manager", "Owner", "Accountant"];
 const GENERIC_LOGIN_FAILURE = "Invalid email or password";
@@ -193,8 +195,8 @@ const getSalesUsers = async (req, res) => {
 const getReceptionists = async (req, res) => {
     try {
         const staff = await User.find(
-            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager"] } },
-            "name mobile_number role _id"
+            { role: { $in: ["Receptionist", "Sales", "Sales Manager", "Coach", "Coach Manager", "Accountant"] } },
+            "name mobile_number role _id email createdAt"
         ).sort({ role: 1, name: 1 });
 
         res.json({ receptionists: staff });
@@ -301,7 +303,7 @@ const getSalesManagerRevenue = async (req, res) => {
             if (!member.subscriptions?.length) return;
 
             member.subscriptions.forEach((sub) => {
-                const price = sub.pricePaid || sub.package?.price || 0;
+                const price = subscriptionSalePrice(sub);
                 if (!price) return;
 
                 // startDate is the actual sale date — never use createdAt for revenue
@@ -657,7 +659,8 @@ const getSubscriptionsByDate = async (req, res) => {
                         subscription: {
                             _id:             sub._id,
                             subscriptionId:  sub.subscriptionId,
-                            package:         sub.package,
+                            package:         resolveSubscriptionPackage(sub),
+                            packageSnapshot: sub.packageSnapshot || null,
                             startDate:       sub.startDate,
                             endDate:         sub.endDate,
                             pricePaid:       sub.pricePaid,
@@ -732,7 +735,8 @@ const getSalesMySubscriptions = async (req, res) => {
                         subscription: {
                             _id:             sub._id,
                             subscriptionId:  sub.subscriptionId,
-                            package:         sub.package,
+                            package:         resolveSubscriptionPackage(sub),
+                            packageSnapshot: sub.packageSnapshot || null,
                             startDate:       sub.startDate,
                             endDate:         sub.endDate,
                             pricePaid:       sub.pricePaid,
@@ -956,8 +960,8 @@ const updatePhonePrivacy = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (user.role !== "Sales") {
-            return res.status(400).json({ message: "Phone privacy can only be updated for Sales Representatives. Receptionists always see phone numbers." });
+        if (user.role !== "Sales" && user.role !== "Receptionist") {
+            return res.status(400).json({ message: "Phone privacy can only be updated for Sales Representatives and Receptionists." });
         }
 
         const { canViewPhones } = req.body;
@@ -985,6 +989,58 @@ const updatePhonePrivacy = async (req, res) => {
     }
 };
 
+
+const getTeamsPage = async (req, res) => {
+    try {
+        if (req.user.role !== "Owner") {
+            return res.status(403).json({
+                message: "Only the owner can view this page"
+            });
+        }
+
+        const users = await db.User.find();
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                message: "There are no users to view"
+            });
+        }
+
+        const sales = users.filter(
+            user => user.type === "Sales manager" || user.type === "Sales"
+        );
+
+        const coach = users.filter(
+            user => user.type === "Coach manager" || user.type === "Coach"
+        );
+
+        const acc = users.filter(
+            user => user.type === "Accountant"
+        );
+
+        const rece = users.filter(
+            user => user.type === "Receptionist"
+        );
+
+        res.status(200).json({
+            sales,
+            coach,
+            acc,
+            rece
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+
+
+const changeAuthorities=async (req,res)=>{
+
+};
 module.exports = {
     registerUser,
     loginUser,
@@ -1009,4 +1065,5 @@ module.exports = {
     updateCoachRepAbilities,
     getCoachTeam,
     getCoachProfile,
+    getTeamsPage,
 };

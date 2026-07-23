@@ -344,7 +344,7 @@ function SearchableSelect({
     >
       {!filtered.length ? (
         <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--t4)' }}>
-          {query.trim() ? 'No matches' : 'No packages available'}
+          {query.trim() ? 'No matches' : 'No options available'}
         </div>
       ) : filtered.map((opt, i) => {
         const active = i === cursor;
@@ -701,7 +701,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
-const AV = { sm: [28, 10], md: [36, 12], lg: [48, 16], xl: [64, 22], profile: [120, 36] };
+const AV = { sm: [28, 10], md: [36, 12], lg: [48, 16], xl: [64, 22], profile: [150, 40] };
 export function Avatar({ name = '', size = 'md', photo = null, style: ex = {} }) {
   const [sz, fs] = AV[size] ?? AV.md;
   const ini = name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';

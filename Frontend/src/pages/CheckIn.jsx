@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import usePageTitle from '../hooks/usePageTitle';
 import Layout from '../components/Layout';
 import { PageHeader, Card, CardHeader, Btn, Spinner, Badge, Avatar, fmtDate, fmtDateTime, EmptyState } from '../components/ui';
 import { checkInMember, getMemberProfile, getTodayCheckIns } from '../api/endpoints';
+import BarcodeScanner from '../components/BarcodeScanner';
 
 export default function CheckIn() {
   usePageTitle('Check In');
   const navigate = useNavigate();
+  const inputRef = useRef(null);
 
   // Search & check-in state
   const [query,     setQuery]     = useState('');
@@ -92,6 +94,7 @@ export default function CheckIn() {
               <CardHeader title="Find Member" />
               <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
                 <input
+                  ref={inputRef}
                   value={query} onChange={e => setQuery(e.target.value)}
                   placeholder="System ID, Member ID, or phone…"
                   autoFocus
@@ -109,8 +112,13 @@ export default function CheckIn() {
                 </Btn>
               </form>
               <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 8 }}>
-                Accepts system ID, member ID, or phone number.
+                Enter Member ID, scan barcode, or type phone number.
               </p>
+            </Card>
+
+            {/* Barcode Scanner */}
+            <Card>
+              <BarcodeScanner inputRef={inputRef} />
             </Card>
 
             {/* Member result */}

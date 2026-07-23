@@ -295,7 +295,7 @@ export default function WhatsAppTemplateSendModal({ open, onClose, phone, member
         </div>
       ) : templates.length === 0 ? (
         <div style={tipBox}>
-          No ready messages yet. Ask an Owner, Sales Manager, or Accountant to create templates from the <strong>WA Messages</strong> page.
+          No ready messages yet. Ask an Owner, Sales Manager, Accountant, or Coach Manager to create templates from the <strong>WA Messages</strong> page.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

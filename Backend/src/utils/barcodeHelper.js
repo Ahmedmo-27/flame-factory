@@ -1,5 +1,5 @@
 /**
- * Barcode helper for FlamFactory gym member cards.
+ * Barcode helper for Flame Factory gym member cards.
  * Format: "FF" + zero-padded memberId (6 digits) → e.g. FF000105
  * 
  * This produces a Code128-compatible alphanumeric string suitable for:
@@ -22,7 +22,7 @@ function generateBarcode(memberId) {
 }
 
 /**
- * Check if a given string looks like a FlamFactory barcode.
+ * Check if a given string looks like a Flame Factory barcode.
  * @param {string} value
  * @returns {boolean}
  */

@@ -163,6 +163,7 @@ const createWhatsAppTemplateSchema = z.object({
     defaultDiscountPercent: z.coerce.number().min(0).max(100).optional(),
     allowedRoles: z.array(z.enum([
         "Owner", "Sales Manager", "Sales", "Receptionist", "Accountant",
+        "Coach", "Coach Manager",
     ])).optional(),
     isDefault: z.preprocess(
         (v) => {

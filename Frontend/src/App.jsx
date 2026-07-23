@@ -133,7 +133,12 @@ function AppRoutes() {
         </PrivateRoute>
       } />
       <Route path="/sales/whatsapp-templates" element={
-        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant', 'Coach Manager']}>
+          <ManageWhatsAppTemplates />
+        </PrivateRoute>
+      } />
+      <Route path="/coach/whatsapp-templates" element={
+        <PrivateRoute roles={['Coach Manager']}>
           <ManageWhatsAppTemplates />
         </PrivateRoute>
       } />

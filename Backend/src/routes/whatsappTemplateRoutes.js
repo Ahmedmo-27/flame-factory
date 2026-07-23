@@ -28,21 +28,21 @@ router.post(
 router.post(
     "/",
     protect,
-    authorize("Owner", "Sales Manager", "Accountant"),
+    authorize("Owner", "Sales Manager", "Accountant", "Coach Manager"),
     validate(createWhatsAppTemplateSchema),
     createTemplate
 );
 router.patch(
     "/:id",
     protect,
-    authorize("Owner", "Sales Manager", "Accountant"),
+    authorize("Owner", "Sales Manager", "Accountant", "Coach Manager"),
     validate(updateWhatsAppTemplateSchema),
     updateTemplate
 );
 router.delete(
     "/:id",
     protect,
-    authorize("Owner", "Sales Manager", "Accountant"),
+    authorize("Owner", "Sales Manager", "Accountant", "Coach Manager"),
     deleteTemplate
 );
 

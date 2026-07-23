@@ -13,7 +13,10 @@ import {
 import { composeWhatsAppTemplateMessage } from '../../utils/whatsapp';
 
 const PAGE_SIZE = 15;
-const ROLE_OPTIONS = ['Owner', 'Sales Manager', 'Sales', 'Receptionist', 'Accountant'];
+const ROLE_OPTIONS = [
+  'Owner', 'Sales Manager', 'Sales', 'Receptionist', 'Accountant',
+  'Coach', 'Coach Manager',
+];
 
 const TYPE_CARDS = [
   {

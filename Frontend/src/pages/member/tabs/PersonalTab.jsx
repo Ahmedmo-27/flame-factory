@@ -19,11 +19,16 @@ export default function PersonalTab({ member, user, onRefresh }) {
   // Phone visibility
   const isSalesManager = user?.role === 'Sales Manager';
   const isAssignedSales = user?.role === 'Sales' && member.assignedSales?._id === user?._id;
+  const isAssignedCoach = user?.role === 'Coach' && (
+    member.current_couch?._id === user?._id || member.current_couch === user?._id
+  );
   // Privacy flag applies to both Sales and Receptionist
   const phonePrivacyRestricted = ['Sales', 'Receptionist'].includes(user?.role) && user?.canViewPhones === false;
-  const canSeePhone = !phonePrivacyRestricted && (isSalesManager || isAssignedSales || user?.role === 'Receptionist');
-  // Owner and Accountant always see phone directly, no button needed
-  const showPhoneDirectly = ['Owner', 'Accountant'].includes(user?.role);
+  const canSeePhone = !phonePrivacyRestricted && (
+    isSalesManager || isAssignedSales || isAssignedCoach || user?.role === 'Receptionist'
+  );
+  // Owner, Accountant, and Coach Manager always see phone directly, no button needed
+  const showPhoneDirectly = ['Owner', 'Accountant', 'Coach Manager'].includes(user?.role);
   const hasUsablePhone = Boolean(member.phones && member.phones !== 'hidden' && toWhatsAppUrl(member.phones));
 
   const openAssign = async () => {

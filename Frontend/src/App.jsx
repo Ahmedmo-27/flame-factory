@@ -14,6 +14,7 @@ import SalesPersonProfile from './pages/sales/SalesPersonProfile';
 import ReceptionistProfile from './pages/sales/ReceptionistProfile';
 import ManageStaff        from './pages/sales/ManageStaff';
 import ManagePackages     from './pages/sales/ManagePackages';
+import ManageWhatsAppTemplates from './pages/sales/ManageWhatsAppTemplates';
 import TargetDashboard    from './pages/sales/TargetDashboard';
 import SalesSubscriptions from './pages/sales/SalesSubscriptions';
 import SalesCallCenter    from './pages/sales/SalesCallCenter';
@@ -133,6 +134,11 @@ function AppRoutes() {
       <Route path="/sales/packages" element={
         <PrivateRoute roles={['Sales Manager', 'Owner']}>
           <ManagePackages />
+        </PrivateRoute>
+      } />
+      <Route path="/sales/whatsapp-templates" element={
+        <PrivateRoute roles={['Sales Manager', 'Owner', 'Accountant']}>
+          <ManageWhatsAppTemplates />
         </PrivateRoute>
       } />
       <Route path="/sales/targets" element={

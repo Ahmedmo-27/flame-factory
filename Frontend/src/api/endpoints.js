@@ -92,6 +92,12 @@ export const createPackage = (data)     => api.post('/packages', data);
 export const updatePackage = (id, data) => api.patch(`/packages/${id}`, data);
 export const deletePackage = (id)       => api.delete(`/packages/${id}`);
 
+// ── WhatsApp Templates ────────────────────────────────────────────────────────
+export const getWhatsAppTemplates    = (params) => api.get('/whatsapp-templates', { params });
+export const createWhatsAppTemplate  = (data) => api.post('/whatsapp-templates', data);
+export const updateWhatsAppTemplate  = (id, data) => api.patch(`/whatsapp-templates/${id}`, data);
+export const deleteWhatsAppTemplate  = (id) => api.delete(`/whatsapp-templates/${id}`);
+
 export const assignPackage       = (id, data) =>
   api.post(`/members/${id}/package`, data);
 export const addPTSessions       = (id, data) =>

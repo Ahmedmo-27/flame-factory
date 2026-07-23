@@ -3,10 +3,12 @@ import toast from 'react-hot-toast';
 import { Card, CardHeader, Btn, Modal, Select, Spinner, InfoRow, Badge, fmtDate } from '../../../components/ui';
 import { assignSales, getSalesUsers } from '../../../api/endpoints';
 import { toWhatsAppUrl, WhatsAppBtn } from '../../../utils/whatsapp';
+import WhatsAppTemplateSendModal from '../../../components/WhatsAppTemplateSendModal';
 
 export default function PersonalTab({ member, user, onRefresh }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showPhone, setShowPhone]   = useState(false);
+  const [showTemplate, setShowTemplate] = useState(false);
   const [salesUsers, setSalesUsers] = useState([]);
   const [selected, setSelected]     = useState(member.assignedSales?._id ?? '');
   const [loading, setLoading]       = useState(false);
@@ -38,12 +40,21 @@ export default function PersonalTab({ member, user, onRefresh }) {
     finally { setLoading(false); }
   };
 
+  const whatsAppActions = hasUsablePhone ? (
+    <>
+      <WhatsAppBtn phone={member.phones} />
+      <Btn variant="outline" size="xs" onClick={() => setShowTemplate(true)}>
+        Send a template message
+      </Btn>
+    </>
+  ) : null;
+
   const phoneValue = (() => {
     if (showPhoneDirectly) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: 'monospace' }}>{member.phones}</span>
-          {hasUsablePhone && <WhatsAppBtn phone={member.phones} />}
+          {whatsAppActions}
         </div>
       );
     }
@@ -51,7 +62,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Btn variant="outline" size="xs" onClick={() => setShowPhone(true)}>Show Number</Btn>
-          {hasUsablePhone && <WhatsAppBtn phone={member.phones} />}
+          {whatsAppActions}
         </div>
       );
     }
@@ -94,9 +105,23 @@ export default function PersonalTab({ member, user, onRefresh }) {
           <p style={{ fontSize: 28, fontWeight: 800, color: 'var(--t1)', letterSpacing: '1px', fontFamily: 'monospace', marginBottom: hasUsablePhone ? 16 : 0 }}>
             {member.phones}
           </p>
-          {hasUsablePhone && <WhatsAppBtn phone={member.phones} size="sm" />}
+          {hasUsablePhone && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <WhatsAppBtn phone={member.phones} size="sm" />
+              <Btn variant="outline" size="sm" onClick={() => { setShowPhone(false); setShowTemplate(true); }}>
+                Send a template message
+              </Btn>
+            </div>
+          )}
         </div>
       </Modal>
+
+      <WhatsAppTemplateSendModal
+        open={showTemplate}
+        onClose={() => setShowTemplate(false)}
+        phone={member.phones}
+        memberName={member.name}
+      />
     </>
   );
 }

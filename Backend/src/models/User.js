@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema({
         canCommentOnMembers: { type: Boolean, default: true },
         canRequestAssignment: { type: Boolean, default: true },
         canRequestTakeover: { type: Boolean, default: true },
+        canSendWhatsAppTemplates: { type: Boolean, default: true },
     }
 
 }, { timestamps: true });

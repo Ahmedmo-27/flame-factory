@@ -577,7 +577,7 @@ const updateSalesRepAbilities = async (req, res) => {
             return res.status(400).json({ message: "Abilities object is required" });
         }
 
-        const allowedKeys = ["canCommentOnMembers", "canRequestAssignment", "canRequestTakeover"];
+        const allowedKeys = ["canCommentOnMembers", "canRequestAssignment", "canRequestTakeover", "canSendWhatsAppTemplates"];
         for (const key of allowedKeys) {
             if (abilities[key] !== undefined) {
                 user.abilities[key] = Boolean(abilities[key]);

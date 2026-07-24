@@ -18,6 +18,7 @@ const ABILITIES = [
   { key: 'canCommentOnMembers',  label: 'Comment on Members',  desc: 'Can add notes to member profiles',                     icon: '💬' },
   { key: 'canRequestAssignment', label: 'Request Assignment',  desc: 'Can request to be assigned to unassigned members',     icon: '📋' },
   { key: 'canRequestTakeover',   label: 'Request Takeover',    desc: 'Can request to take over members from other reps',     icon: '🔁' },
+  { key: 'canSendWhatsAppTemplates', label: 'Send WhatsApp Templates', desc: 'Can send pre-made WhatsApp messages from member profiles', icon: '📱' },
 ];
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────

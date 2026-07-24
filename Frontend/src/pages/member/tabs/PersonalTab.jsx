@@ -30,6 +30,7 @@ export default function PersonalTab({ member, user, onRefresh }) {
   // Owner, Accountant, and Coach Manager always see phone directly, no button needed
   const showPhoneDirectly = ['Owner', 'Accountant', 'Coach Manager'].includes(user?.role);
   const hasUsablePhone = Boolean(member.phones && member.phones !== 'hidden' && toWhatsAppUrl(member.phones));
+  const canSendTemplate = user?.role !== 'Sales' || user?.abilities?.canSendWhatsAppTemplates !== false;
 
   const openAssign = async () => {
     try { const res = await getSalesUsers(); setSalesUsers(res.data.salesUsers ?? []); setSelected(member.assignedSales?._id ?? ''); }
@@ -48,9 +49,11 @@ export default function PersonalTab({ member, user, onRefresh }) {
   const whatsAppActions = hasUsablePhone ? (
     <>
       <WhatsAppBtn phone={member.phones} />
-      <Btn variant="outline" size="xs" onClick={() => setShowTemplate(true)}>
-        Send ready message
-      </Btn>
+      {canSendTemplate && (
+        <Btn variant="outline" size="xs" onClick={() => setShowTemplate(true)}>
+          Send ready message
+        </Btn>
+      )}
     </>
   ) : null;
 
@@ -113,9 +116,11 @@ export default function PersonalTab({ member, user, onRefresh }) {
           {hasUsablePhone && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <WhatsAppBtn phone={member.phones} size="sm" />
-              <Btn variant="outline" size="sm" onClick={() => { setShowPhone(false); setShowTemplate(true); }}>
-                Send ready message
-              </Btn>
+              {canSendTemplate && (
+                <Btn variant="outline" size="sm" onClick={() => { setShowPhone(false); setShowTemplate(true); }}>
+                  Send ready message
+                </Btn>
+              )}
             </div>
           )}
         </div>

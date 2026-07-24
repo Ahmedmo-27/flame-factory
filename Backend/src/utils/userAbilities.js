@@ -3,6 +3,7 @@ function resolveAbilities(user) {
         canCommentOnMembers: user.abilities?.canCommentOnMembers !== false,
         canRequestAssignment: user.abilities?.canRequestAssignment !== false,
         canRequestTakeover: user.abilities?.canRequestTakeover !== false,
+        canSendWhatsAppTemplates: user.abilities?.canSendWhatsAppTemplates !== false,
     };
 }
 
